@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Easpórtáladh cúltaca réamh-uasghrádaithe</string>
     <string name="settings_migration_backup_export_failure">Níorbh fhéidir an cúltaca réamh-uasghrádaithe a easpórtáil</string>
     <string name="settings_migration_backup_export_cleanup_required">Theip ar easpórtáil. Scrios an cúltaca páirteach easpórtáilte ón suíomh roghnaithe.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Tá gá le aird a thabhairt ar iontráil bunachar sonraí oidhreachta</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Tá do chuid bunachar sonraí bunaidh fós ar an bhfeiste seo. Déan iarracht arís an t-allmhairí Tracker a oscailt.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Grúpa bunachar sonraí oidhreachta: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Imhóráil athchúrsáilte</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Database oidhreachta allmhairithe</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Database leitheanta a scriosadh agus tosú nua</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Stairéal sonraí oidhreachta arna onnmhairí</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Ní fhéadfaí an t-eolas sonraí oidhreacht a onnmhairí</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Níor éirigh leis an onnmhairí agus ní fhéadfaí an ceann scríbe neamhaird a bhaint. Déan é a scriosadh go lámhaigh.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Seoltóir sonraí oidhreachta</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">An leagan %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Foinse leagan: %1$d\nStorage: %2$s\nImport: %3$s\nImported rows: %4$d\nRows retained only in the vault: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Úinéireacht críochnaithe: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Ní dhéantar iad a allmhairí</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Úinéireacht</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Tógáil ar ais</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Imhóradh mícheart</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">A scriosadh an bunachar sonraí oidhreacht?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Cuirfidh sé seo %1$s ar fáil go buan ón bhfeiste seo. Níl tionchar ag do chuid sonraí v27. Coinnigh an cóip onnmhairithe más gá duit an bunachar sonraí bunaidh níos déanaí.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Database oidhreachta scriosadh</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Níorbh fhéidir an bunachar sonraí leighis a scriosadh</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Ní mór aird a thabhairt ar aisghabháil rianú</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Fágann an bhailiúchán amach agus Tracker a shonraí rianála a chomhtháthraíonn go sábháilte. Déan iarracht arís gan stair a scriosadh.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Déan iarracht athchúrsáil rianála a rianú</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Tá gá le sonraí forbartha bacpéad manual</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Fuair Tracker bunachar sonraí forbartha leagan 28 nach bhfuil ag teacht leis an tógáil seo. Tá gnéithe rianála agus bunachar sonraí ar siúl amach, agus tá an comhad bunachar sonraí curtha ar shiúl gan athrú. Cúltaca do shonraí feidhmchlár nó bunachar sonraí sula n-athsholáthar nó sula n-athchóiriú tú an suiteáil forbartha seo.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Ba chóir aird a thabhairt ar an bhunachar sonraí</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Níorbh fhéidir Tracker an bunachar sonraí seo a aithint nó a cheadú go sábháilte. Tá gnéithe rianála agus bunachar sonraí ar siúl amach, agus tá an comhad bunachar sonraí curtha ar shiúl gan athrú. Cúltaca do shonraí an aip nó bunachar sonraí sula ndéanann tú iarracht athshlánú manual.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Tá an t-unachar sonraí gan fáil go sealadach</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Fágtar gnéithe rianála agus bunachar sonraí go fóill agus Tracker athchúrsáil sábháilte. Níor scriosadh aon sonraí. Déan iarracht arís anois chun a fháil amach an bhfuil an fhadhb sealadach nó an bhfadhb stórála glan.</string>
     <string name="settings_delete_data_success">Scriosadh na sonraí bailithe uile</string>
     <string name="settings_delete_data_failure">Níorbh fhéidir na sonraí bailithe uile a scriosadh</string>
     <string name="settings_game_goals_title">Spriocanna</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Ag lódáil socruithe cluiche…</string>
     <string name="settings_game_load_error">Níorbh fhéidir socruithe an chluiche a luchtú. Bain triail eile as.</string>
     <string name="settings_map_info_hint">Rialaíonn na socruithe seo cáilíocht agus feidhmíocht léirshamhlú na léarscáile. Is féidir le formhór na n-úsáideoirí na luachanna réamhshocraithe a úsáid.</string>
+    <string name="settings_map_offline_data_section">Tacaíocht ar an gcart</string>
     <string name="settings_map_online_tiles_section_title">Tíleanna léarscáile ar líne</string>
     <string name="settings_map_online_tiles_enable_title">Úsáid tíleanna léarscáile ar líne</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">As — ní úsáidtear ach an bhunléarscáil as líne atá cuachta. Gan iarratais líonra.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Saincheaptha</string>
     <string name="tracking_preset_custom_description">Coigeartaigh gach paraiméadar rianaithe de láimh</string>
     <string name="tracking_preset_selector_subtitle">Roghnaigh próifíl le tosú uaithi, ansin déan aon socrú thíos a mhionchoigeartú.</string>
+    <string name="tracking_preset_change">Déan comparáid idir roghanna</string>
+    <string name="tracking_preset_done">Ní thaispeántar ach roghnaithe</string>
     <string name="tracking_preset_customized_summary">Tá an rianú mionchoigeartaithe agat. Roghnaigh réamhshocrú thuas chun athshocrú.</string>
+    <string name="settings_tracking_section_start_stop">Rannú uathoibríoch</string>
+    <string name="settings_tracking_section_battery_detail">Cáilíocht rianála</string>
+    <string name="settings_tracking_section_data_collected">Sonraí a bhailítear</string>
     <string name="settings_tracking_section_detail">Bailiú suímh</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Cuairteanna lasmuigh (féideartha)</string>
     <string name="settings_tracking_section_notifications">Fógraí</string>
+    <string name="settings_transition_detection_friendly_title">Tuairiscáil gluaiseachta atá éifeachtach ar pháitritheoirí</string>
+    <string name="settings_transition_detection_friendly_summary">Úsáideann Android athruithe ar ghníomhaíocht chun seiceálacha tuairiscí a sheachaint go minic. Is féidir le tosaithe uathoibríoch freagairt beagán níos moille.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Níl rianú uathoibríoch ar fáil</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Tá do rogha modhanna uathoibríoch ar fáil. Is gá cead aitheantais ghníomhaíochta a fháil sula bhféadfaidh tosaithe uathoibríoch oibriú.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Roghnaigh cad atá le taifeadadh idir turais.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi Taistil lasmuigh</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Taistil lasmuigh de chill</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Ar an idirthuras.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Saoradh mar atá. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Tá clúdach lasmuigh de thuras deisúil agus is féidir le ceadanna, soláthraithe, próisis, aththosaigh, nó lochanna OS a bheith ann. Tracker ní éilíonn sé go bhfuil sé i gcónaí ar bhailiú nó nach cruthaíonn sé tréimhse coinneála.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Fágtar an t-airgead a bhailiú mar nach bhfuil an polasaí coinneála táirge ar fáil fós.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">A checking bailíocht...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Cuimsíonn an bhailiúchán go sábháilte leis an rollout reatha.</string>
+    <string name="settings_ambient_user_turned_off">Tá an rianú múchta. Coinnítear do roghanna agus do shonraí sábháilte.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Ceadaigh rochtain ar líon na gcéimeanna in Health Connect chun bearnaí i stair na gcéimeanna a líonadh nuair a bhíonn Tracker dúnta.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Ceadaigh rochtain ar líon na céimeanna i Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann rochtain Health Connect a sheiceáil. Déan iarracht arís.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Is féidir líon na gcéimeanna a iompórtáil nuair atá Tracker ar siúl. D’fhéadfadh rochtain sa chúlra bearnaí i stair na gcéimeanna a laghdú.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Níl aon soláthraí céim lá ar fad tacaithe ar fáil.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Athnuachan Health Connect ionas go mbeidh Tracker a léamh comhaireamh céimeanna.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann an soláthraí céim a sheiceáil. Déan iarracht arís níos déanaí.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Tabhair cead don ghníomhaíocht fisiciúil chun céimeanna a chomhaireamh ar an gléas seo.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Níl taifeadadh céim ar fáil ar an gléas seo.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Tá Health Connect réidh. D\'fhéadfadh go mbeadh cailleanna ann fós i roinnt tréimhse.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Tá taifeadadh céim réidh. D\'fhéadfadh go mbeadh cailleanna ann fós i roinnt tréimhse.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Tá rochtain ar shuíomh sa chúlra ag teastáil chun suíomh a thaifeadadh idir seisiúin. Ní athraíonn do shocrú taifeadta le linn seisiún.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Ní chomhlíontar ceanglais cead scannála Android ⁇ s Wi-Fi. Ní chuireann a chur ar fáil iad a chumasú Location glacadh.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Ní chomhlíonann ceanglais cead glaoch ar chluichí soghluaiste. Ní chuireann a chur ar fáil iad a chumasú Location glacadh.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Tá Passive Location réidh le haghaidh réitigh foinse-úinéir. Soláthraíonn sé pointí ócáideacha, ní leanúnacht ar an mbealach.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Tá glaonna ar ais ar thorthaí scánaithe réidh le haghaidh comhtháthú foinse-úinéir. Ní gealltar aon scánáil nó cadence wake.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Tá séalaithe callbacks a bhfuil cáilíocht acu le seampall ama réidh le haghaidh comhtháthú foinse-úinéir. Ní gealltar cadence athnuachan foréigneach.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Ní bheidh an ardán nó an soláthraí atá riachtanach ar fáil, mar sin tá an bhailiúchán ar siúl.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Saoradh amach; stádas oibríochtúil ag fanacht</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Cinntíonn ar; ar fáil oibríochta tuairiscíodh</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Rinneadh a shábháil ar; ní oibríochtúil</string>
+    <string name="settings_location_source_summary">Déan taifead ar do thuras, ar do fhad, agus ar do luas. De ghnáth an costas is mó bataraí.</string>
+    <string name="settings_activity_source_summary">Taifeadann sé siúl, rothaíocht, tiomáint agus tréimhsí gan ghluaiseacht i rith an lae.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Léiríonn céimeanna ar fud an lae. Tá an turas a eagrú an stair céimeanna céanna.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Ag seiceáil cruinniú céim.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Múch an rianú</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Ag éirí as...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Stop seisiúin, taifeadadh an lá ar fad agus tosaíonn go huathoibríoch. Fanann do roghanna agus do chuid sonraí a shábháil.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Tá an rianú múchta. Coinnítear do roghanna agus do shonraí sábháilte.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann an lorg a ghlasadh. Déan iarracht arís.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Taispeántar brú an aeir ar fud an lae le fógra rianú.</string>
+    <string name="settings_ambient_activity_ready">Réidh le gníomhaíocht a thaifeadadh.</string>
+    <string name="settings_ambient_pressure_ready">Réidh le brú an aeir a thaifeadadh.</string>
+    <string name="settings_pressure_host_unavailable">Níorbh fhéidir taifeadadh bhrú an aeir sa chúlra a thosú.</string>
+    <string name="settings_wifi_source_summary">Cuardaigh líonraí Wi-Fi in aice láimhe chun comhthéacs áitiúil a chur leis. Fágann sonraí ar an bhfeiste seo.</string>
+    <string name="settings_cell_source_summary">Cláráil clúdach gluaisteán in aice láimhe chun comhthéacs suíomh a chur leis. Fágann sonraí ar an bhfeiste seo.</string>
+    <string name="settings_location_source_compact">Rút, ar fad agus ar luas</string>
+    <string name="settings_activity_source_compact">Tír gluaiseachta agus cobhsaíocht</string>
+    <string name="settings_steps_source_compact">Céimeanna ar fud an lae</string>
+    <string name="settings_barometer_source_compact">Éadaigh agus ardú</string>
+    <string name="settings_wifi_source_compact">Comhthéacs líonra gar</string>
+    <string name="settings_cell_source_compact">Context tower nearby</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Stádas teicniúil</string>
+    <string name="settings_technical_status_summary">Measúnú ceallraí, ceadanna, agus stádas an bhailiúcháin.</string>
+    <string name="settings_technical_status_attention">Ní mór aird a thabhairt ar roinnt foinsí bhailiúcháin. Oscailte do mhionsonraí.</string>
+    <string name="settings_simple_source_controls_title">Bain úsáid as rialacháin simplí</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Rianaigh siúl agus rith go huathoibríoch.</string>
     <string name="setup_auto_tracking_in_motion">Ag gluaiseacht</string>
     <string name="setup_auto_tracking_in_motion_desc">Rianaigh gach gluaiseacht go huathoibríoch, lena n-áirítear tiomáint agus rothaíocht.</string>
-    <string name="setup_preset_title">Sonraí rianaithe</string>
+    <string name="settings_auto_tracking_mode_summary">Roghnaigh cén gluaiseacht ba chóir a thosú agus stopadh turas go huathoibríoch.</string>
     <string name="setup_recommended">Molta</string>
     <string name="setup_what_to_collect_title">Cad atá le bailiú</string>
     <string name="setup_what_to_collect_subtitle">Tá tuilleadh roghanna thíos. Tosaigh ag taiscéaladh gan cheadanna nó deonaigh iad níos déanaí. Fanann na sonraí ar an ngléas seo.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Gníomhaíocht</string>
     <string name="setup_source_activity_desc">Braith an bhfuil tú ag siúl, ag rith, ag rothaíocht nó ag tiomáint.</string>
     <string name="setup_source_steps">Céimeanna</string>
-    <string name="setup_source_steps_desc">Comhair do chéimeanna le céimiméadar an ghléis.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Léigh céimeanna ar fud an lae. Tá an stair céanna ag an turas.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Níl aon scáthán céim dhíreach. Déanfar Tracker seiceáil ar fhoinse chéim ar an gléas.</string>
+    <string name="setup_perm_steps_why">Ceadaigh rochtain ar ghluaiseacht chun céimeanna a chomhaireamh ar an ngléas seo i rith an lae.</string>
+    <string name="setup_perm_grant_steps_content_description">Ceadaigh rochtain ar ghluaiseacht do Chéimeanna</string>
+    <string name="setup_steps_health_connect_why">Ceadaigh Céimeanna in Health Connect chun bearnaí a líonadh nuair atá Tracker dúnta.</string>
+    <string name="setup_steps_provider_ready">Tá foinse céimeanna ar an ngléas réidh. D\'fhéadfadh bearnaí a bheith i roinnt tréimhsí fós.</string>
+    <string name="setup_steps_provider_checking">Foinsí céimeanna atá ar fáil á seiceáil…</string>
     <string name="setup_source_wifi">Líonraí Wi‑Fi</string>
-    <string name="setup_source_wifi_desc">Taifead líonraí Wi‑Fi in aice láimhe chun cruinneas suímh a fheabhsú.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Déan clárú ar líonraí Wi-Fi in aice láimhe, le nó gan rianú suíomh.</string>
     <string name="setup_source_cell">Túir cheallacha</string>
-    <string name="setup_source_cell_desc">Taifead faisnéis túir cheallaigh le haghaidh comhthéacs suímh.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Cláráil clúdach cealla in aice láimhe, le nó gan rianú suíomh.</string>
     <string name="setup_perm_location_why">Riachtanach chun do bhealaí a thaifeadadh agus iad a thaispeáint ar an léarscáil. Fanann an suíomh ar an ngléas seo — ní sheoltar aon ní chuig freastalaí.</string>
     <string name="setup_perm_location_bg_why">Chun do bhealach a thaifeadadh nuair a athraíonn tú aipeanna nó nuair a mhúchann an scáileán, teastaíonn rochtain ar do shuíomh sa chúlra ó Tracker. Fanann an suíomh taifeadta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí. Ag an gcéad leid chórais eile, roghnaigh "Ceadaigh an t-am ar fad" chun rianú uathoibríoch a chumasú; coinníonn "Agus an aip in úsáid" Tracker ag obair ach nuair atá a scáileán oscailte.</string>
     <string name="setup_perm_activity_why">Ligeann sé do Tracker a bhrath cad atá á dhéanamh agat (ag siúl, ag rothaíocht, ag tiomáint nó gan ghluaiseacht) ionas gur féidir le rianú uathoibríoch sos a ghlacadh nuair nach bhfuil tú ag gluaiseacht agus ceallra a shábháil. Fanann sonraí gníomhaíochta ar an ngléas seo — ní sheoltar aon ní chuig freastalaí.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Deonaigh cead raidió cille</string>
     <string name="setup_perm_granted">Deonaithe ✓</string>
     <string name="permission_grant_in_settings">Ceadaigh i Socruithe →</string>
-    <string name="permission_disabled_due_to_denial">Díchumasaíodh %1$s mar diúltaíodh cead. Deonaigh i Socruithe chun é a chumasú.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">Roghnaítear %1$s ach ní féidir é a bhailiú go dtí go n-ordóidh cead.</string>
     <string name="settings_wifi_permission_required">Teastaíonn cead Wi‑Fi/suímh. Cas air chun é a dheonú — ní thaifeadtar sonraí Wi‑Fi go dtí sin, agus fanann sonraí taifeadta ar an ngléas seo.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Tá rochtain riachtanach fós. Tá do rogha á choimeád.</string>
     <string name="settings_cell_permission_required">Teastaíonn cead staid ghutháin agus suímh bheachta. Cas air chun é a dheonú — ní thaifeadtar sonraí cille go dtí sin, agus fanann sonraí taifeadta ar an ngléas seo.</string>
     <string name="settings_barometer_unavailable">Níl braiteoir brú ar fáil ar an ngléas seo.</string>
     <string name="settings_activity_permission_required">Teastaíonn cead aithinte gníomhaíochta. Cas air chun é a dheonú.</string>
-    <string name="settings_steps_unavailable">Níl braiteoir comhairimh céimeanna ar fáil ar an ngléas seo.</string>
     <string name="setup_start_exploring">Tosaigh ag taiscéaladh</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Críochnú suiteáil...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Bain triail eile as</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann a shábháil suiteáil. Tá do roghanna fós anseo.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann sonraí a shábháil a ullmhú. Tá do roghanna fós anseo.</string>
     <string name="setup_continue">Lean ar aghaidh</string>
     <string name="setup_step_indicator">Céim %1$d de %2$d</string>
     <string name="setup_online_tiles_title">Tíleanna léarscáile ar líne?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Nuair atá sé cumasaithe, is féidir leis an soláthraí do sheoladh IP agus na tíleanna a lódálann tú a fheiceáil — go garbh, cén limistéar den léarscáil atá á fheiceáil agat. Ní sheolann Tracker cuntas, aitheantas ná stair suímh riamh.</string>
     <string name="setup_online_tiles_change_later">Is féidir leat é seo a athrú am ar bith i Socruithe → Léarscáil → Tíleanna léarscáile ar líne.</string>
     <string name="setup_background_access_optional">Roghnach, ach molta. Is féidir leat é seo a athrú am ar bith i Socruithe → Rianú.</string>
-    <string name="background_reliability_status_exempt">Ceadaítear gníomhaíocht sa chúlra</string>
-    <string name="background_reliability_status_optimized">Tá barrfheabhsú ceallra ar siúl</string>
-    <string name="background_reliability_allow_action">Ceadaigh gníomhaíocht sa chúlra</string>
-    <string name="background_reliability_samsung_hint">D’fhéadfadh gléasanna Samsung aipeanna a chur i "Aipeanna codlata" freisin. Oscail socruithe ceallra, bain Tracker ó Aipeanna codlata agus socraigh gan é a chur a chodladh.</string>
-    <string name="background_reliability_samsung_action">Oscail socruithe ceallra an ghléis</string>
-    <string name="settings_tracebox_title">Diagnóisic tuairteála</string>
-    <string name="settings_tracebox_root_summary">Diagnóisic áitiúil maidir le tuairteanna, ANR agus struchtúr</string>
     <string name="setup_background_location_title">Ceadaigh suíomh sa chúlra don rianú uathoibríoch</string>
     <string name="setup_background_location_disclosure">Tosaíonn rianú uathoibríoch agus Tracker sa chúlra agus taifeadann sé do bhealach fiú nuair nach bhfuil scáileán na haipe oscailte. Fanann sonraí suímh ar an ngléas seo. I socruithe suímh na haipe, roghnaigh “%1$s”.</string>
     <string name="setup_background_location_open_settings">Oscail socruithe suímh</string>
     <string name="setup_background_location_decline">Ní anois</string>
     <string name="setup_background_location_manual_only">Beidh rianú láimhe sa tulra ar fáil fós. Fanfaidh rianú suímh uathoibríoch múchta go dtí go gceadófar suíomh sa chúlra.</string>
-    <string name="settings_ambient_user_turned_off">Tá an rianú múchta. Coinnítear do roghanna agus do shonraí sábháilte.</string>
-    <string name="setup_perm_steps_why">Ceadaigh rochtain ar ghluaiseacht chun céimeanna a chomhaireamh ar an ngléas seo i rith an lae.</string>
-    <string name="setup_perm_grant_steps_content_description">Ceadaigh rochtain ar ghluaiseacht do Chéimeanna</string>
-    <string name="setup_steps_health_connect_why">Ceadaigh Céimeanna in Health Connect chun bearnaí a líonadh nuair atá Tracker dúnta.</string>
-    <string name="setup_steps_provider_ready">Tá foinse céimeanna ar an ngléas réidh. D\'fhéadfadh bearnaí a bheith i roinnt tréimhsí fós.</string>
-    <string name="setup_steps_provider_checking">Foinsí céimeanna atá ar fáil á seiceáil…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Cinntíonna rianú cúlra</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android agus polasaí an fheiste is féidir leis an obair ar chruth a chur ar stad nó a stopadh. Is féidir le Tracker tuairisc a thuairisciú faoi srianta Android a nochtann, ach ní féidir leis an stádas srianta nó stopadh foréigneach a chur thar.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Réitigh cúlra a bhrath</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Baintear in iúl go bhfuil an t-oideas bataraí</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Ní fhaightear aon srianta</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Staidéal srianta nach bhfuil ar fáil</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Deir Android go bhfuil gníomhaíocht bunaidh teoranta. D\'fhéadfadh stop a chur le rianú nuair nach bhfuil Tracker le feiceáil; ní féidir leis an aip an polasaí seo a chur ar aghaidh.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Deir Android nach bhfuil Tracker ar an liosta ceadúnaithe ceallraí. Is féidir le bainistiú cumhachta obair chúlra a mhoill; laghdaíonn liosta ceadanna srianta ach ní ráthaíonn sé rianú leanúnach.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Ní thugann Android aon srianta ar chúlra agus tá Tracker ar an liosta ceadúnais ceallraí. Is féidir leis an gcóras an aip a stopadh fós, agus ní féidir an stop fórsa a chur ar aghaidh.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Ní raibh Tracker in ann gach comhartha srianta ábhartha Android a léamh. Ní féidir aon chúis nó leigheas ar leith a dhearbhú.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Ag bun le socruithe ceallraí an aip</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Cinntíocht uasghrádú bataraí oscailte</string>
+    <string name="settings_tracebox_title">Diagnóisic tuairteála</string>
+    <string name="settings_tracebox_root_summary">Diagnóisic áitiúil maidir le tuairteanna, ANR agus struchtúr</string>
     <string name="settings_tracking_changes_apply_live">Nuashonraíonn athruithe an rianú reatha</string>
     <string name="settings_balance_title">Cumhacht agus mionsonraí</string>
     <string name="settings_balance_custom">Socruithe saincheaptha · Roghnaigh cothromaíocht</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Mionsonraí · Cothromaíocht iomlán: %1$s</string>
     <string name="settings_balance_inherit">Úsáid an chothromaíocht iomlán</string>
     <string name="settings_balance_summary">Roghnaigh an ghnáthcháilíocht do na foinsí roghnaithe. Tugann seisiúin ghníomhacha tús áite do mhionsonraí sna foinsí rannpháirteacha. Tagann cothromaíocht roghnaithe in áit na seanrátaí bailithe; coinneofar roghanna foinsí, toiliú bailithe sa chúlra agus scagairí cruinnis.</string>
-    <string name="export_format_portable_steps_desc">Stair céimeanna fíoraithe, clúdach agus bearnaí gan comhordanáidí bealaigh</string>
-    <string name="export_format_portable_ambient_steps_desc">Céimeanna sa chúlra, am gníomhaíochta, dátaí, bearnaí clúdaigh agus crios ama sábháilte gan comhordanáidí bealaigh</string>
-    <string name="export_format_portable_activity_desc">Tréimhsí gluaiseachta taifeadta, muinín agus clúdach gan comhordanáidí bealaigh</string>
-    <string name="export_format_portable_pressure_desc">Tomhais dhíreacha brú in hPa, clúdach agus bearnaí gan comhordanáidí bealaigh</string>
-    <string name="export_sensitivity_portable_title">Easpórtáil an stair thaifeadta?</string>
-    <string name="export_sensitivity_portable_steps_message">Tá comhaireamh céimeanna, tréimhsí ama agus eolas clúdaigh sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Tá céimeanna sa chúlra, tréimhsí gníomhaíochta, dátaí, bearnaí clúdaigh agus crios ama sábháilte sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
-    <string name="export_sensitivity_portable_activity_message">Tá tréimhsí gluaiseachta taifeadta, tréimhsí ama agus eolas clúdaigh sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
-    <string name="export_sensitivity_portable_pressure_message">Tá tomhais brú agus tréimhsí ama sa chomhad seo a d\'fhéadfadh eolas faoin timpeallacht a nochtadh. Níl comhordanáidí bealaigh ná airde chalabraithe ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
-    <string name="settings_activity_source_summary">Taifeadann sé siúl, rothaíocht, tiomáint agus tréimhsí gan ghluaiseacht i rith an lae.</string>
-    <string name="settings_ambient_activity_ready">Réidh le gníomhaíocht a thaifeadadh.</string>
-    <string name="settings_ambient_pressure_ready">Réidh le brú an aeir a thaifeadadh.</string>
-    <string name="settings_pressure_host_unavailable">Níorbh fhéidir taifeadadh bhrú an aeir sa chúlra a thosú.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Atosaigh an rianú</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann leanúint ar aghaidh ag lorg. Déan iarracht arís.</string>
 </resources>

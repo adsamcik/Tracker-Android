@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Escapa de cada radio de explosión virtual antes de que se agote su mecha</string>
     <string name="minigame_switchback_name">Zigzag</string>
     <string name="minigame_switchback_description">Traza giros alternos y cerrados para crear un combo de fluidez</string>
-    <string name="minigame_locked">Se desbloquea en el nivel %1$d</string>
     <string name="game_play_section_title">Jugar</string>
     <string name="game_progress_section_title">Progreso</string>
     <string name="minigame_outrun_goal_line">Mantén una ventaja de 25–100 m sobre el fantasma</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">¡%1$s! ¡Alcanzaste tu objetivo %2$s!</string>
     <string name="goals_daily_goal">diario</string>
     <string name="goals_weekly_goal">semanal</string>
-    <string name="goals_monthly_goal">mensual</string>
     <string name="game_steps_goals_title">Objetivos de pasos</string>
     <string name="game_step_sensor_unavailable">Sensor de pasos no disponible</string>
     <string name="game_step_sensor_unavailable_detail">Este dispositivo no tiene sensor de recuento de pasos. No se pueden registrar objetivos de pasos.</string>

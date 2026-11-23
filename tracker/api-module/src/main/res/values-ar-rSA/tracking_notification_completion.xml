@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">الموقع طوال اليوم</string>
-    <string name="notification_background_location_text">جمع الموقع التكيفي مفعّل. افتح Tracker لإدارته.</string>
     <string name="settings_notification_unsaved_exit">أعِد المحاولة لحفظ تغييراتك، أو غادر دون حفظ.</string>
     <string name="settings_notification_leave_without_saving">المغادرة دون حفظ</string>
     <string name="notification_background_collection_title">التتبع في الخلفية</string>

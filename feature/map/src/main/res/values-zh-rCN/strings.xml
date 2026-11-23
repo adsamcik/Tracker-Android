@@ -127,7 +127,6 @@
     <string name="settings_map_zoom_buttons_subtitle">在屏幕上显示 + 和 − 按钮以缩放地图，适用于难以使用双指缩放的情况。</string>
     <string name="tips_map_date_range_title">日期范围</string>
     <string name="tips_map_my_location_title">我的位置</string>
-    <string name="tips_map_sheet_description">点按或向上拉动此栏可打开更多地图选项，包括图层选择和图例。</string>
     <string name="map_search_placeholder">纬度、经度，例如 50.075, 14.437</string>
     <string name="map_search_invalid_format">可尝试 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51′24″N 2°21′08″E</string>
     <string name="map_search_clear">清除搜索</string>

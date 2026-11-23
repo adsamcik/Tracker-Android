@@ -186,16 +186,14 @@ class ImportWorker @AssistedInject constructor(
 	private fun finishImport(importResult: ImportResult): Result {
 		showNotification(context.buildNotificationText(importResult), false)
 		if (importResult.failedCount > 0) {
-			showErrorNotification(
-				importResult.errors.singleOrNull()
-					?.takeIf {
-						it == DatabaseImportFailure.TrackerDatabaseRestoreRequired.message
-					}
-					?: context.getString(
-						R.string.import_notification_error_records_failed,
-						importResult.failedCount,
-					),
-			)
+			val restoreRequired = DatabaseImportFailure.TrackerDatabaseRestoreRequired.message
+			val message = when {
+				restoreRequired in importResult.errors -> restoreRequired
+				DatabaseImportFailure.UnsupportedRawDatabase.message in importResult.errors ->
+					context.getString(R.string.import_notification_error_database_use_exports)
+				else -> context.getString(R.string.import_notification_error_records_failed, importResult.failedCount)
+			}
+			showErrorNotification(message)
 		}
 		return importWorkerResult(importResult)
 	}

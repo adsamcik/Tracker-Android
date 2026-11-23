@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Sessie afronden…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · gedeeltelijk</string>
     <string name="dashboard_title">Overzicht</string>
     <string name="dashboard_tracking_title">Locatietracking</string>
     <string name="dashboard_recording">Vastleggen</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Reeks: %1$d dagen. Tik om de reeksdetails te bekijken</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Begin een reeks. Tik om de reeksdetails te bekijken</string>
-    <string name="dashboard_cd_stop_tracking">Tracking stoppen</string>
     <string name="dashboard_action_enable_location">Locatietoegang inschakelen</string>
     <string name="dashboard_action_view_details">Details bekijken</string>
     <string name="dashboard_action_view_map">Kaart bekijken</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Permanent opgeslagen stappengeschiedenis wordt voorbereid…</string>
     <string name="dashboard_live_steps_missing">Wachten op een geldige stapwaarneming</string>
     <string name="dashboard_live_steps_unavailable">Permanent opgeslagen stappengeschiedenis is niet beschikbaar</string>
+    <string name="dashboard_metric_pressure">Druk</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Bereik %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Verandering %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Opgeslagen tijdzone: %1$s</string>
     <string name="dashboard_milestone_distance">km bereikt!</string>
     <string name="dashboard_milestone_steps">stappen bereikt!</string>
     <string name="dashboard_milestone_time">min bijgehouden!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Laatste sessie</string>
     <string name="dashboard_last_session_duration">Duur</string>
     <string name="dashboard_last_session_distance">Afstand</string>
-    <string name="dashboard_last_session_steps">Stappen</string>
     <string name="dashboard_last_session_view_map">Kaart bekijken</string>
     <string name="dashboard_recent_trips_title">Recente tracking</string>
     <string name="dashboard_recent_trips_empty">Geen recente trackingsessies. Start tracking om ze hier te zien.</string>
     <string name="dashboard_recent_history_loading">Recente tracking laden…</string>
     <string name="dashboard_recent_history_unavailable">Recente tracking is niet beschikbaar</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s geschiedenis niet beschikbaar</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Autoriteit voor de recente bron is niet beschikbaar</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">De bewaarde bron-bewijs snapshot is niet beschikbaar</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">De beperkte bron geschiedenis lezen kon niet veilig eindigen</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Gehouden brongeschiedenis mislukte integriteitscontroles</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Fysieke geschiedenis lidmaatschap niet geverifieerd</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Locatie</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Cel</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Activiteit</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Stappen</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Druk</string>
     <string name="dashboard_recent_steps_title">Stappensessie</string>
     <string name="dashboard_recent_steps_available">Stappengeschiedenis beschikbaar</string>
     <string name="dashboard_recent_steps_materializing">Stappengeschiedenis voorbereiden…</string>
     <string name="dashboard_recent_steps_partial">Gedeeltelijke stappengeschiedenis</string>
+    <string name="dashboard_recent_pressure_title">Druksessie</string>
+    <string name="dashboard_recent_pressure_available">Drukgeschiedenis beschikbaar</string>
+    <string name="dashboard_recent_pressure_materializing">Drukgeschiedenis voorbereiden…</string>
+    <string name="dashboard_recent_pressure_partial">Gedeeltelijke drukgeschiedenis</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Verwijderde drukgeschiedenis</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">De drukgeschiedenis kon niet worden geverifieerd.</string>
+    <string name="dashboard_recent_pressure_unavailable">Drukgeschiedenis niet beschikbaar</string>
+    <string name="dashboard_recent_pressure_failed">Drukgeschiedenis kon niet worden voorbereid</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · bereik %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Verandering %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Geen bewaarde dekking</string>
+    <string name="dashboard_pressure_coverage_complete">Volledige dekking</string>
+    <string name="dashboard_pressure_coverage_partial">Gedeeltelijke dekking</string>
+    <string name="dashboard_pressure_coverage_unknown">Dekking niet beschikbaar</string>
+    <string name="dashboard_recent_activity_title">Activiteitssessie</string>
+    <string name="dashboard_recent_activity_ready">Activiteitsgeschiedenis beschikbaar</string>
+    <string name="dashboard_recent_activity_materializing">Activiteitsgeschiedenis voorbereiden…</string>
+    <string name="dashboard_recent_activity_partial">Gedeeltelijke activiteitsgeschiedenis</string>
+    <string name="dashboard_recent_activity_unavailable">Activiteitsgeschiedenis niet beschikbaar</string>
+    <string name="dashboard_recent_activity_failed">Activiteitsgeschiedenis kon niet worden geverifieerd</string>
+    <string name="dashboard_recent_activity_summary">%1$s · actieve tijd %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi sessie</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Cell sessie</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Gevangen Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Gevangen mobiele radio</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Bronnen in deze sessie</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Locatie is niet vastgelegd in deze sessie. Route, afstand, snelheid en hoogte zijn niet beschikbaar.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Geverifieerde geschiedenis %1$s is niet beschikbaar.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Gevangen op dit apparaat</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Geïmporteerde bewaarde bewijsstukken</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Het voorbereiden van de vastgehouden radiohistorie...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Deeltjes bewaard gebleven radiohistorie</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Beschermd radiohistorie beschikbaar</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Radio geschiedenis niet beschikbaar</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Geen gekwalificeerd bewaard gebleven radiobewijs</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Gehouden radiohistorie verwijderd</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">De radiohistorie kon niet worden geverifieerd.</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">De integriteitscontrole van de radiohistorie is gefaald .</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Geen geverifieerde dekking</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Deeltjes geverifieerde dekking</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Volledige geverifieerde dekking</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Dekking niet beschikbaar</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Wachtend op bewaarde radiobewakingen</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Er zijn geen bewaarde radiobeschouwingen beschikbaar</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">De bewaarde bronbewijzen werden verwijderd</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Gehouden bewijsmateriaal kan niet veilig worden ingediend</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Locatie, route, afstand, snelheid en hoogte maken geen deel uit van deze brongeschiedenis.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d bewaard gebleven scanresultaat</item>
+        <item quantity="other">%1$d bewaarde scanresultaten</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d bewaard gebleven radiorecord</item>
+        <item quantity="other">%1$d bewaarde radiorecords</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d verzorging</item>
+        <item quantity="other">%1$d aanhoudende leveringen</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d levering heeft gedeeltelijke resultaten</item>
+        <item quantity="other">%1$d leveringen hebben gedeeltelijke resultaten</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Vastgelegde activiteit</string>
+    <string name="dashboard_live_activity_movement">Laatst vastgelegde beweging</string>
+    <string name="dashboard_live_activity_active_time">Actieve tijd</string>
+    <string name="dashboard_live_activity_gaps">Bekende hiaten: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Geen geverifieerde dekking</string>
+    <string name="dashboard_activity_coverage_partial">Gedeeltelijke dekking</string>
+    <string name="dashboard_activity_coverage_complete">Volledige dekking</string>
+    <string name="dashboard_activity_still">Stilstaand</string>
+    <string name="dashboard_activity_walking">Wandelen</string>
+    <string name="dashboard_activity_running">Hardlopen</string>
+    <string name="dashboard_activity_cycling">Fietsen</string>
+    <string name="dashboard_activity_vehicle">In voertuig</string>
+    <string name="dashboard_activity_on_foot">Te voet</string>
+    <string name="dashboard_activity_tilting">Kantelen</string>
+    <string name="dashboard_activity_unknown">Onbekende activiteit</string>
     <string name="dashboard_exploration_title">Verkenning</string>
     <string name="dashboard_exploration_new_today">Nieuw vandaag</string>
     <string name="dashboard_exploration_total_cells">Totaal aantal cellen</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Tracking starten</string>
     <string name="dashboard_ring_enable_location">Locatie inschakelen</string>
     <string name="dashboard_pill_start">Starten</string>
-    <string name="dashboard_pill_stop">Stoppen</string>
     <string name="dashboard_pill_enable_location">Locatie inschakelen</string>
     <string name="dashboard_insights_title">Sessie-inzichten</string>
     <string name="dashboard_cd_insight_item">Inzicht: %1$s</string>
     <string name="widget_latest_achievement">Laatste prestatie</string>
     <string name="dashboard_latest_achievement_title">Laatste prestatie</string>
     <string name="dashboard_latest_achievement_empty">Blijf tracken om je eerste prestatie vrij te spelen</string>
-    <string name="dashboard_metric_pressure">Druk</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Bereik %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Verandering %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Opgeslagen tijdzone: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Druksessie</string>
-    <string name="dashboard_recent_pressure_available">Drukgeschiedenis beschikbaar</string>
-    <string name="dashboard_recent_pressure_materializing">Drukgeschiedenis voorbereiden…</string>
-    <string name="dashboard_recent_pressure_partial">Gedeeltelijke drukgeschiedenis</string>
-    <string name="dashboard_recent_pressure_unavailable">Drukgeschiedenis niet beschikbaar</string>
-    <string name="dashboard_recent_pressure_failed">Drukgeschiedenis kon niet worden voorbereid</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · bereik %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Verandering %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Geen bewaarde dekking</string>
-    <string name="dashboard_pressure_coverage_complete">Volledige dekking</string>
-    <string name="dashboard_pressure_coverage_partial">Gedeeltelijke dekking</string>
-    <string name="dashboard_pressure_coverage_unknown">Dekking niet beschikbaar</string>
-    <string name="dashboard_recent_activity_title">Activiteitssessie</string>
-    <string name="dashboard_recent_activity_ready">Activiteitsgeschiedenis beschikbaar</string>
-    <string name="dashboard_recent_activity_materializing">Activiteitsgeschiedenis voorbereiden…</string>
-    <string name="dashboard_recent_activity_partial">Gedeeltelijke activiteitsgeschiedenis</string>
-    <string name="dashboard_recent_activity_unavailable">Activiteitsgeschiedenis niet beschikbaar</string>
-    <string name="dashboard_recent_activity_failed">Activiteitsgeschiedenis kon niet worden geverifieerd</string>
-    <string name="dashboard_recent_activity_summary">%1$s · actieve tijd %2$s</string>
-    <string name="dashboard_live_activity_title">Vastgelegde activiteit</string>
-    <string name="dashboard_live_activity_movement">Laatst vastgelegde beweging</string>
-    <string name="dashboard_live_activity_active_time">Actieve tijd</string>
-    <string name="dashboard_live_activity_gaps">Bekende hiaten: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Geen geverifieerde dekking</string>
-    <string name="dashboard_activity_coverage_partial">Gedeeltelijke dekking</string>
-    <string name="dashboard_activity_coverage_complete">Volledige dekking</string>
-    <string name="dashboard_activity_still">Stilstaand</string>
-    <string name="dashboard_activity_walking">Wandelen</string>
-    <string name="dashboard_activity_running">Hardlopen</string>
-    <string name="dashboard_activity_cycling">Fietsen</string>
-    <string name="dashboard_activity_vehicle">In voertuig</string>
-    <string name="dashboard_activity_on_foot">Te voet</string>
-    <string name="dashboard_activity_tilting">Kantelen</string>
-    <string name="dashboard_activity_unknown">Onbekende activiteit</string>
-    <string name="dashboard_finishing_session">Sessie afronden…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Invoerstappen</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Vertoon %1$d opname</item>
+        <item quantity="other">Toon %1$d opnames</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Verberg de opname %1$d</item>
+        <item quantity="other">Verberg %1$d opnames</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Opname %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s stappen</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Ten minste %1$s stappen</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Stapjes niet beschikbaar</string>
 </resources>

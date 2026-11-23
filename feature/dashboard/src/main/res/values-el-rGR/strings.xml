@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Ολοκλήρωση συνεδρίας…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · μερικώς</string>
     <string name="dashboard_title">Πίνακας ελέγχου</string>
     <string name="dashboard_tracking_title">Καταγραφή</string>
     <string name="dashboard_recording">Γίνεται καταγραφή</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Σειρά: %1$d ημέρες. Πατήστε για προβολή λεπτομερειών σειράς</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Ξεκινήστε μια σειρά. Πατήστε για προβολή λεπτομερειών σειράς</string>
-    <string name="dashboard_cd_stop_tracking">Διακοπή καταγραφής</string>
     <string name="dashboard_action_enable_location">Ενεργοποίηση πρόσβασης τοποθεσίας</string>
     <string name="dashboard_action_view_details">Προβολή λεπτομερειών</string>
     <string name="dashboard_action_view_map">Προβολή χάρτη</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Προετοιμασία μόνιμα αποθηκευμένου ιστορικού βημάτων…</string>
     <string name="dashboard_live_steps_missing">Αναμονή για έγκυρη παρατήρηση βημάτων</string>
     <string name="dashboard_live_steps_unavailable">Το μόνιμα αποθηκευμένο ιστορικό βημάτων δεν είναι διαθέσιμο</string>
+    <string name="dashboard_metric_pressure">Πίεση</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Εύρος %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Μεταβολή %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Αποθηκευμένη ζώνη ώρας: %1$s</string>
     <string name="dashboard_milestone_distance">km συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_steps">βήματα συμπληρώθηκαν!</string>
     <string name="dashboard_milestone_time">λεπτά καταγραφής!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Τελευταία συνεδρία</string>
     <string name="dashboard_last_session_duration">Διάρκεια</string>
     <string name="dashboard_last_session_distance">Απόσταση</string>
-    <string name="dashboard_last_session_steps">Βήματα</string>
     <string name="dashboard_last_session_view_map">Προβολή χάρτη</string>
     <string name="dashboard_recent_trips_title">Πρόσφατη καταγραφή</string>
     <string name="dashboard_recent_trips_empty">Δεν υπάρχουν πρόσφατες συνεδρίες καταγραφής. Ξεκινήστε καταγραφή για να εμφανιστούν εδώ.</string>
     <string name="dashboard_recent_history_loading">Φόρτωση πρόσφατης καταγραφής…</string>
     <string name="dashboard_recent_history_unavailable">Η πρόσφατη καταγραφή δεν είναι διαθέσιμη</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s ιστορικό δεν είναι διαθέσιμο</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Απαγορεύεται η έγκριση της πρόσφατης προέλευσης</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Η διατηρημένη στιγμιαία εικόνα απόδειξης προέλευσης δεν διατίθεται</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Το περιθωριοποιημένο ιστορικό προέλευσης δεν μπορούσε να τελειώσει με ασφάλεια</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Διατηρημένο ιστορικό πηγής απέτυχε να ελέγξει την ακεραιότητα</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Δεν μπόρεσαν να επαληθευθούν τα στοιχεία φυσικού ιστορικού</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Τοποθεσία</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Δίκτυο κινητής</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Δραστηριότητα</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Βήματα</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Ατμοσφαιρική πίεση</string>
     <string name="dashboard_recent_steps_title">Συνεδρία βημάτων</string>
     <string name="dashboard_recent_steps_available">Το ιστορικό βημάτων είναι διαθέσιμο</string>
     <string name="dashboard_recent_steps_materializing">Προετοιμασία ιστορικού βημάτων…</string>
     <string name="dashboard_recent_steps_partial">Μερικό ιστορικό βημάτων</string>
+    <string name="dashboard_recent_pressure_title">Συνεδρία πίεσης</string>
+    <string name="dashboard_recent_pressure_available">Ιστορικό πίεσης διαθέσιμο</string>
+    <string name="dashboard_recent_pressure_materializing">Προετοιμάζεται το ιστορικό πίεσης…</string>
+    <string name="dashboard_recent_pressure_partial">Μερικό ιστορικό πίεσης</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Χρηματολόγιο πίεσης διαγραφής</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Δεν ήταν δυνατόν να επαληθευθεί η ιστορική πίεση</string>
+    <string name="dashboard_recent_pressure_unavailable">Ιστορικό πίεσης μη διαθέσιμο</string>
+    <string name="dashboard_recent_pressure_failed">Δεν ήταν δυνατό να προετοιμαστεί το ιστορικό πίεσης</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · εύρος %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Μεταβολή %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Δεν υπάρχει αποθηκευμένη κάλυψη</string>
+    <string name="dashboard_pressure_coverage_complete">Πλήρης κάλυψη</string>
+    <string name="dashboard_pressure_coverage_partial">Μερική κάλυψη</string>
+    <string name="dashboard_pressure_coverage_unknown">Η κάλυψη δεν είναι διαθέσιμη</string>
+    <string name="dashboard_recent_activity_title">Συνεδρία δραστηριότητας</string>
+    <string name="dashboard_recent_activity_ready">Ιστορικό δραστηριότητας διαθέσιμο</string>
+    <string name="dashboard_recent_activity_materializing">Προετοιμάζεται το ιστορικό δραστηριότητας…</string>
+    <string name="dashboard_recent_activity_partial">Μερικό ιστορικό δραστηριότητας</string>
+    <string name="dashboard_recent_activity_unavailable">Ιστορικό δραστηριότητας μη διαθέσιμο</string>
+    <string name="dashboard_recent_activity_failed">Δεν ήταν δυνατό να επαληθευτεί το ιστορικό δραστηριότητας</string>
+    <string name="dashboard_recent_activity_summary">%1$s · ενεργός χρόνος %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi συνεδρίαση</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Συνεδρία κυττάρων</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Αιχμαλωτίστηκε Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Καταληγμένο κινητό ραδιόφωνο</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Πηγές σε αυτή τη συνεδρίαση</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Η τοποθεσία δεν καταγράφεται σε αυτή τη συνεδρίαση. Ο δρόμος, η απόσταση, η ταχύτητα και το ύψος δεν είναι διαθέσιμα.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Επιστευόμενη ιστορική %1$s δεν είναι διαθέσιμη.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Καταλήφθηκε σε αυτή τη συσκευή.</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Εισαγόμενα αποδεικτικά στοιχεία</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Προετοιμάζοντας το ιστορικό του ραδιοφώνου...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Εν μέρει διατηρημένο ιστορικό ραδιοφώνου</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Διατηρηθεί διαθέσιμο ιστορικό ραδιοφώνου</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Ιστορικό ραδιοφώνου διαλειπόμενο</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Καμία επαρκής ραδιοεπιβεβαίωση που διατηρείται</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Διατηρημένο ιστορικό ραδιοφώνου διαγραφές</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Δεν μπορούσε να επαληθευθεί η ιστορική ραδιοφωνίας</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Αποτυχή επιβεβαίωση ακεραιότητας ιστορικού ραδιοφώνου</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Δεν υπάρχει επαληθευμένη κάλυψη</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Εν μέρει επαληθευμένη κάλυψη</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Πλήρης επαληθευμένη κάλυψη</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Η κάλυψη δεν είναι διαθέσιμη</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Περιμένοντας τις διατηρημένες ραδιοτηρητικές παρατηρήσεις</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Δεν υπάρχουν διατηρημένες ραδιοτηλεοπτικές παρατηρήσεις</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Οι αποδεικτικές πηγές που διατηρήθηκαν διαγραφούν.</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Τα αποδεικτικά στοιχεία που διατηρούνται δεν μπορούν να παρουσιάζονται με ασφάλεια</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Η τοποθεσία, η διαδρομή, η απόσταση, η ταχύτητα και το υψόμετρο δεν αποτελούν μέρος αυτής της ιστορίας πηγής.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d διατηρήθηκε το αποτέλεσμα της σαρώσεως</item>
+        <item quantity="other">%1$d διατηρήθηκαν τα αποτελέσματα της σαρώσεως</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d διατηρημένα ραδιοφωνικά αρχεία</item>
+        <item quantity="other">%1$d διατηρημένα ραδιοφωνικά αρχεία</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d διατηρημένη παράδοση</item>
+        <item quantity="other">%1$d διατηρημένες παραδόσεις</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d η παράδοση έχει μερικά αποτελέσματα</item>
+        <item quantity="other">%1$d παραδόσεις έχουν μερικά αποτελέσματα</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Καταγεγραμμένη δραστηριότητα</string>
+    <string name="dashboard_live_activity_movement">Τελευταία καταγεγραμμένη κίνηση</string>
+    <string name="dashboard_live_activity_active_time">Ενεργός χρόνος</string>
+    <string name="dashboard_live_activity_gaps">Γνωστά κενά: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Δεν υπάρχει επαληθευμένη κάλυψη</string>
+    <string name="dashboard_activity_coverage_partial">Μερική κάλυψη</string>
+    <string name="dashboard_activity_coverage_complete">Πλήρης κάλυψη</string>
+    <string name="dashboard_activity_still">Ακίνητος</string>
+    <string name="dashboard_activity_walking">Περπάτημα</string>
+    <string name="dashboard_activity_running">Τρέξιμο</string>
+    <string name="dashboard_activity_cycling">Ποδηλασία</string>
+    <string name="dashboard_activity_vehicle">Σε όχημα</string>
+    <string name="dashboard_activity_on_foot">Με τα πόδια</string>
+    <string name="dashboard_activity_tilting">Κλίση</string>
+    <string name="dashboard_activity_unknown">Άγνωστη δραστηριότητα</string>
     <string name="dashboard_exploration_title">Εξερεύνηση</string>
     <string name="dashboard_exploration_new_today">Νέα σήμερα</string>
     <string name="dashboard_exploration_total_cells">Συνολικά κελιά</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Έναρξη καταγραφής</string>
     <string name="dashboard_ring_enable_location">Ενεργοποίηση τοποθεσίας</string>
     <string name="dashboard_pill_start">Έναρξη</string>
-    <string name="dashboard_pill_stop">Διακοπή</string>
     <string name="dashboard_pill_enable_location">Ενεργοποίηση τοποθεσίας</string>
     <string name="dashboard_insights_title">Πληροφορίες συνεδρίας</string>
     <string name="dashboard_cd_insight_item">Πληροφορία: %1$s</string>
     <string name="widget_latest_achievement">Τελευταίο επίτευγμα</string>
     <string name="dashboard_latest_achievement_title">Τελευταίο επίτευγμα</string>
     <string name="dashboard_latest_achievement_empty">Συνεχίστε την καταγραφή για να ξεκλειδώσετε το πρώτο σας επίτευγμα</string>
-    <string name="dashboard_metric_pressure">Πίεση</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Εύρος %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Μεταβολή %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Αποθηκευμένη ζώνη ώρας: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Συνεδρία πίεσης</string>
-    <string name="dashboard_recent_pressure_available">Ιστορικό πίεσης διαθέσιμο</string>
-    <string name="dashboard_recent_pressure_materializing">Προετοιμάζεται το ιστορικό πίεσης…</string>
-    <string name="dashboard_recent_pressure_partial">Μερικό ιστορικό πίεσης</string>
-    <string name="dashboard_recent_pressure_unavailable">Ιστορικό πίεσης μη διαθέσιμο</string>
-    <string name="dashboard_recent_pressure_failed">Δεν ήταν δυνατό να προετοιμαστεί το ιστορικό πίεσης</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · εύρος %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Μεταβολή %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Δεν υπάρχει αποθηκευμένη κάλυψη</string>
-    <string name="dashboard_pressure_coverage_complete">Πλήρης κάλυψη</string>
-    <string name="dashboard_pressure_coverage_partial">Μερική κάλυψη</string>
-    <string name="dashboard_pressure_coverage_unknown">Η κάλυψη δεν είναι διαθέσιμη</string>
-    <string name="dashboard_recent_activity_title">Συνεδρία δραστηριότητας</string>
-    <string name="dashboard_recent_activity_ready">Ιστορικό δραστηριότητας διαθέσιμο</string>
-    <string name="dashboard_recent_activity_materializing">Προετοιμάζεται το ιστορικό δραστηριότητας…</string>
-    <string name="dashboard_recent_activity_partial">Μερικό ιστορικό δραστηριότητας</string>
-    <string name="dashboard_recent_activity_unavailable">Ιστορικό δραστηριότητας μη διαθέσιμο</string>
-    <string name="dashboard_recent_activity_failed">Δεν ήταν δυνατό να επαληθευτεί το ιστορικό δραστηριότητας</string>
-    <string name="dashboard_recent_activity_summary">%1$s · ενεργός χρόνος %2$s</string>
-    <string name="dashboard_live_activity_title">Καταγεγραμμένη δραστηριότητα</string>
-    <string name="dashboard_live_activity_movement">Τελευταία καταγεγραμμένη κίνηση</string>
-    <string name="dashboard_live_activity_active_time">Ενεργός χρόνος</string>
-    <string name="dashboard_live_activity_gaps">Γνωστά κενά: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Δεν υπάρχει επαληθευμένη κάλυψη</string>
-    <string name="dashboard_activity_coverage_partial">Μερική κάλυψη</string>
-    <string name="dashboard_activity_coverage_complete">Πλήρης κάλυψη</string>
-    <string name="dashboard_activity_still">Ακίνητος</string>
-    <string name="dashboard_activity_walking">Περπάτημα</string>
-    <string name="dashboard_activity_running">Τρέξιμο</string>
-    <string name="dashboard_activity_cycling">Ποδηλασία</string>
-    <string name="dashboard_activity_vehicle">Σε όχημα</string>
-    <string name="dashboard_activity_on_foot">Με τα πόδια</string>
-    <string name="dashboard_activity_tilting">Κλίση</string>
-    <string name="dashboard_activity_unknown">Άγνωστη δραστηριότητα</string>
-    <string name="dashboard_finishing_session">Ολοκλήρωση συνεδρίας…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Εισαγόμενα Βήματα</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Δείξτε την εγγραφή %1$d</item>
+        <item quantity="other">Δείξτε τις ηχογραφήσεις %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Κρύψτε την εγγραφή %1$d</item>
+        <item quantity="other">Κρύψτε τις ηχογραφήσεις %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Καταγραφή %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s βήματα</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Τουλάχιστον %1$s βήματα</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Δύο βήματα</string>
 </resources>

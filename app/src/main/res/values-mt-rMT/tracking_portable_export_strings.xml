@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Storja tal-passi vverifikata, kopertura u lakuni mingħajr koordinati tar-rotta</string>
+    <string name="export_format_portable_ambient_steps_desc">Passi fl-isfond, ħin ta\' attività, dati, lakuni fil-kopertura u żona tal-ħin salvata mingħajr koordinati tar-rotta</string>
+    <string name="export_format_portable_activity_desc">Intervalli ta\' moviment irreġistrati, kunfidenza u kopertura mingħajr koordinati tar-rotta</string>
+    <string name="export_format_portable_pressure_desc">Kejl dirett tal-pressjoni f\'hPa, kopertura u lakuni mingħajr koordinati tar-rotta</string>
+    <string name="export_sensitivity_portable_title">Tesporta l-istorja rreġistrata?</string>
+    <string name="export_sensitivity_portable_steps_message">Dan il-fajl fih għadd ta\' passi, intervalli ta\' ħin u informazzjoni dwar il-kopertura. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Dan il-fajl fih passi fl-isfond, intervalli ta\' attività, dati, lakuni fil-kopertura u żona tal-ħin salvata. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="export_sensitivity_portable_activity_message">Dan il-fajl fih intervalli ta\' moviment irreġistrati, intervalli ta\' ħin u informazzjoni dwar il-kopertura. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
+    <string name="export_sensitivity_portable_pressure_message">Dan il-fajl fih kejl tal-pressjoni u intervalli ta\' ħin li jistgħu jiżvelaw informazzjoni dwar l-ambjent. Ma fihx koordinati tar-rotta jew altitudni kkalibrata. Kompli biss jekk tafda d-destinazzjoni.</string>
+</resources>

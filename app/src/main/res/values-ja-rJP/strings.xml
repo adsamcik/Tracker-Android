@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">アップグレード前のバックアップをエクスポートしました</string>
     <string name="settings_migration_backup_export_failure">アップグレード前のバックアップをエクスポートできませんでした</string>
     <string name="settings_migration_backup_export_cleanup_required">エクスポートに失敗しました。選択した場所から部分的にエクスポートされたバックアップを削除してください。</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">遺産データベースの輸入は注意が必要です</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">元のデータベースはまだこのデバイスにありますTracker を開くために輸入を再試します.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">遺産データベースサイズ: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">再輸入試行</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">輸出レガシーデータベース</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">古いデータベースを削除し,新しく開始する</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">輸出されたレガシーデータベース</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">古いデータベースを輸出できませんでした</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">輸出は失敗し,未完成な目的地が移動できなかった.手動で削除する.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">遺産データベースのクローブ</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">バージョン %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">ソースバージョン: %1$d\n 保存: %2$s\n 輸入: %3$s\n 輸入された行: %4$d\n 保存された行: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">輸入完了: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">輸入されていない</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">輸入</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">輸入完了</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">輸入失敗</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">古いデータベースを削除する?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">この装置から%1$sを永久に削除します.V27のデータには影響はないオリジナルのデータベースが後に必要になる場合,輸出されたコピーを保存してください.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">遺産データベースが削除</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">古いデータベースを削除できませんでした</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">追跡回復は注意が必要です</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Trackerは追跡データを安全に調整している間,収集は終了します.履歴を削除せずに再試してください.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">追跡復旧を再試する</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">開発データベースは手動バックアップが必要です</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker は,このビルドに一致しないバージョン28開発データベースを未発送しました.追跡機能とデータベース機能は停止し データベースファイルは変更されていない.この開発インストールを交換または修復する前に,アプリデータまたはデータベースをバックアップします.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">データベースには注意が必要です</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker はこのデータベースを安全に識別または検証できなかった.追跡機能とデータベース機能は停止し データベースファイルは変更されていない.手動復元を試みる前にアプリデータやデータベースをバックアップします.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">データベースは一時的に利用できません</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">追跡とデータベース機能は Trackerが安全に復旧する間には 停止していますデータは削除されていません.暫定ロックや貯蔵の問題は解消されたかどうかを確認します.</string>
     <string name="settings_delete_data_success">収集したすべてのデータを削除しました</string>
     <string name="settings_delete_data_failure">収集したすべてのデータを削除できませんでした</string>
     <string name="settings_game_goals_title">目標</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">ゲーム設定を読み込んでいます…</string>
     <string name="settings_game_load_error">ゲーム設定を読み込めませんでした。もう一度お試しください。</string>
     <string name="settings_map_info_hint">これらの設定は地図表示の品質とパフォーマンスを調整します。ほとんどのユーザーはデフォルト値を使用できます。</string>
+    <string name="settings_map_offline_data_section">オフライン地図データ</string>
     <string name="settings_map_online_tiles_section_title">オンライン地図タイル</string>
     <string name="settings_map_online_tiles_enable_title">オンライン地図タイルを使用</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">オフ — 同梱のオフラインベースマップのみを使用します。ネットワーク要求は行いません。</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">カスタム</string>
     <string name="tracking_preset_custom_description">各トラッキングパラメーターを手動で調整します</string>
     <string name="tracking_preset_selector_subtitle">最初にプロファイルを選び、以下の設定を必要に応じて調整してください。</string>
+    <string name="tracking_preset_change">オプションを比較する</string>
+    <string name="tracking_preset_done">選択しただけ表示</string>
     <string name="tracking_preset_customized_summary">トラッキングを細かく調整しました。リセットするには上のプリセットを選択してください。</string>
+    <string name="settings_tracking_section_start_stop">自動追跡</string>
+    <string name="settings_tracking_section_battery_detail">追跡品質</string>
+    <string name="settings_tracking_section_data_collected">収集されたデータ</string>
     <string name="settings_tracking_section_detail">位置情報の収集</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">外出旅行 (オプション)</string>
     <string name="settings_tracking_section_notifications">通知</string>
+    <string name="settings_transition_detection_friendly_title">バッテリー効率的な動き検出</string>
+    <string name="settings_transition_detection_friendly_summary">頻繁な背景チェックを避けるために,Android のアクティビティ変更を使用します.自動起動は少しゆっくり反応する可能性があります</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">自動追跡は利用できません</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">自動モードの選択が保存されます.自動起動が開始される前に,アクティビティ認識許可が必要です.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">旅行の間に何を録音するか選んでください.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi 外出旅行</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">セル外出旅行</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">旅行の間でも</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">保存されたままです. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">外出のカバーは機会主義であり,許可,プロバイダー,プロセス,リブート,またはOSのギャップを含む可能性があります.Trackerは,いつまでも収集を主張したり,保存期間を発明したりしない.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">商品の保存方針はまだ利用できないため,収集は中止されます.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">コレクションチェック...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">収集は現在の展開によって安全に収められています</string>
+    <string name="settings_ambient_user_turned_off">追跡はオフです。選択内容と保存済みデータは保持されます。</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Tracker を閉じている間の歩数履歴を補うため、Health Connect で歩数へのアクセスを許可してください。</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Health Connect のステップカウントへのアクセスを許可する</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Health Connectのアクセスを確認できませんでしたもう一度やってみろ</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Tracker の起動中に歩数をインポートできます。バックグラウンドでのアクセスを許可すると、歩数履歴の欠落を減らせます。</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">サポートされた全日ステッププロバイダは利用できません.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Health Connectを更新してTrackerがステップカウントを読み取れるように</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">ステッププロバイダーを確認できませんでした後で試して</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">この装置のステップを数えられるように 運動許可を許可してください</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">この装置ではステップ記録は利用できません.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connectは準備中です期間がまだ欠けている場合もあります</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">ステップ記録は準備済み期間がまだ欠けている場合もあります</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">セッション間に位置情報を収集するには、バックグラウンドでの位置情報へのアクセスが必要です。セッション中の記録設定は変わりません。</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi スキャン許可の要件が満たされていない.場所捕獲はできません</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s セルリコール許可要求は満たされていない.場所捕獲はできません</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">パシブ・ロケーションは ソース・オーナーの和解に準備ができています機遇的なポイントを提供し 経路の連続性ではなく</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi スキャン結果のリコールバックはソース所有者との和解のために準備されています.スキャンや覚醒カデンスは約束されていません.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">タイムスタンプを配備した セル変更 コールバックは ソース・オーナーの和解に備えています強制的なリフレッシュカデンスは約束されていません</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">必要なプラットフォームやプロバイダは利用できないので 収集はできません.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">保存済み; 運用状態待機</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">保存した; 運用利用性が報告された</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">貯蔵済み; 運用できない</string>
+    <string name="settings_location_source_summary">経路,距離,速度を記録する通常最大のバッテリーコストです</string>
+    <string name="settings_activity_source_summary">一日を通して歩行、自転車での移動、運転、静止を記録します。</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">日中歩みを追跡する旅行は同じステップの歴史を組織します</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">ステップコレクションをチェックする</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">追跡をオフにする</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">消える</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">セッションを止めて 全日録画し 自動起動する選択と保存されたデータは残る</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">追跡はオフです。選択内容と保存済みデータは保持されます。</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">追跡を消せないもう一度やってみろ</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">追跡通知で一日中空気圧を記録する</string>
+    <string name="settings_ambient_activity_ready">アクティビティの記録準備ができています。</string>
+    <string name="settings_ambient_pressure_ready">気圧の記録準備ができています。</string>
+    <string name="settings_pressure_host_unavailable">バックグラウンドで気圧の記録を開始できませんでした。</string>
+    <string name="settings_wifi_source_summary">ローカルコンテキストを追加するために,近隣のWi-Fiネットワークを記録する.データはこの装置に留まります</string>
+    <string name="settings_cell_source_summary">場所の文脈を追加するために近くの携帯電話塔を記録する.データはこの装置に留まります</string>
+    <string name="settings_location_source_compact">経路,距離,速度</string>
+    <string name="settings_activity_source_compact">運動型と静止</string>
+    <string name="settings_steps_source_compact">日中のステップ</string>
+    <string name="settings_barometer_source_compact">標高と高さ</string>
+    <string name="settings_wifi_source_compact">近隣のネットワークの文脈</string>
+    <string name="settings_cell_source_compact">近くの塔の文脈</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">技術的な状態</string>
+    <string name="settings_technical_status_summary">バッテリーの推定,許可,収集状態</string>
+    <string name="settings_technical_status_attention">集計の情報源は注意が必要です詳細については開かれます</string>
+    <string name="settings_simple_source_controls_title">シンプルなコントロールを使用する</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">歩行とランニングを自動的にトラッキングします。</string>
     <string name="setup_auto_tracking_in_motion">移動中</string>
     <string name="setup_auto_tracking_in_motion_desc">運転やサイクリングを含むすべての移動を自動的にトラッキングします。</string>
-    <string name="setup_preset_title">トラッキングの詳細</string>
+    <string name="settings_auto_tracking_mode_summary">移動を自動的に開始し,停止する選択をします.</string>
     <string name="setup_recommended">おすすめ</string>
     <string name="setup_what_to_collect_title">収集するデータ</string>
     <string name="setup_what_to_collect_subtitle">下にさらにオプションがあります。権限なしで探索を始めることも、後で権限を付与することもできます。データはこの端末に保存されます。</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">アクティビティ</string>
     <string name="setup_source_activity_desc">歩行、ランニング、サイクリング、運転のいずれかを検出します。</string>
     <string name="setup_source_steps">歩数</string>
-    <string name="setup_source_steps_desc">端末の歩数計を使用して歩数を数えます。</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">日中歩みを追跡する旅行は同じ歴史を 組織する</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">直接のステップセンサーがないTracker はデバイス上のステップソースをチェックします.</string>
+    <string name="setup_perm_steps_why">この端末で一日中歩数を数えるため、運動データへのアクセスを許可してください。</string>
+    <string name="setup_perm_grant_steps_content_description">歩数のために運動データへのアクセスを許可</string>
+    <string name="setup_steps_health_connect_why">Trackerを閉じている間の欠測を補うため、Health Connectで歩数を許可してください。</string>
+    <string name="setup_steps_provider_ready">端末上の歩数データソースが準備できています。一部の期間には欠測が残る場合があります。</string>
+    <string name="setup_steps_provider_checking">利用可能な歩数データソースを確認中…</string>
     <string name="setup_source_wifi">Wi-Fiネットワーク</string>
-    <string name="setup_source_wifi_desc">近くのWi-Fiネットワークを記録して位置情報の精度を向上します。</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">位置追跡があるかいない Wi-Fi ネットワークを記録する.</string>
     <string name="setup_source_cell">基地局</string>
-    <string name="setup_source_cell_desc">位置情報の文脈のために基地局情報を記録します。</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">位置追跡があるかいないか 近くの携帯電話塔を記録する</string>
     <string name="setup_perm_location_why">ルートを記録して地図に表示するために必要です。位置情報はこの端末に保存され、サーバーに送信されることはありません。</string>
     <string name="setup_perm_location_bg_why">アプリを切り替えたり画面を消したりしてもルートを記録し続けるには、Trackerがバックグラウンドで位置情報にアクセスする必要があります。記録した位置情報はこの端末に保存され、サーバーに送信されることはありません。自動トラッキングを有効にするには、次のシステム画面で「常に許可」を選択してください。「アプリの使用中のみ許可」では、Trackerの画面を開いている間だけ動作します。</string>
     <string name="setup_perm_activity_why">Trackerが行動（歩行、サイクリング、運転、静止）を検出できるようにします。これにより、移動していないときは自動トラッキングを一時停止してバッテリーを節約できます。アクティビティデータはこの端末に保存され、サーバーに送信されることはありません。</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">セルラー無線の権限を許可</string>
     <string name="setup_perm_granted">許可済み ✓</string>
     <string name="permission_grant_in_settings">設定で許可 →</string>
-    <string name="permission_disabled_due_to_denial">権限が拒否されたため、%1$sは無効です。有効にするには設定で許可してください。</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$sは選択されていますが,許可が与えられるまで収集できません.</string>
     <string name="settings_wifi_permission_required">Wi-Fi/位置情報の権限が必要です。オンにすると許可できます。それまではWi-Fiデータは記録されず、記録したデータはこの端末に保存されます。</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">まだアクセスが必要ですあなたの選択は守られています</string>
     <string name="settings_cell_permission_required">電話の状態と高精度の位置情報の権限が必要です。オンにすると許可できます。それまではセルラーデータは記録されず、記録したデータはこの端末に保存されます。</string>
     <string name="settings_barometer_unavailable">この端末では気圧センサーを利用できません。</string>
     <string name="settings_activity_permission_required">身体活動の認識権限が必要です。オンにすると許可できます。</string>
-    <string name="settings_steps_unavailable">この端末では歩数計センサーを利用できません。</string>
     <string name="setup_start_exploring">探索を始める</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">仕上げ...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">再試行</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">設定を保存できなかったあなたの選択はまだここにある</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">保存されたデータを準備できませんでした.あなたの選択はまだここにある</string>
     <string name="setup_continue">続行</string>
     <string name="setup_step_indicator">ステップ%1$d / %2$d</string>
     <string name="setup_online_tiles_title">オンライン地図タイルを使用しますか？</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">有効にすると、プロバイダーはあなたのIPアドレスと読み込んだタイル（おおよそ地図上で見ている地域）を確認できます。Trackerがアカウント、識別子、位置履歴を送信することはありません。</string>
     <string name="setup_online_tiles_change_later">この設定はいつでも［設定］→［地図］→［オンライン地図タイル］で変更できます。</string>
     <string name="setup_background_access_optional">任意ですが推奨します。この設定はいつでも［設定］→［トラッキング］で変更できます。</string>
-    <string name="background_reliability_status_exempt">バックグラウンド動作が許可されています</string>
-    <string name="background_reliability_status_optimized">バッテリーの最適化がオンです</string>
-    <string name="background_reliability_allow_action">バックグラウンド動作を許可</string>
-    <string name="background_reliability_samsung_hint">Samsung端末ではアプリが「スリープ中のアプリ」に入ることがあります。バッテリー設定を開き、Trackerをスリープ中のアプリから削除して、スリープ状態にしないよう設定してください。</string>
-    <string name="background_reliability_samsung_action">端末のバッテリー設定を開く</string>
-    <string name="settings_tracebox_title">クラッシュ診断</string>
-    <string name="settings_tracebox_root_summary">ローカルのクラッシュ、ANR、構造診断</string>
     <string name="setup_background_location_title">自動トラッキングのためにバックグラウンド位置情報を許可</string>
     <string name="setup_background_location_disclosure">Tracker がバックグラウンドにあるときに自動トラッキングが開始され、アプリの画面が開いていなくてもルートを記録します。位置情報はこの端末内に保存されます。アプリの位置情報設定で「%1$s」を選択してください。</string>
     <string name="setup_background_location_open_settings">位置情報設定を開く</string>
     <string name="setup_background_location_decline">今はしない</string>
     <string name="setup_background_location_manual_only">フォアグラウンドでの手動トラッキングは引き続き利用できます。バックグラウンド位置情報が許可されるまで、自動位置トラッキングはオフのままです。</string>
-    <string name="settings_ambient_user_turned_off">追跡はオフです。選択内容と保存済みデータは保持されます。</string>
-    <string name="setup_perm_steps_why">この端末で一日中歩数を数えるため、運動データへのアクセスを許可してください。</string>
-    <string name="setup_perm_grant_steps_content_description">歩数のために運動データへのアクセスを許可</string>
-    <string name="setup_steps_health_connect_why">Trackerを閉じている間の欠測を補うため、Health Connectで歩数を許可してください。</string>
-    <string name="setup_steps_provider_ready">端末上の歩数データソースが準備できています。一部の期間には欠測が残る場合があります。</string>
-    <string name="setup_steps_provider_checking">利用可能な歩数データソースを確認中…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">背景追跡設定</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Androidとデバイスのポリシーでは,バックグラウンド作業を停止または停止することができます.TrackerはAndroidが暴露する制限を報告することができるが,制限または強制停止状態を覆すことはできません.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">背景制限が検出された</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">バッテリー最適化検出</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">制限は検出されていません</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">制限状態は利用できません</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Androidは,背景活動が制限されていると報告しています.Tracker が表示されない場合,追跡が停止される可能性があります. アプリはこのポリシーを覆すことはできません.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">AndroidはTrackerがバッテリーリストに載っていないと報告しています電源管理は背景作業を遅らせることがある. 許可リストは制限を軽減するが,継続的な追跡を保証しない.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Androidは背景制限がないと報告し Trackerはバッテリー許可リストに載っています.システムはまだアプリを停止することができます フォースストップは覆すことはできません</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Trackerは,関連するAndroidの制限信号をすべて読み取れなかった.デバイス特異的な原因または治療法は確認できません.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">アプリのバッテリー設定を開く</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">バッテリー最適化設定を開く</string>
+    <string name="settings_tracebox_title">クラッシュ診断</string>
+    <string name="settings_tracebox_root_summary">ローカルのクラッシュ、ANR、構造診断</string>
     <string name="settings_tracking_changes_apply_live">変更は現在の追跡に反映されます</string>
     <string name="settings_balance_title">消費電力と詳細</string>
     <string name="settings_balance_custom">カスタム設定 · バランスを選択</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">詳細 · 全体のバランス：%1$s</string>
     <string name="settings_balance_inherit">全体のバランスを使う</string>
     <string name="settings_balance_summary">選択したデータソースの通常の品質を選びます。実行中のセッションでは、参加するデータソースの詳細を優先します。バランスを選ぶと以前の収集頻度が置き換わります。データソースの選択、バックグラウンド収集の同意、精度フィルターは保持されます。</string>
-    <string name="export_format_portable_steps_desc">検証済みの歩数履歴、記録範囲と欠測。ルートの座標は含みません</string>
-    <string name="export_format_portable_ambient_steps_desc">バックグラウンドの歩数、活動時間、日付、欠測、保存済みのタイムゾーン。ルートの座標は含みません</string>
-    <string name="export_format_portable_activity_desc">記録した移動区間、信頼度と記録範囲。ルートの座標は含みません</string>
-    <string name="export_format_portable_pressure_desc">hPa単位の直接気圧測定、記録範囲と欠測。ルートの座標は含みません</string>
-    <string name="export_sensitivity_portable_title">記録した履歴をエクスポートしますか？</string>
-    <string name="export_sensitivity_portable_steps_message">このファイルには歩数、時間区間、記録範囲の情報が含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">このファイルにはバックグラウンドの歩数、活動時間の区間、日付、欠測、保存済みのタイムゾーンが含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
-    <string name="export_sensitivity_portable_activity_message">このファイルには記録した移動区間、時間区間、記録範囲の情報が含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
-    <string name="export_sensitivity_portable_pressure_message">このファイルには気圧測定値と時間区間が含まれ、周辺環境の情報が分かる可能性があります。 ルートの座標や補正済みの標高は含まれません。保存先を信頼できる場合のみ続行してください。</string>
-    <string name="settings_activity_source_summary">一日を通して歩行、自転車での移動、運転、静止を記録します。</string>
-    <string name="settings_ambient_activity_ready">アクティビティの記録準備ができています。</string>
-    <string name="settings_ambient_pressure_ready">気圧の記録準備ができています。</string>
-    <string name="settings_pressure_host_unavailable">バックグラウンドで気圧の記録を開始できませんでした。</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">追跡を再開</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">追跡を再開できないもう一度やってみろ</string>
 </resources>

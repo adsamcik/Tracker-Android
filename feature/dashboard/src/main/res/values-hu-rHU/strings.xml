@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Munkamenet befejezése…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · részleges</string>
     <string name="dashboard_title">Irányítópult</string>
     <string name="dashboard_tracking_title">Nyomkövetés</string>
     <string name="dashboard_recording">Rögzítés</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Sorozat: %1$d nap. Koppintson a sorozat részleteihez</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Indítson sorozatot. Koppintson a sorozat részleteihez</string>
-    <string name="dashboard_cd_stop_tracking">Nyomkövetés leállítása</string>
     <string name="dashboard_action_enable_location">Helyhozzáférés engedélyezése</string>
     <string name="dashboard_action_view_details">Részletek megtekintése</string>
     <string name="dashboard_action_view_map">Térkép megtekintése</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">A tartósan mentett lépéselőzmények előkészítése…</string>
     <string name="dashboard_live_steps_missing">Várakozás érvényes lépésmegfigyelésre</string>
     <string name="dashboard_live_steps_unavailable">A tartósan mentett lépéselőzmények nem érhetők el</string>
+    <string name="dashboard_metric_pressure">Nyomás</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Tartomány %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Változás %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Tárolt időzóna: %1$s</string>
     <string name="dashboard_milestone_distance">km elérve!</string>
     <string name="dashboard_milestone_steps">lépés teljesítve!</string>
     <string name="dashboard_milestone_time">perc rögzítve!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Utolsó munkamenet</string>
     <string name="dashboard_last_session_duration">Időtartam</string>
     <string name="dashboard_last_session_distance">Távolság</string>
-    <string name="dashboard_last_session_steps">Lépések</string>
     <string name="dashboard_last_session_view_map">Térkép megtekintése</string>
     <string name="dashboard_recent_trips_title">Legutóbbi követések</string>
     <string name="dashboard_recent_trips_empty">Nincsenek legutóbbi követési munkamenetek. Indítsa el a követést, hogy itt láthassa őket.</string>
     <string name="dashboard_recent_history_loading">Legutóbbi követések betöltése…</string>
     <string name="dashboard_recent_history_unavailable">A legutóbbi követések nem érhetők el</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s A történelem nem áll rendelkezésre</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">A forráskereskedelmi hatóság nem áll rendelkezésre</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">A megtartott forrás-bizonyító képet nem lehet elérni</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">A korlátozott forrás történelmének olvasása nem sikerült biztonságosan befejezni</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Megtartott forráskészlet nem sikerült betartási ellenőrzése</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Fizikailag nem sikerült ellenőrizni a tagságot.</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Hely</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Mobilhálózat</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Tevékenység</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Lépések</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Légnyomás</string>
     <string name="dashboard_recent_steps_title">Lépésszámlálási munkamenet</string>
     <string name="dashboard_recent_steps_available">A lépéselőzmények elérhetők</string>
     <string name="dashboard_recent_steps_materializing">Lépéselőzmények előkészítése…</string>
     <string name="dashboard_recent_steps_partial">Részleges lépéselőzmények</string>
+    <string name="dashboard_recent_pressure_title">Nyomásmérési munkamenet</string>
+    <string name="dashboard_recent_pressure_available">Nyomáselőzmények elérhetők</string>
+    <string name="dashboard_recent_pressure_materializing">Nyomáselőzmények előkészítése…</string>
+    <string name="dashboard_recent_pressure_partial">Hiányos nyomáselőzmények</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">A nyomás előtér törlésével</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">A nyomás előtérét nem lehetett ellenőrizni</string>
+    <string name="dashboard_recent_pressure_unavailable">Nyomáselőzmények nem érhetők el</string>
+    <string name="dashboard_recent_pressure_failed">Nyomáselőzmények előkészítése sikertelen</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · tartomány %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Változás %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Nincs megőrzött lefedettség</string>
+    <string name="dashboard_pressure_coverage_complete">Teljes lefedettség</string>
+    <string name="dashboard_pressure_coverage_partial">Részleges lefedettség</string>
+    <string name="dashboard_pressure_coverage_unknown">Lefedettség nem érhető el</string>
+    <string name="dashboard_recent_activity_title">Tevékenység-munkamenet</string>
+    <string name="dashboard_recent_activity_ready">Tevékenységelőzmények elérhetők</string>
+    <string name="dashboard_recent_activity_materializing">Tevékenységelőzmények előkészítése…</string>
+    <string name="dashboard_recent_activity_partial">Hiányos tevékenységelőzmények</string>
+    <string name="dashboard_recent_activity_unavailable">Tevékenységelőzmények nem érhetők el</string>
+    <string name="dashboard_recent_activity_failed">Tevékenységelőzmények ellenőrzése sikertelen</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktív idő %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi ülés</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Hálózati ülés</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Letartóztatták Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Fogott mobil rádiót</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">A jelen ülés forrásai</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">A helyszínt nem rögzítettük ebben a ülésen. A útvonal, a távolság, a sebesség és a magasság nem állnak rendelkezésre.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">A %1$s-es ellenőrzött előtér nem áll rendelkezésre.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Ezt a készüléket rögzítették.</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Behozott megőrzött bizonyítékok</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">A rádió történelmének előkészítése...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Részletesen megőrzött rádió története</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">A rendelkezésre álló rádió-történet</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">A rádió előadása nem elérhető</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Nincs minősített, megtartott rádió bizonyíték</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">A megőrzött rádió-történet törlésre kerül</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">A rádió történelmét nem lehetett ellenőrizni.</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">A rádió történelmi integritás ellenőrzése nem sikerült.</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Nincs ellenőrzött lefedettség</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">A részleges ellenőrzött lefedettség</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Teljesen ellenőrzött lefedettség</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Lefedettség nem érhető el</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">A megtartott rádiós megfigyelések várakozása</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Nem áll rendelkezésre maradékos rádiós megfigyelések</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">A megtartott forrásbeli bizonyítékot törölték.</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">A megőrzött bizonyítékok nem nyújthatók be biztonságosan</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">A hely, az útvonal, a távolság, a sebesség és a magasság nem része ennek a forrás történelmének.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d megtartott szkennelési eredmény</item>
+        <item quantity="other">%1$d megtartott szkennelési eredmények</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d megtartott rádiófelvétel</item>
+        <item quantity="other">%1$d A rádiós nyilvántartások megőrzése</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d tartós szállítás</item>
+        <item quantity="other">%1$d megtartott szállítások</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d a szállítás részleges eredményt eredményez</item>
+        <item quantity="other">%1$d a szállítások részleges eredményei</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Rögzített tevékenység</string>
+    <string name="dashboard_live_activity_movement">Legutóbbi rögzített mozgás</string>
+    <string name="dashboard_live_activity_active_time">Aktív idő</string>
+    <string name="dashboard_live_activity_gaps">Ismert adathiányok: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Nincs ellenőrzött lefedettség</string>
+    <string name="dashboard_activity_coverage_partial">Részleges lefedettség</string>
+    <string name="dashboard_activity_coverage_complete">Teljes lefedettség</string>
+    <string name="dashboard_activity_still">Mozdulatlan</string>
+    <string name="dashboard_activity_walking">Gyaloglás</string>
+    <string name="dashboard_activity_running">Futás</string>
+    <string name="dashboard_activity_cycling">Kerékpározás</string>
+    <string name="dashboard_activity_vehicle">Járműben</string>
+    <string name="dashboard_activity_on_foot">Gyalog</string>
+    <string name="dashboard_activity_tilting">Döntés</string>
+    <string name="dashboard_activity_unknown">Ismeretlen tevékenység</string>
     <string name="dashboard_exploration_title">Felfedezés</string>
     <string name="dashboard_exploration_new_today">Ma új</string>
     <string name="dashboard_exploration_total_cells">Összes cella</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Nyomkövetés indítása</string>
     <string name="dashboard_ring_enable_location">Hely engedélyezése</string>
     <string name="dashboard_pill_start">Indítás</string>
-    <string name="dashboard_pill_stop">Leállítás</string>
     <string name="dashboard_pill_enable_location">Hely engedélyezése</string>
     <string name="dashboard_insights_title">Munkamenet-elemzés</string>
     <string name="dashboard_cd_insight_item">Elemzés: %1$s</string>
     <string name="widget_latest_achievement">Legutóbbi teljesítmény</string>
     <string name="dashboard_latest_achievement_title">Legutóbbi teljesítmény</string>
     <string name="dashboard_latest_achievement_empty">Folytassa a nyomkövetést az első teljesítmény feloldásához</string>
-    <string name="dashboard_metric_pressure">Nyomás</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Tartomány %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Változás %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Tárolt időzóna: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Nyomásmérési munkamenet</string>
-    <string name="dashboard_recent_pressure_available">Nyomáselőzmények elérhetők</string>
-    <string name="dashboard_recent_pressure_materializing">Nyomáselőzmények előkészítése…</string>
-    <string name="dashboard_recent_pressure_partial">Hiányos nyomáselőzmények</string>
-    <string name="dashboard_recent_pressure_unavailable">Nyomáselőzmények nem érhetők el</string>
-    <string name="dashboard_recent_pressure_failed">Nyomáselőzmények előkészítése sikertelen</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · tartomány %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Változás %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Nincs megőrzött lefedettség</string>
-    <string name="dashboard_pressure_coverage_complete">Teljes lefedettség</string>
-    <string name="dashboard_pressure_coverage_partial">Részleges lefedettség</string>
-    <string name="dashboard_pressure_coverage_unknown">Lefedettség nem érhető el</string>
-    <string name="dashboard_recent_activity_title">Tevékenység-munkamenet</string>
-    <string name="dashboard_recent_activity_ready">Tevékenységelőzmények elérhetők</string>
-    <string name="dashboard_recent_activity_materializing">Tevékenységelőzmények előkészítése…</string>
-    <string name="dashboard_recent_activity_partial">Hiányos tevékenységelőzmények</string>
-    <string name="dashboard_recent_activity_unavailable">Tevékenységelőzmények nem érhetők el</string>
-    <string name="dashboard_recent_activity_failed">Tevékenységelőzmények ellenőrzése sikertelen</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktív idő %2$s</string>
-    <string name="dashboard_live_activity_title">Rögzített tevékenység</string>
-    <string name="dashboard_live_activity_movement">Legutóbbi rögzített mozgás</string>
-    <string name="dashboard_live_activity_active_time">Aktív idő</string>
-    <string name="dashboard_live_activity_gaps">Ismert adathiányok: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Nincs ellenőrzött lefedettség</string>
-    <string name="dashboard_activity_coverage_partial">Részleges lefedettség</string>
-    <string name="dashboard_activity_coverage_complete">Teljes lefedettség</string>
-    <string name="dashboard_activity_still">Mozdulatlan</string>
-    <string name="dashboard_activity_walking">Gyaloglás</string>
-    <string name="dashboard_activity_running">Futás</string>
-    <string name="dashboard_activity_cycling">Kerékpározás</string>
-    <string name="dashboard_activity_vehicle">Járműben</string>
-    <string name="dashboard_activity_on_foot">Gyalog</string>
-    <string name="dashboard_activity_tilting">Döntés</string>
-    <string name="dashboard_activity_unknown">Ismeretlen tevékenység</string>
-    <string name="dashboard_finishing_session">Munkamenet befejezése…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Az importált lépések</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d felvétel</item>
+        <item quantity="other">%1$d felvétel</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Elrejteni a %1$d-es felvétel</item>
+        <item quantity="other">Elrejteni a %1$d felvételeket</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">%1$d felvétel</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s lépések</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Legalább %1$s lépés</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Nem elérhető lépések</string>
 </resources>

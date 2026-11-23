@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistici</string>
     <string name="stats_cell_count">Număr de celule</string>
     <string name="stats_collections">Număr de actualizări</string>
@@ -81,6 +81,16 @@
     <string name="stats_cell_signal_tower_detail">Celula %1$s · %2$s eșantioane</string>
     <string name="stats_cell_signal_carrier">Operator %1$s‑%2$s</string>
     <string name="trip_detail_title">Detalii călătorie</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Istoricul surselor</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Istoricul surselor nu este disponibil</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Această selecție privată nu a fost păstrată după ce procesul de aplicație a fost recreat. Întoarce-te la istoricul recent şi selectează-l din nou.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Intrarea selecționată de la sursă de conservare nu mai este disponibilă.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Citirea istoriei limitate a sursei nu a putut fi finalizată în siguranţă.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Verificările de integritate ale intrării de sursă selectate nu au reușit.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Nu este disponibilă imaginea de sursă necesară pentru a prezenta această selecție.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Selecția emisă de sursă nu mai identifică intrarea curentă păstrată.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Citirea istoriei sursei a eșuat. Încearcă din nou să-l răcoresti.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Călătoria nu a fost găsită</string>
     <string name="trip_detail_not_found_subtitle">Este posibil ca această călătorie să fi fost ștearsă</string>
     <string name="trip_detail_error_title">Încărcarea călătoriei a eșuat</string>
@@ -89,6 +99,21 @@
     <string name="trip_detail_distance">Distanță</string>
     <string name="trip_detail_date">Dată</string>
     <string name="trip_detail_steps">Pași</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Acoperire completă</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Cel puţin această acoperire parţială</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Istorie parţială · nu există număr de încredere disponibil</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Nu verificat: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Valoarea moștenirii · completitatea neverificată</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Actualizarea istoriei...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Nu a fost capturat pentru această sesiune</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Dispus pentru această sesiune</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Nu este susținut</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">A fost nevoie de permisiune</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Limitat de Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Indisponibil</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Nici o observație calificativă</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Ștergeți</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Istorie indisponibilă</string>
     <string name="trip_detail_samples">Eșantioane</string>
     <string name="trip_detail_source">Sursă</string>
     <string name="trip_detail_avg_speed">Viteză medie</string>
@@ -112,6 +137,157 @@
     <string name="trip_detail_delete_confirm">Șterge</string>
     <string name="trip_detail_cancel">Anulează</string>
     <string name="trip_detail_more_options">Mai multe opțiuni</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Acțiuni indisponible pentru această sursă capturată</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Autoritate de sursă</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Originea</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Scopul păstrat</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Captura exactă a sesiunii doar din sursă</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Administrație de servicii</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Authentic istoric imutabil de capturare numește acest lucru ca fiind singura sursă capturată.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Formatul importat dovedește că a fost păstrat, nu că acest dispozitiv a înregistrat dovezile.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi sesiune</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Sesiune celulare</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Rezumatul radio păstrat</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Statut</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Acoperire</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Pregătirea istoricului radio păstrat</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Istoria parțială păstrată a radioului</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Istoricul radio păstrat disponibil</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Istoricul radio nu este disponibil</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Nu există dovezi radio calificate păstrate</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Istoricul de radio păstrat șters</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Istoricul radio nu a putut fi verificat</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Verificarea integrităţii istoricului radio a eşuat .</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Fără acoperire verificată</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">acoperire verificată parțială</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">O acoperire completă verificată</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Acoperire indisponibilă</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Aşteptăm observaţii radio.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Nu există observații radio păstrate.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Dovezile de sursă păstrate au fost șterse.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Dovezile păstrate nu pot fi prezentate în siguranță.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Livrări retinute</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Livrări cu rezultate parțiale</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Wi‑Fi dovezi păstrate</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Rezultatele scanării păstrate</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Mixul de rezultate banda de frecvență</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Intervalul de semnalizare păstrat</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d până la %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Alte trupe</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Evidenţa celulare păstrată</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Înregistrări radio păstrate</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Înregistrări cu statut înregistrat</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Mix de înregistrări radiotehnologiei</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Nici o rețea, turn, abonat, rută, distanță, viteză, altitudine sau identitate de locație nu sunt expuse de acest detaliu.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Sesiune de pași</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Evidența pașii păstrate</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Acoperire</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Nu există interval acoperit</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Interval complet acoperit</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Interval acoperit parțial</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Acoperire indisponibilă</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Doar dovezile păstrate Steps sunt prezentate. Localizarea nu a fost capturată, astfel că ruta și metricile derivate din Localizare nu sunt disponibile.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Sesiune de activitate</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Bandurile de activitate, durata și încrederea sunt rezumate aproximative ale dovezilor păstrate pe dispozitiv.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Rezumatul activității</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Statut</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Acoperire</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Originea</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Timp activ cunoscut</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Timp de inactivitate cunoscut</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Timp neclasificat</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Timp de intervale cunoscut</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Intervaluri de activitate și lacune menținute</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Durata aproximativă</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Încredere</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Semnalul de tranziție al activității</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Aproximativ %1$d ⁇ %2$d%% din %3$d observații păstrate</item>
+        <item quantity="other">Aproximativ %1$d ⁇ %2$d%% din %3$d observații păstrate</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Tip de dovadă</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Tranziție rafinată</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Diferență cunoscută</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Motivul</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Durata aproximativă</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Pregătirea istoricului activităţii</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Istoricul activității parțial</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Istoricul activității este disponibil</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Istoricul activității nu este disponibil</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Istoricul activității nu a putut fi verificat</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Istoricul de activitate păstrat este încă în curs de pregătire; încă nu se deduce durata.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Numai o parte din sesiune a păstrat dovezile de activitate.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Nu există perioade de activitate menținute.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Nu există niciun rezultat de activitate reținut de încredere.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Evidența activității păstrată a eşuat verificările de integritate.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Fără acoperire verificată</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Acoperire parțială</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Acoperire completă</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Capturat pe acest dispozitiv</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Evidențe păstrate importate</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Staționar</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Mers pe jos</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Alergare</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Ciclism</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">În vehicul</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Pe jos</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Înclinare</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Activitate necunoscută</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Tranziție</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Refinare prin eșantionare</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Clasificarea din eșantion</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Nu există dovezi calificate păstrate</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Interrupția furnizorului de activități</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Autorizaţia a fost schimbată</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Reluarea procesului sau a dispozitivului</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Dovezile nu au fost calificate</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Sesiune captată</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Locaţia nu a fost capturată.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Surse capturate</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Detalii selectate nu sunt disponibile pentru această combinație exactă de surse încă. Ruta, GPX, distanța, viteza, înălțimea și alte acțiuni derivate din locație rămân indisponible.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Locație</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Rețea mobilă</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Activitate</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Pași</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Presiune atmosferică</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Surse de capturare neverificate</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Această sesiune mai veche este înainte de istoricul de capturare verificabil. Detaliile de călătorie păstrate sunt prezentate și pot fi incomplete.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Sesiune de presiune</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Presiune a aerului</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Statut</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Ultimele</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Intervalul păstrat</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Primă la ultimă schimbare</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Acoperire</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Zona de stocare</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Actualizarea presiunii retinute...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Presiune parțială retenită</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Presiune rezervată disponibilă</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Presiune retenută ștersă</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Presiunea reținută nu a putut fi verificată</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Presiune lipsită</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Istoria presiunii a eşuat</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Istorie indisponibilă</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Încearcă din nou să actualizezi istoricul surselor capturate pentru această călătorie.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Imaginea păstrată a sursei de dovezi nu este disponibilă. Încearcă din nou să-l răcoresti.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Citirea istoriei limitate a sursei nu a putut fi finalizată în siguranţă. Încearcă din nou să-l răcoresti.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Istoricul de sursă păstrat a eșuat verificările de integritate. Încearcă din nou după ce sursa este disponibilă.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Nu a putut fi verificată în siguranță istoria fizică.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Fără acoperire păstrată</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">O acoperire completă</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">O acoperire parțială păstrată</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Acoperire indisponibilă</string>
     <string name="ski_detail_header">Sesiune de schi</string>
     <string name="ski_detail_runs">Coborâri</string>
     <string name="ski_detail_vertical">Diferență de nivel</string>
@@ -136,7 +312,6 @@
     <string name="wifilist_title_last_seen">Văzută ultima dată</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Cronologie</string>
-    <string name="history_tab_trips">Călătorii</string>
     <string name="history_tab_calendar">Calendar</string>
     <string name="history_screen_title">Istoric</string>
     <plurals name="history_trip_count">
@@ -154,6 +329,10 @@
     <string name="history_calendar_next_month">Luna următoare</string>
     <string name="history_calendar_distance">Distanță</string>
     <string name="history_calendar_steps">Pași</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Actualizarea...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Nu a fost capturat.</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Incomplet</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Indisponibil</string>
     <string name="history_calendar_trips">Călătorii</string>
     <string name="history_exploration_title">Explorare</string>
     <string name="history_exploration_cells">Celule</string>
@@ -163,6 +342,59 @@
     <string name="history_button_label">Istoric</string>
     <string name="history_view_trip_on_map">Vezi călătoria pe hartă</string>
     <string name="stats_heatmap_title">Activitate</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Paşi importati</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Nu sunt incluse date cu traseul și alte date cu senzorii.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sesiuni</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Adăugați sesiune</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Editarea sesiunii</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Numele (opțional)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Etichetă de activitate</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Fără etichetă</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Început</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Sfârșit</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Zona de timp</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Se aplică zona orară</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Aplicaţi zona orară înainte de a salva.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Sesiune de încărcare</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Detalii de înregistrare</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Retragerea sesiunii</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Salvaţi</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Anulează</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Să elimine sesiunea asta?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Datele înregistrate vor rămâne în istorie.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Dată</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Timp</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Acest timp local nu există pentru că ceasurile se deplasează înainte. Alege o altă dată.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">De data asta se întâmplă de două ori. Alegeți desfășurarea UTC.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Sfârşitul trebuie să fie după început. Ambele perioade trebuie să aibă loc la 1 ianuarie 1970 sau după aceea.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Sfârşitul nu poate fi în viitor.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Introduceți o zonă orară IANA, cum ar fi Europa/Praga sau UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Foloseşte cel mult 200 de caractere.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Această etichetă a fost îndepărtată. Alege o altă etichetă sau nu.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Această sesiune a fost modificată sau datele colectate au fost eliminate. Încărcaţi înainte de a salva.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Această sesiune nu mai este disponibilă.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Sesiunile sunt temporar indisponibil. Încearcă să deschizi din nou istoria.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Nici o sesiune în această perioadă.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Sesiune anonimă</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Se înregistrează</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Timpul de înregistrare este incert. Confirmează ora înainte de a-i schimba intervalul.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Continuat de la o zi mai devreme</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Arată-le tuturor.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Încheie sesiunea pentru a-i edita timpul sau să-l elimine.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Vezi sesiunile de azi</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Unele semnale de sesiune nu sunt afișate. Alege o zi pentru a vedea sesiunile.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Ziua %1$d, are sesiuni</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Ziua %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Reîncearcă</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Arhivaţi înregistrările</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Înapoi la sesiuni</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Sesiune de export</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Nu am putut salva dosarul. Încearcă din nou.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Sesiune exportată</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Sesiunea exportată cu înregistrări complete care se extind dincolo de datele sale.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">N-am putut termina. Încearcă din nou.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Să ștergeți această înregistrare?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Lecturile salvate vor fi șterse definitiv.</string>
     <string name="stats_recorded_partial_value">%1$s · parțial</string>
     <string name="history_activity_started">Început: %1$s</string>
     <string name="history_activity_ended">Sfârșit: %1$s</string>

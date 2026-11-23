@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Dokončování relace…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · částečně</string>
     <string name="dashboard_title">Přehled</string>
     <string name="dashboard_tracking_title">Sledování</string>
     <string name="dashboard_recording">Záznam</string>
@@ -22,7 +24,6 @@
         <item quantity="other">Série: %1$d dnů. Klepnutím zobrazíte podrobnosti série</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Začněte sérii. Klepnutím zobrazíte podrobnosti série</string>
-    <string name="dashboard_cd_stop_tracking">Zastavit sledování</string>
     <string name="dashboard_action_enable_location">Povolit přístup k poloze</string>
     <string name="dashboard_action_view_details">Zobrazit podrobnosti</string>
     <string name="dashboard_action_view_map">Zobrazit mapu</string>
@@ -44,6 +45,11 @@
     <string name="dashboard_live_steps_materializing">Připravuje se trvale uložená historie kroků…</string>
     <string name="dashboard_live_steps_missing">Čekání na platný záznam kroků</string>
     <string name="dashboard_live_steps_unavailable">Trvale uložená historie kroků není k dispozici</string>
+    <string name="dashboard_metric_pressure">Tlak</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Rozsah %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Změna %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Uložené časové pásmo: %1$s</string>
     <string name="dashboard_milestone_distance">km dosaženo!</string>
     <string name="dashboard_milestone_steps">kroků dosaženo!</string>
     <string name="dashboard_milestone_time">min sledování!</string>
@@ -65,16 +71,106 @@
     <string name="dashboard_last_session_title">Poslední relace</string>
     <string name="dashboard_last_session_duration">Doba trvání</string>
     <string name="dashboard_last_session_distance">Vzdálenost</string>
-    <string name="dashboard_last_session_steps">Kroky</string>
     <string name="dashboard_last_session_view_map">Zobrazit mapu</string>
     <string name="dashboard_recent_trips_title">Nedávné sledování</string>
     <string name="dashboard_recent_trips_empty">Žádné nedávné relace sledování. Spusťte sledování a zobrazí se zde.</string>
     <string name="dashboard_recent_history_loading">Načítání nedávného sledování…</string>
     <string name="dashboard_recent_history_unavailable">Nedávné sledování není dostupné</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s Historie není k dispozici</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Autorita pro aktualizaci zdrojů není k dispozici</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Udržovaný snímek zdrojových důkazů není k dispozici</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Čtení omezené zdrojové historie nemohlo být bezpečně dokončeno.</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Neúspěšné kontroly integrity uchovávané záznamy zdrojů</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Členství v fyzické historii nebylo možné ověřit.</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Poloha</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Mobilní síť</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Aktivita</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Kroky</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Tlak</string>
     <string name="dashboard_recent_steps_title">Relace kroků</string>
     <string name="dashboard_recent_steps_available">Historie kroků je dostupná</string>
     <string name="dashboard_recent_steps_materializing">Příprava historie kroků…</string>
     <string name="dashboard_recent_steps_partial">Částečná historie kroků</string>
+    <string name="dashboard_recent_pressure_title">Relace tlaku</string>
+    <string name="dashboard_recent_pressure_available">Historie tlaku je dostupná</string>
+    <string name="dashboard_recent_pressure_materializing">Připravuje se historie tlaku…</string>
+    <string name="dashboard_recent_pressure_partial">Částečná historie tlaku</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Úplně vymazané záznamy tlaku</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Příběh tlaku nebyl ověřen.</string>
+    <string name="dashboard_recent_pressure_unavailable">Historie tlaku není dostupná</string>
+    <string name="dashboard_recent_pressure_failed">Historii tlaku se nepodařilo připravit</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · rozsah %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Změna %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Žádné uložené pokrytí</string>
+    <string name="dashboard_pressure_coverage_complete">Úplné pokrytí</string>
+    <string name="dashboard_pressure_coverage_partial">Částečné pokrytí</string>
+    <string name="dashboard_pressure_coverage_unknown">Pokrytí není dostupné</string>
+    <string name="dashboard_recent_activity_title">Relace aktivity</string>
+    <string name="dashboard_recent_activity_ready">Historie aktivity je dostupná</string>
+    <string name="dashboard_recent_activity_materializing">Připravuje se historie aktivity…</string>
+    <string name="dashboard_recent_activity_partial">Částečná historie aktivity</string>
+    <string name="dashboard_recent_activity_unavailable">Historie aktivity není dostupná</string>
+    <string name="dashboard_recent_activity_failed">Historii aktivity se nepodařilo ověřit</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktivně %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Relace s Wi‑Fi</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Relace s mobilní sítí</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Zaznamenaná Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Zaznamenaná mobilní síť</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Zdroje v této zasedání</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Místo není zaznamenáno v této sezení. Cesta, vzdálenost, rychlost a výška nejsou k dispozici.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Ověřená historie %1$s není k dispozici.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Zachytili jsme ho na tomto zařízení.</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Dovozní zadržované důkazy</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Připravuji si zachovanou rozhlasovou historii...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Částečně zachované rozhlasové záznamy</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Uložena dostupná rozhlasová historie</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Nejsou k dispozici záznamy z rozhlasu</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Žádné způsobilé radioodkazy</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Uložena historie vysílacího vysílání vymazána</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Historie rozhlasu nebyla ověřena.</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Neúspěšná kontrola integrity záznamů.</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Žádné ověřené pokrytí</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Částečně ověřené pokrytí</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Úplné ověřené pokrytí</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Pokrytí není dostupné</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Čekání na zachované rádiové pozorování</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Nejsou k dispozici žádné zachované rádiové pozorování</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Uložení zdrojových důkazů bylo vymazáno.</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Uložení důkazů nelze bezpečně předložit</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Poloha, cesta, vzdálenost, rychlost a nadmořská výška nejsou součástí této historie.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d zachoval výsledek skenování</item>
+        <item quantity="other">%1$d zachoval výsledky skenování</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d zachovávány rozhlasové záznamy</item>
+        <item quantity="other">%1$d uchovávané rozhlasové záznamy</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d zadržená dodávka</item>
+        <item quantity="other">%1$d zadržené dodávky</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d doručení má částečné výsledky</item>
+        <item quantity="other">%1$d dodávky mají částečné výsledky</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Zaznamenaná aktivita</string>
+    <string name="dashboard_live_activity_movement">Poslední zaznamenaný pohyb</string>
+    <string name="dashboard_live_activity_active_time">Aktivní čas</string>
+    <string name="dashboard_live_activity_gaps">Známé mezery: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Žádné ověřené pokrytí</string>
+    <string name="dashboard_activity_coverage_partial">Částečné pokrytí</string>
+    <string name="dashboard_activity_coverage_complete">Úplné pokrytí</string>
+    <string name="dashboard_activity_still">V klidu</string>
+    <string name="dashboard_activity_walking">Chůze</string>
+    <string name="dashboard_activity_running">Běh</string>
+    <string name="dashboard_activity_cycling">Jízda na kole</string>
+    <string name="dashboard_activity_vehicle">Ve vozidle</string>
+    <string name="dashboard_activity_on_foot">Pěšky</string>
+    <string name="dashboard_activity_tilting">Naklánění</string>
+    <string name="dashboard_activity_unknown">Neznámá aktivita</string>
     <string name="dashboard_exploration_title">Objevování</string>
     <string name="dashboard_exploration_new_today">Nové dnes</string>
     <string name="dashboard_exploration_total_cells">Celkem buněk</string>
@@ -152,51 +248,23 @@
     <string name="dashboard_ring_start_tracking">Spustit sledování</string>
     <string name="dashboard_ring_enable_location">Povolit polohu</string>
     <string name="dashboard_pill_start">Spustit</string>
-    <string name="dashboard_pill_stop">Zastavit</string>
     <string name="dashboard_pill_enable_location">Povolit polohu</string>
     <string name="dashboard_insights_title">Přehledy relace</string>
     <string name="dashboard_cd_insight_item">Přehled: %1$s</string>
     <string name="widget_latest_achievement">Poslední úspěch</string>
     <string name="dashboard_latest_achievement_title">Poslední úspěch</string>
     <string name="dashboard_latest_achievement_empty">Pokračujte ve sledování a odemkněte svůj první úspěch</string>
-    <string name="dashboard_metric_pressure">Tlak</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Rozsah %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Změna %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Uložené časové pásmo: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Relace tlaku</string>
-    <string name="dashboard_recent_pressure_available">Historie tlaku je dostupná</string>
-    <string name="dashboard_recent_pressure_materializing">Připravuje se historie tlaku…</string>
-    <string name="dashboard_recent_pressure_partial">Částečná historie tlaku</string>
-    <string name="dashboard_recent_pressure_unavailable">Historie tlaku není dostupná</string>
-    <string name="dashboard_recent_pressure_failed">Historii tlaku se nepodařilo připravit</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · rozsah %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Změna %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Žádné uložené pokrytí</string>
-    <string name="dashboard_pressure_coverage_complete">Úplné pokrytí</string>
-    <string name="dashboard_pressure_coverage_partial">Částečné pokrytí</string>
-    <string name="dashboard_pressure_coverage_unknown">Pokrytí není dostupné</string>
-    <string name="dashboard_recent_activity_title">Relace aktivity</string>
-    <string name="dashboard_recent_activity_ready">Historie aktivity je dostupná</string>
-    <string name="dashboard_recent_activity_materializing">Připravuje se historie aktivity…</string>
-    <string name="dashboard_recent_activity_partial">Částečná historie aktivity</string>
-    <string name="dashboard_recent_activity_unavailable">Historie aktivity není dostupná</string>
-    <string name="dashboard_recent_activity_failed">Historii aktivity se nepodařilo ověřit</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktivně %2$s</string>
-    <string name="dashboard_live_activity_title">Zaznamenaná aktivita</string>
-    <string name="dashboard_live_activity_movement">Poslední zaznamenaný pohyb</string>
-    <string name="dashboard_live_activity_active_time">Aktivní čas</string>
-    <string name="dashboard_live_activity_gaps">Známé mezery: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Žádné ověřené pokrytí</string>
-    <string name="dashboard_activity_coverage_partial">Částečné pokrytí</string>
-    <string name="dashboard_activity_coverage_complete">Úplné pokrytí</string>
-    <string name="dashboard_activity_still">V klidu</string>
-    <string name="dashboard_activity_walking">Chůze</string>
-    <string name="dashboard_activity_running">Běh</string>
-    <string name="dashboard_activity_cycling">Jízda na kole</string>
-    <string name="dashboard_activity_vehicle">Ve vozidle</string>
-    <string name="dashboard_activity_on_foot">Pěšky</string>
-    <string name="dashboard_activity_tilting">Naklánění</string>
-    <string name="dashboard_activity_unknown">Neznámá aktivita</string>
-    <string name="dashboard_finishing_session">Dokončování relace…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Importované kroky</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Zobrazit záznam %1$d</item>
+        <item quantity="other">Zobrazit nahrávky %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Schovat záznam %1$d</item>
+        <item quantity="other">Schovat záznamy %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Záznam %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s kroky</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Minimálně %1$s kroků</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Kroky nedostupné</string>
 </resources>

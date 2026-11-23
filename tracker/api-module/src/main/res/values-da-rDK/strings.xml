@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordinater</string>
     <string name="description_settings">Indstillingsknap</string>
     <string name="description_tracking_start">Knap til at starte sporing</string>
-    <string name="description_tracking_stop">Knap til at stoppe sporing</string>
     <string name="description_tracking_start_no_permission">Start sporing — tilladelse påkrævet</string>
     <string name="description_points_today">Point optjent i dag: %s</string>
     <string name="description_copy">Kopiér værdi</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Sessionsvarighed</string>
     <string name="duration_value">varighed %s</string>
     <string name="error_nothing_to_track">Du skal spore mere end blot tid</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Tænd lokationstjenesterne for at bruge den aktiverede sporingskilde.</string>
     <string name="hint_customize_notification_show_in_content">Vis i notifikationens indhold</string>
     <string name="hint_customize_notification_show_in_title">Vis i notifikationens titel</string>
     <string name="horizontal_accuracy_title">Vandret nøjagtighed</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Starting Tracker service</string>
     <string name="notification_starting_without_location">Tracker starter</string>
-    <string name="notification_stop">Stop</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop i %d minutter</string>
     <string name="notification_stop_til_recharge">Stop indtil opladning</string>
-    <string name="stop_tracking_dialog_title">Stop sporing?</string>
     <string name="stop_tracking_dialog_message">Automatisk sporing er slået til og kan snart starte en ny session igen, hvis du blot stopper.</string>
     <string name="notification_tracker_active_ticker">Tracker er aktiv</string>
     <string name="notification_tracker_active_without_location">Sporing uden placering</string>
     <string name="notification_tracking_active">Sporing</string>
     <string name="notification_tracking_start_failed_title">Sporingen kunne ikke starte</string>
     <string name="notification_tracking_start_failed_text">Åbn appen for at gennemgå tilladelser og genoptage sporing.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Forberedelse af sporing</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Der indsamles ingen data, indtil genoprettelsen er afsluttet.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Forberedelse af sporing</string>
     <string name="settings_activity_enabled_title">Aktivitet</string>
     <string name="settings_cell_enabled_title">Mobilnetværk</string>
     <string name="settings_disabled_recharge_summary">Automatisk sporing er deaktiveret, indtil din telefon er tilsluttet en oplader</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Placering</string>
     <string name="settings_notification_customize_summary">Skift, hvad der skal vises i sporingsnotifikationen, og i hvilken rækkefølge.</string>
     <string name="settings_notification_customize_title">Tilpas notifikation</string>
+    <string name="settings_notification_move_up">Flyt op</string>
+    <string name="settings_notification_move_down">Flyt ned</string>
+    <string name="settings_notification_load_failed">Kunne ikke indlæse indstillinger for notifikationer.</string>
+    <string name="settings_notification_save_failed">Ændringerne blev ikke gemt.</string>
+    <string name="settings_notification_retry">Prøv igen</string>
     <string name="settings_notification_styled_summary">Brug appens stilfarve til notifikationer.</string>
     <string name="settings_notification_styled_title">Farvede notifikationer</string>
     <string name="ski_notification_title">Skistatistik</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Skridttælling</string>
     <string name="settings_tracking_min_distance_title">Mindste afstand mellem indsamlinger</string>
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
-    <string name="settings_tracking_notice_summary">Af tekniske årsager kræver de fleste ændringer af sporingsindstillingerne, at sporingen genstartes. (Hvis sporing er aktiv, skal du blot stoppe den og starte igen. Det hjælper måske ikke at lukke og åbne appen.)</string>
     <string name="settings_tracking_required_accuracy_title">Påkrævet placeringsnøjagtighed</string>
     <string name="settings_tracking_title">Sporing</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Start sporing</string>
     <string name="shortcut_start_tracking_long">Start sporingstjeneste</string>
-    <string name="shortcut_stop_tracking">Stop sporing</string>
-    <string name="shortcut_stop_tracking_long">Stop sporingstjeneste</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Afslut session</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Afslut den aktuelle session</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Slå sporing fra</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Stop al sporing og automatisk start</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Sporingsforanstaltninger</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pause automatisk start</string>
     <string name="speed_title">Hastighed</string>
     <string name="speed_value">hastighed %s</string>
     <string name="battery_title">Batteri</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d minuts sporing</item>
         <item quantity="other">%1$d minutters sporing</item>
     </plurals>
-    <string name="insight_exploration_title">Udforsker!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Du opdagede %1$d nyt område</item>
         <item quantity="other">Du opdagede %1$d nye områder</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Gå tilbage</string>
     <string name="insight_distance_title">Tilbagelagt afstand</string>
     <string name="insight_distance_desc">Du tilbagelagde %1$s i denne session.</string>
-    <string name="insight_steps_title">Registrerede skridt</string>
-    <string name="insight_steps_desc">%1$s skridt i denne session — fortsæt sådan!</string>
     <string name="tracker_measurement_partial">Delvis</string>
 </resources>

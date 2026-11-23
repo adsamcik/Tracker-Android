@@ -159,8 +159,6 @@
     <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Source authority</string>
     <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Origin</string>
     <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Retained purpose</string>
-    <string name="trip_detail_source_origin_local" tools:ignore="MissingTranslation">Captured on this device</string>
-    <string name="trip_detail_source_origin_imported" tools:ignore="MissingTranslation">Imported retained evidence</string>
     <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Exact source-only session capture</string>
     <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Portable source membership</string>
     <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Authenticated immutable capture history names this as the only captured source.</string>
@@ -337,7 +335,6 @@
 
     <!-- History tabs -->
     <string name="history_tab_timeline">Timeline</string>
-    <string name="history_tab_trips">Trips</string>
     <string name="history_tab_calendar">Calendar</string>
     <string name="history_screen_title">History</string>
     <plurals name="history_trip_count">

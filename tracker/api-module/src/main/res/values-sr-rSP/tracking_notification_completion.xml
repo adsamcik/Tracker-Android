@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">Локација током целог дана</string>
-    <string name="notification_background_location_text">Прилагодљиво прикупљање локације је укључено. Отворите Tracker да бисте њиме управљали.</string>
     <string name="settings_notification_unsaved_exit">Покушајте поново да сачувате измене или изађите без чувања.</string>
     <string name="settings_notification_leave_without_saving">Изађи без чувања</string>
     <string name="notification_background_collection_title">Праћење у позадини</string>

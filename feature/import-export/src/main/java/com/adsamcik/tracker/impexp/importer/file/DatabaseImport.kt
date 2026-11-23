@@ -12,7 +12,7 @@ import com.adsamcik.tracker.sqlite.runtime.SQLiteXSupportSQLite
 import java.io.File
 
 /**
- * Merges compatible rows from a database file into the current database.
+ * Imports standalone activity definitions from a compatible SQLite file.
  *
  * The source stream is copied to a private read-only working file. Auto-generated integer primary
  * keys and their referencing foreign keys are remapped with computed SELECT expressions while rows
@@ -20,8 +20,8 @@ import java.io.File
  * transaction, so an unsupported constraint or broken foreign key rolls back the complete import.
  */
 internal class DatabaseImport(
-	private val allowedMergeTables: Set<String> = USER_DATA_TABLES,
-	private val rejectTrackerDatabaseBackups: Boolean = true,
+	private val allowedMergeTables: Set<String> = ACTIVITY_DEFINITION_TABLES,
+	private val enforceTrackerImportContract: Boolean = true,
 ) : FileImport {
 	override val supportedExtensions: Collection<String> = listOf("db")
 	override val transactionMode: ImportTransactionMode = ImportTransactionMode.IMPORTER_MANAGED
@@ -72,27 +72,23 @@ internal class DatabaseImport(
 		to: SupportSQLiteDatabase,
 	): DatabaseImportResult {
 		return try {
-			val allSourceTableNames = from.getAllTables()
-			if (
-				rejectTrackerDatabaseBackups &&
-				TRACKER_DATABASE_SIGNATURES.any(allSourceTableNames::containsAll)
-			) {
-				return DatabaseImportResult.Failure(
-					DatabaseImportFailure.TrackerDatabaseRestoreRequired,
-				)
+			val sourceTableNames = from.getAllTables().filterNot(::isSystemTable)
+			val targetTableNames = to.getAllTables().toSet()
+			val matchingTableNames = sourceTableNames
+				.filter { it in targetTableNames && it in allowedMergeTables }
+				.toSet()
+			if (enforceTrackerImportContract) {
+				validateRawImport(sourceTableNames, targetTableNames, matchingTableNames)
 			}
 			from.findUnsupportedSchemaObject()?.let {
 				throw DatabaseImportPlanningException(
 					DatabaseImportFailure.UnsupportedSchemaObject(it.type, it.name),
 				)
 			}
-			val allSourceTables = allSourceTableNames
-				.filterNot(::isSystemTable)
-				.map { from.getTable(it) }
+			val allSourceTables = sourceTableNames.map { from.getTable(it) }
 			val sourceTablesByName = allSourceTables.associateBy { it.tableName }
-			val matchingTables = getMatchingTables(from, to)
+			val matchingTables = matchingTableNames
 				.map { tableName -> sourceTablesByName.getValue(tableName) to to.getTable(tableName) }
-			val matchingTableNames = matchingTables.map { it.first.tableName }.toSet()
 			val importableTables = matchingTables
 				.filter { (source, target) -> target.canImport(source) }
 				.toMutableList()
@@ -104,8 +100,10 @@ internal class DatabaseImport(
 					}
 				}
 			} while (removed)
-			val tables = importableTables
-				.sortedByTopology()
+			if (enforceTrackerImportContract && importableTables.isEmpty()) {
+				throw DatabaseImportPlanningException(DatabaseImportFailure.UnsupportedRawDatabase)
+			}
+			val tables = importableTables.sortedByTopology()
 
 			findForeignKeyViolation(from)?.let {
 				throw DatabaseImportPlanningException(
@@ -269,13 +267,19 @@ internal class DatabaseImport(
 		return null
 	}
 
-	private fun getMatchingTables(
-		fromDatabase: SupportSQLiteDatabase,
-		toDatabase: SupportSQLiteDatabase,
-	): List<String> {
-		val targetTables = toDatabase.getAllTables().toSet()
-		return fromDatabase.getAllTables().filter {
-			!isSystemTable(it) && it in targetTables && it in allowedMergeTables
+	private fun validateRawImport(
+		sourceTableNames: List<String>,
+		targetTableNames: Set<String>,
+		matchingTableNames: Set<String>,
+	) {
+		// SQLite identifiers are case-insensitive. Recognize retired and auxiliary Tracker tables too.
+		val sourceNames = sourceTableNames.mapTo(mutableSetOf()) { it.lowercase() }
+		if (TRACKER_DATABASE_SIGNATURES.any(sourceNames::containsAll)) {
+			throw DatabaseImportPlanningException(DatabaseImportFailure.TrackerDatabaseRestoreRequired)
+		}
+		val trackerNames = targetTableNames.mapTo(OTHER_TRACKER_TABLES.toMutableSet()) { it.lowercase() }
+		if (matchingTableNames.isEmpty() || sourceNames.any { it in trackerNames && it !in ACTIVITY_DEFINITION_TABLES }) {
+			throw DatabaseImportPlanningException(DatabaseImportFailure.UnsupportedRawDatabase)
 		}
 	}
 
@@ -481,37 +485,13 @@ internal class DatabaseImport(
 			setOf("tracker_run", "session_segment", "location_sample"),
 		)
 
-		/**
-		 * Tables whose rows are user-owned facts or user-visible products and are safe to merge.
-		 * Runtime authority, lifecycle, leases, cursors, queues, and import/export audit state are
-		 * deliberately absent: those rows were authorized by another installation and must never
-		 * become active through a data merge. A whole-database restore is a separate operation.
-		 */
-		internal val USER_DATA_TABLES = setOf(
-			"activity",
-			"location_sample",
-			"location_observation",
-			"location_projection_observation",
-			"location_projection_point",
-			"location_observation_decision",
-			"step_interval",
-			"activity_snapshot",
-			"cell_sample",
-			"wifi_observation",
-			"session_segment",
-			"daily_summary",
-			"trajectory_reconstruction_run",
-			"trajectory_state",
-			"trajectory_source_link",
-			"visit_interval",
-			"exploration_cell",
-			"exploration_streak",
-			"achievement_progress",
-			"pressure_sample",
-			"ski_run_segment",
-			"xp_ledger",
-			"player_profile",
-			"minigame_score",
+		// Activity names and icons are reference data. Recorded observations, derived data and
+		// lifecycle authority require their typed import or the confirmed backup restore.
+		private val ACTIVITY_DEFINITION_TABLES = setOf("activity")
+		private val OTHER_TRACKER_TABLES = setOf(
+			"cell_data", "cell_location", "frequent_place", "inferred_trip", "location_data",
+			"location_wifi_count", "map_max_heat", "personal_record", "points_awarded", "route_cache",
+			"storage_size_snapshot", "tracker_session", "tracking_session", "trip_leg", "wifi_data",
 		)
 	}
 }
@@ -537,6 +517,10 @@ internal sealed interface DatabaseImportFailure {
 	data object TrackerDatabaseRestoreRequired : DatabaseImportFailure {
 		override val message: String =
 			"Tracker database backups require restore and cannot be merged into existing data."
+	}
+
+	data object UnsupportedRawDatabase : DatabaseImportFailure {
+		override val message: String = "Unsupported SQLite import"
 	}
 
 	data class ConstraintViolation(val tableName: String) : DatabaseImportFailure {

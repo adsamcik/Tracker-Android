@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Tilastot</string>
     <string name="stats_cell_count">Tukiasemien määrä</string>
     <string name="stats_collections">Päivitysten määrä</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Solu %1$s · %2$s näytettä</string>
     <string name="stats_cell_signal_carrier">Operaattori %1$s‑%2$s</string>
     <string name="trip_detail_title">Matkan tiedot</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Lähteen historia</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Lähteen historia ei ole käytettävissä</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Tämä yksityinen valinta ei säilytetty sovelluksen prosessin uudelleen luomisen jälkeen. Palaa äskettäiseen historiaan ja valitse se uudelleen.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Valitsetun säilytettyä lähdeosuutta ei enää ole saatavilla.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Rajoitettujen lähteiden historia ei voinut loppua turvallisesti.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Valituissa säilytettyihin lähteisiin ei onnistunut vaatimustenmukaisuuden tarkistamiseen.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Tämän valinnan esittämiseksi tarvittava lähteen-todistuksen kuva ei ole käytettävissä.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Lähtökohtainen valinta ei enää tunnista nykyistä säilytettyä merkintää.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Lähtöhistorian lukeminen epäonnistui. Yritä uudestaan värjätä sitä.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Matkaa ei löytynyt</string>
     <string name="trip_detail_not_found_subtitle">Tämä matka on ehkä poistettu</string>
     <string name="trip_detail_error_title">Matkan lataus epäonnistui</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Matka</string>
     <string name="trip_detail_date">Päivämäärä</string>
     <string name="trip_detail_steps">Askeleet</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Täysi kattavuus</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Ainakin näin moni · osittainen kattavuus</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Osittainen historia · ei ole luotettavaa luetteloa</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Tarkistamaton: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Perintöarvo · täydellisyys ei ole tarkistettu</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Päivittelen historiaa...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">- Ei tällä istuntoa varten.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Tämä istunto on häiriintynyt</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Eikä tuettu</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Lupa vaadittiin</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Rajoitettu Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Ei saatavilla</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Ei oikeuttavaa havaintoa</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Poistettu</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Historia ei ole käytettävissä</string>
     <string name="trip_detail_samples">Näytteet</string>
     <string name="trip_detail_source">Lähde</string>
     <string name="trip_detail_avg_speed">Keskinopeus</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Poista</string>
     <string name="trip_detail_cancel">Peruuta</string>
     <string name="trip_detail_more_options">Lisää vaihtoehtoja</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Käytännöt, joita ei ole saatavilla tästä saatuesta lähteestä</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Lähteisviranomainen</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Alkuperä</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Jätetty tarkoitus</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Täsmällinen vain lähdekohtainen istunto</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Käyttölaitteen jäsenyys</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Todistettu muuttumaton kuvaushistoriasta - tämä on ainoa kuvauslähde.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Tuotu muoti osoittaa, että alkuperäjäsenys on säilynyt, eikä että tämä laite tallensi todisteet.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi kokous</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Sellainen istunto</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Säilytetty radiotiedot</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Tilanne</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Kattaus</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Säilytettyjen radiotavan valmistelu</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Osittain säilytetty radiohistoria</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Säilytetty radiohistoria</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Radiohistoria ei ole käytettävissä</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Mitään päteviä tallennettuja radio-todistuksia</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Säilytetty radiohistoria poistettu</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Radiohistoriaa ei voitu tarkistaa</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Radio-historian tarkistus epäonnistui .</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Ei vahvistettua kattavuutta</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Osittainen tarkastettu kattavuus</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Täydellinen tarkastettu kattavuus</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Kattavuus ei saatavilla</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Odotamme radio-havaintoja.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Ei ole saatavilla tallennettuja radio- havaintoja.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Säilytetty lähteen todisteet poistettiin.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Säilytettyjä todisteita ei voida esittää turvallisesti.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Jätetty toimitus</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Toimitukset, joiden tulokset ovat osittaisia</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Säilytetty todiste Wi‑Fi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Säilytettyjen skannin tulokset</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Frequency-band-tuotannon sekoitus</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Säilytetty signaalialue</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d - %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz:</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Muut kappaleet</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Säilyttävät solujen todisteet</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Säilyttävät radiojätykset</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Rekisteröidyt tilat</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radio-teknologian tallennuslaite</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Näiden yksityiskohtien perusteella ei ole paljastettu verkkoa, tornia, tilaajia, reittiä, etäisyyttä, nopeutta, korkeutta tai sijaintitiedettä.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Askelten seuranta</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Säilytettyjen askeleiden todisteet</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Kattaus</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Ei katettuja väliaikoja</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Täydellinen katettu väliaika</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Osittainen katettu väliaika</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Kattavuus ei saatavilla</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Näytetään vain säilytettyjä Steps-todistuksia. Paikkakunnasta ei ole havaittu, joten reitti- ja paikkakunnasta johdetut metrykset eivät ole käytettävissä.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Aktiivisuusistunto</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Toimintavaikutukset, kesto ja luottamus ovat suunnilleen laitteessa säilytettyjen todisteiden yhteenveto.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Toiminnan yhteenveto</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Tilanne</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Kattaus</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Alkuperä</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Tiedetty aktiivinen aika</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Tunnettu inaktiivinen aika</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Aika, jota ei ole luokiteltu</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Tiedossa oleva väliaika</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Pysäytyvät toimintaryhmiä ja aukot</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Lähiarvoinen aika</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Luottamus</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Liiketoiminnan siirtymäsignaali</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Noin %1$d ⁇ %2$d%% %3$d säilytetty havainto</item>
+        <item quantity="other">Noin %1$d ⁇ %2$d%% havaintoista, jotka säilytettiin %3$d</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Todisteetyyppi</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Korjattu siirtymä</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Tiedossa oleva eroa</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Syynä</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Lähiarvoinen aika</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Toimintahistorian valmistelu</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Osittainen aktiivisuushistoria</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Aktiivisuushistoria saatavilla</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Aktiivisuushistoria ei saatavilla</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Aktiivisuushistoria: vahvistaminen epäonnistui</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Toimintahistoria on edelleen valmistelussa, eikä ole vielä päätetty ajanjaksoa.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Vain osa kokouksesta on säilyttänyt aktiivisuuden todisteita.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Toiminnan voimassaoloaikaa ei ole säilytetty.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Luotettavissa olevia toiminto- tuloksia ei ole saatavilla.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Säilytetty toiminta-todisteet epäonnistuivat koskemattomuuden tarkastuksissa.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Ei vahvistettua kattavuutta</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Osittainen kattavuus</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Täysi kattavuus</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Tämä laitteen avulla</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Tuotu säilytetty todiste</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Paikallaan</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Kävely</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Juoksu</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Pyöräily</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Ajoneuvossa</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Jalan</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Kallistuminen</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Tuntematon aktiivisuus</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Siirtyminen</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Näytteeseen otettu jalostus</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Näytteeseen otettu luokitus</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Mitään päteviä todisteita ei ole säilytetty</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Liiketoiminnan tarjoajan keskeytys</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Valtuutus muuttui</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Prosessi tai laite käynnistetään uudelleen</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Todisteet eivät olleet päteviä</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Tutkittu istunto</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Paikallinen sijainti ei havaittu .</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Saatuja lähteitä</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Valinnut yksityiskohdat eivät ole vielä saatavilla tälle täsmälliselle lähteen yhdistelmälle. Reitti, GPX, etäisyys, nopeus, korkeus ja muut sijaintipohjaiset toimet ovat edelleen saatavissa.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Sijainti</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Tukiasema</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Aktiivisuus</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Askeleet</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Paine</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Vastaanottokäynnistä ei ole todennettu</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Tämä vanhempi istunto on aikaisempi kuin tarkistettavissa oleva kuvaushistori. On esitetty säilytetty matkan yksityiskohdat, jotka saattavat olla epätäydellisiä.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Paineistunto</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Ilmanpaine</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Tilanne</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Uusimmat</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Pysäytyvä valikoima</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Ensimmäinen viimeinen muutos</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Kattaus</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Varastoitu alue</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Pysäytynyt paine...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Osittain säilytetty paine</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Pysäyttävä paine</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Pysäytyvä paine poistetaan</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Pysäytynyt paine ei voitu tarkistaa</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Paine ei ole käytettävissä</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Paineen historia epäonnistui</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Historia ei ole käytettävissä</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Yritä uudestaan värjätä matkan historiaa.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Säilytetty lähde-todistuksen kuva ei ole käytettävissä. Yritä uudestaan värjätä sitä.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Rajoitettujen lähteiden historia ei voinut loppua turvallisesti. Yritä uudestaan värjätä sitä.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Säilytetty lähteen historia epäonnistui koskemattomuuden tarkastuksissa. Kokeile uudelleen, kun lähde on saatavilla.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Fyysisen historian jäsenyyttä ei voitu tarkistaa turvallisesti.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Ei tallennettua kattavuutta</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Täydellinen hallussa oleva kattavuus</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Osittainen säilytetty kattavuus</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Kattavuus ei saatavilla</string>
     <string name="ski_detail_header">Hiihtoistunto</string>
     <string name="ski_detail_runs">Laskut</string>
     <string name="ski_detail_vertical">Pystyero</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Viimeksi nähty</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Aikajana</string>
-    <string name="history_tab_trips">Matkat</string>
     <string name="history_tab_calendar">Kalenteri</string>
     <string name="history_screen_title">Historia</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Seuraava kuukausi</string>
     <string name="history_calendar_distance">Matka</string>
     <string name="history_calendar_steps">Askeleet</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Päivittää...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Ei kiinniotettu</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Täydettömät</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Ei saatavilla</string>
     <string name="history_calendar_trips">Matkat</string>
     <string name="history_exploration_title">Tutkiminen</string>
     <string name="history_exploration_cells">Ruudut</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Historia</string>
     <string name="history_view_trip_on_map">Näytä matka kartalla</string>
     <string name="stats_heatmap_title">Aktiivisuus</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Tuotettuja askeleita</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Reitti- ja muut antureiden tiedot eivät sisälly.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Istunnot</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Lisää istuntoa</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Editointi istunto</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Nimi (valinnainen)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Talousmerkintä</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Ei merkintä</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Alku</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Loppu</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Aikavyöhykkeet</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Käytetään aikavyöhykkeitä</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Käytä aikavyöhykkeitä ennen säästöä.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Uusi lataus</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Kuvatus yksityiskohdat</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Poista istunto</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Säästä</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Peruuta</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Poistetaanko tämä istunto?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Kirjatut tiedot säilyvät historiassa.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Päivämäärä</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Aika</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Tämä paikallinen aika ei ole olemassa, koska kellot liikkuvat eteenpäin. Valitse toinen aika.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Tämä kerta tapahtuu kahdesti. Valitse sen UTC-muutoksen.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Loppu on oltava alkun jälkeen. Molempien aikojen on oltava 1 päivänä tammikuuta 1970 tai sen jälkeen.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Loppu ei voi olla tulevaisuudessa.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Kirjoita IANA:n aikavyöhykkeelle, kuten Europe/Prague tai UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Käytä enintään 200 merkkiä.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Tämä merkki poistettiin. Valitse toinen merkki tai ei merkkiä.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Tämä istunto muutti tai kerätyt tiedot poistettiin. Laata uudelleen ennen pelastamista.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Tämä istunto ei ole enää käytettävissä.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Istuntoja ei ole tilapäisesti käytettävissä. Yritä avata historia.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Ei tässä vaiheessa.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Nimetön istunto</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Tallennetaan</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Kuvaus on epävarmaa. Vahvista aika ennen vaihtoa.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Jatketaan aikaisemmasta päivästä.</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Näytä kaikki.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Lopettakaa istunto ja muokkaa aika tai poistakaa se.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Näytä tämän päivän istuntoja</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Joitakin istuntomerkkejä ei ole näkyvissä. Valitse päivä, jolloin voit katsoa sen kokoukset.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Päivä %1$d, kokoukset</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Päivä %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Yritä uudelleen</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Seuraavaa tallentamista</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Takaisin istuntoihin.</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Viennin istunto</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">- En voinut tallentaa tiedostoa. Yritä uudestaan.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Vietetty istunto</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Kokous, joka on viety sen päivämäärän ylittävien täydellisten nauhojen kanssa.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">En voinut lopettaa. Yritä uudestaan.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Poistaa tämä nauhoitus?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Sen tallennetut lukemat poistetaan pysyvästi.</string>
     <string name="stats_recorded_partial_value">%1$s · osittainen</string>
     <string name="history_activity_started">Alkoi: %1$s</string>
     <string name="history_activity_ended">Päättyi: %1$s</string>

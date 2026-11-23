@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Sesijas pabeigšana…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · daļēji</string>
     <string name="dashboard_title">Pārskats</string>
     <string name="dashboard_tracking_title">Izsekošana</string>
     <string name="dashboard_recording">Ierakstīšana</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Sērija: %1$d dienas. Pieskarieties, lai skatītu sērijas informāciju</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Sāciet sēriju. Pieskarieties, lai skatītu sērijas informāciju</string>
-    <string name="dashboard_cd_stop_tracking">Apturēt izsekošanu</string>
     <string name="dashboard_action_enable_location">Iespējot atrašanās vietas piekļuvi</string>
     <string name="dashboard_action_view_details">Skatīt informāciju</string>
     <string name="dashboard_action_view_map">Skatīt karti</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Tiek sagatavota pastāvīgi saglabātā soļu vēsture…</string>
     <string name="dashboard_live_steps_missing">Tiek gaidīts derīgs soļu novērojums</string>
     <string name="dashboard_live_steps_unavailable">Pastāvīgi saglabātā soļu vēsture nav pieejama</string>
+    <string name="dashboard_metric_pressure">Spiediens</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Diapazons %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Izmaiņa %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Saglabātā laika josla: %1$s</string>
     <string name="dashboard_milestone_distance">km sasniegti!</string>
     <string name="dashboard_milestone_steps">soļi sasniegti!</string>
     <string name="dashboard_milestone_time">min. izsekotas!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Pēdējā sesija</string>
     <string name="dashboard_last_session_duration">Ilgums</string>
     <string name="dashboard_last_session_distance">Attālums</string>
-    <string name="dashboard_last_session_steps">Soļi</string>
     <string name="dashboard_last_session_view_map">Skatīt karti</string>
     <string name="dashboard_recent_trips_title">Nesenā izsekošana</string>
     <string name="dashboard_recent_trips_empty">Nav nesenu izsekošanas sesiju. Sāciet izsekošanu, lai tās redzētu šeit.</string>
     <string name="dashboard_recent_history_loading">Ielādē neseno izsekošanu…</string>
     <string name="dashboard_recent_history_unavailable">Nesenā izsekošana nav pieejama</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s vēsture nav pieejama</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Izsākšanas iestāde nav pieejama</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Izstāde par pamatu nav pieejama.</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Apgrūtināta avots vēsture lasīšana nevarēja pabeigt droši</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Pārbaudēta avots vēsture neizpildīta integritātes pārbaude</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Fizisko vēsturi nav iespējams pārbaudīt</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Atrašanās vieta</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Šūna</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Aktivitāte</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Soļi</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Spiediens</string>
     <string name="dashboard_recent_steps_title">Soļu sesija</string>
     <string name="dashboard_recent_steps_available">Soļu vēsture ir pieejama</string>
     <string name="dashboard_recent_steps_materializing">Sagatavo soļu vēsturi…</string>
     <string name="dashboard_recent_steps_partial">Daļēja soļu vēsture</string>
+    <string name="dashboard_recent_pressure_title">Spiediena sesija</string>
+    <string name="dashboard_recent_pressure_available">Spiediena vēsture ir pieejama</string>
+    <string name="dashboard_recent_pressure_materializing">Tiek sagatavota spiediena vēsture…</string>
+    <string name="dashboard_recent_pressure_partial">Daļēja spiediena vēsture</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Izmazgāts spiediena vēsture</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Nevarēja pārbaudīt spiediena vēsturi</string>
+    <string name="dashboard_recent_pressure_unavailable">Spiediena vēsture nav pieejama</string>
+    <string name="dashboard_recent_pressure_failed">Neizdevās sagatavot spiediena vēsturi</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · diapazons %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Izmaiņa %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Nav saglabāta pārklājuma</string>
+    <string name="dashboard_pressure_coverage_complete">Pilns pārklājums</string>
+    <string name="dashboard_pressure_coverage_partial">Daļējs pārklājums</string>
+    <string name="dashboard_pressure_coverage_unknown">Pārklājums nav pieejams</string>
+    <string name="dashboard_recent_activity_title">Aktivitāšu sesija</string>
+    <string name="dashboard_recent_activity_ready">Aktivitāšu vēsture ir pieejama</string>
+    <string name="dashboard_recent_activity_materializing">Tiek sagatavota aktivitāšu vēsture…</string>
+    <string name="dashboard_recent_activity_partial">Daļēja aktivitāšu vēsture</string>
+    <string name="dashboard_recent_activity_unavailable">Aktivitāšu vēsture nav pieejama</string>
+    <string name="dashboard_recent_activity_failed">Neizdevās pārbaudīt aktivitāšu vēsturi</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktīvais laiks %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi sesija</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Cellu sesija</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Apcietināts Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Apņemts mobilo radijs</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Šā sesijas avoti</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Šajā sesijā nav reģistrēta vieta. Reģistrācija, attālums, ātrums un augstums nav pieejami.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Pārbaudēta %1$s vēsture nav pieejama.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Apņemts ar šo ierīci</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Importētie saglabāti pierādījumi</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Atbalsta radiju vēsturi...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Daži saglabātie radiju vēsturi</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Ražotais radiju vēsture</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Radijas vēsture nepastāvēta</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Neatbilstīgi saglabāti radio pierādījumi</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Izdzēvēts saglabāts radiju vēsture</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Nevarēja pārbaudīt radiju vēsturi</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Radijas vēstures integritātes pārbaude neizpildīta</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Nav pārbaudīta pārklājuma</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">daļēji pārbaudīta aptverība</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Vispārīgi pārbaudīta aptverība</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Pārklājums nav pieejams</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Sagaidot saglabāto radio novērojumus</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Neatkarīgi no radio novērošanas</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Izmazgāti saglabāti pierādījumi no avota</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Pārstrādājot pierādījumus nevar droši iesniegt</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Uz vietas, maršrutu, attālumu, ātrumu un augstumu neattiecas šī vēsture.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d saglabāts skanēšanas rezultāts</item>
+        <item quantity="other">%1$d saglabāti skanēšanas rezultāti</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d saglabāts radiorecords</item>
+        <item quantity="other">%1$d saglabāti radio ieraksti</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d aizturēta piegāde</item>
+        <item quantity="other">%1$d aizturētas piegādes</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d piegādes rezultāti ir daļēji</item>
+        <item quantity="other">%1$d piegādes ir daļēji</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Reģistrēta aktivitāte</string>
+    <string name="dashboard_live_activity_movement">Pēdējā reģistrētā kustība</string>
+    <string name="dashboard_live_activity_active_time">Aktīvais laiks</string>
+    <string name="dashboard_live_activity_gaps">Zināmie iztrūkumi: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Nav pārbaudīta pārklājuma</string>
+    <string name="dashboard_activity_coverage_partial">Daļējs pārklājums</string>
+    <string name="dashboard_activity_coverage_complete">Pilns pārklājums</string>
+    <string name="dashboard_activity_still">Nekustīgs</string>
+    <string name="dashboard_activity_walking">Iešana</string>
+    <string name="dashboard_activity_running">Skriešana</string>
+    <string name="dashboard_activity_cycling">Braukšana ar velosipēdu</string>
+    <string name="dashboard_activity_vehicle">Transportlīdzeklī</string>
+    <string name="dashboard_activity_on_foot">Kājām</string>
+    <string name="dashboard_activity_tilting">Sasvērts</string>
+    <string name="dashboard_activity_unknown">Nezināma aktivitāte</string>
     <string name="dashboard_exploration_title">Izpēte</string>
     <string name="dashboard_exploration_new_today">Jauns šodien</string>
     <string name="dashboard_exploration_total_cells">Kopējais šūnu skaits</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Sākt izsekošanu</string>
     <string name="dashboard_ring_enable_location">Iespējot atrašanās vietu</string>
     <string name="dashboard_pill_start">Sākt</string>
-    <string name="dashboard_pill_stop">Apturēt</string>
     <string name="dashboard_pill_enable_location">Iespējot atrašanās vietu</string>
     <string name="dashboard_insights_title">Sesijas ieskati</string>
     <string name="dashboard_cd_insight_item">Ieskats: %1$s</string>
     <string name="widget_latest_achievement">Pēdējais sasniegums</string>
     <string name="dashboard_latest_achievement_title">Pēdējais sasniegums</string>
     <string name="dashboard_latest_achievement_empty">Turpiniet izsekošanu, lai atbloķētu pirmo sasniegumu</string>
-    <string name="dashboard_metric_pressure">Spiediens</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Diapazons %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Izmaiņa %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Saglabātā laika josla: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Spiediena sesija</string>
-    <string name="dashboard_recent_pressure_available">Spiediena vēsture ir pieejama</string>
-    <string name="dashboard_recent_pressure_materializing">Tiek sagatavota spiediena vēsture…</string>
-    <string name="dashboard_recent_pressure_partial">Daļēja spiediena vēsture</string>
-    <string name="dashboard_recent_pressure_unavailable">Spiediena vēsture nav pieejama</string>
-    <string name="dashboard_recent_pressure_failed">Neizdevās sagatavot spiediena vēsturi</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · diapazons %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Izmaiņa %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Nav saglabāta pārklājuma</string>
-    <string name="dashboard_pressure_coverage_complete">Pilns pārklājums</string>
-    <string name="dashboard_pressure_coverage_partial">Daļējs pārklājums</string>
-    <string name="dashboard_pressure_coverage_unknown">Pārklājums nav pieejams</string>
-    <string name="dashboard_recent_activity_title">Aktivitāšu sesija</string>
-    <string name="dashboard_recent_activity_ready">Aktivitāšu vēsture ir pieejama</string>
-    <string name="dashboard_recent_activity_materializing">Tiek sagatavota aktivitāšu vēsture…</string>
-    <string name="dashboard_recent_activity_partial">Daļēja aktivitāšu vēsture</string>
-    <string name="dashboard_recent_activity_unavailable">Aktivitāšu vēsture nav pieejama</string>
-    <string name="dashboard_recent_activity_failed">Neizdevās pārbaudīt aktivitāšu vēsturi</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktīvais laiks %2$s</string>
-    <string name="dashboard_live_activity_title">Reģistrēta aktivitāte</string>
-    <string name="dashboard_live_activity_movement">Pēdējā reģistrētā kustība</string>
-    <string name="dashboard_live_activity_active_time">Aktīvais laiks</string>
-    <string name="dashboard_live_activity_gaps">Zināmie iztrūkumi: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Nav pārbaudīta pārklājuma</string>
-    <string name="dashboard_activity_coverage_partial">Daļējs pārklājums</string>
-    <string name="dashboard_activity_coverage_complete">Pilns pārklājums</string>
-    <string name="dashboard_activity_still">Nekustīgs</string>
-    <string name="dashboard_activity_walking">Iešana</string>
-    <string name="dashboard_activity_running">Skriešana</string>
-    <string name="dashboard_activity_cycling">Braukšana ar velosipēdu</string>
-    <string name="dashboard_activity_vehicle">Transportlīdzeklī</string>
-    <string name="dashboard_activity_on_foot">Kājām</string>
-    <string name="dashboard_activity_tilting">Sasvērts</string>
-    <string name="dashboard_activity_unknown">Nezināma aktivitāte</string>
-    <string name="dashboard_finishing_session">Sesijas pabeigšana…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Importētie pasākumi</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Izskatīt %1$d ierakstu</item>
+        <item quantity="other">Izskatīt %1$d ierakstu</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Slēpt %1$d ierakstu</item>
+        <item quantity="other">Slēgt %1$d ierakstu</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Pieteikums %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s kāpas</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Ne mazāk kā %1$s posmi</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Stepas nav pieejamas</string>
 </resources>

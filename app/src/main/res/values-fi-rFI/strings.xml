@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Päivitystä edeltävä varmuuskopio viety</string>
     <string name="settings_migration_backup_export_failure">Päivitystä edeltävää varmuuskopiota ei voitu viedä</string>
     <string name="settings_migration_backup_export_cleanup_required">Vienti epäonnistui. Poista osittain viety varmuuskopio valitusta sijainnista.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Perintötietokannan tuonti vaatii huomiota</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Alkuperäinen tietokanta on yhä tässä laitteessa. Kokeile uudelleen tuontia avaamaan Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Perintötietokannan koko: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Uudistettu tuonti</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Exportin perintötietokanta</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Poista vanha tietokanta ja aloita alusta</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Vietetty perintötietokanta</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Ei voitu viedä vanhan tietokannan</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Vienti epäonnistui, eikä täydettyä määräaikaa voinut viedä. Poista se manuaalisesti.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Perintötietokanta</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Versio %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Lähteenversio: %1$d\n Säiliö: %2$s\nTuotanto: %3$s\nTuotettuja riviä: %4$d\n Rivet, jotka säilytetään vain kassakaapissa: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Tuotanto valmis: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Ei tuotu</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Tuotanto</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Importaatio valmis</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Importaatio epäonnistunut</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Poista entinen tietokanta?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Tämä poistaa %1$s pysyvästi laitteesta. V27-tietosi eivät ole vaikuttanut. Säilytä viety kopio, jos saatat tarvita alkuperäisen tietokannan myöhemmin.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Perintötietokanta poistettu</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Eikä voitu poistaa vanhan tietokannan</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Toipumisen seuranta vaatii huomiota</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Kokoaminen on lopussa, kun Tracker yhdistää jäljitystietojaan turvallisesti. Kokeile uudelleen poistamatta historiaa.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Kokeile uudelleen jäljityspalautus</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Kehitystietokanta tarvitsee manuaalisen varmuuskopioinnin</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker löysi lähettämättömän versio 28 -kehitysohjelman, joka ei vastaa tätä rakennusta. Jäljittämis- ja tietokannan ominaisuudet ovat poissa, ja tietokannan tiedosto on pysynyt muuttumattomana. Varmuuskopioida sovelluksen tiedot tai tietokanta ennen kuin korvaa tai korjaa tämä kehittämisinstallaatio.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Tietokanta tarvitsee huomiota</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker ei voinut turvallisesti tunnistaa tai vahvistaa tätä tietokantaa. Jäljittämis- ja tietokannan ominaisuudet ovat poissa, ja tietokannan tiedosto on pysynyt muuttumattomana. Varmuuskopioida sovelluksen tiedot tai tietokanta ennen manuaalisen palautuksen yritystä.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Tietokanta ei ole väliaikaisesti käytettävissä</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Jäljittämis- ja tietokannan ominaisuudet pysyvät poissa, kun Tracker yrittää turvallisesti uudelleen. Mitään tietoja ei poistettu. Kokeile uudelleen, onko väliaikainen lukko tai säilytysongelma poistunut.</string>
     <string name="settings_delete_data_success">Kaikki kerätyt tiedot poistettiin</string>
     <string name="settings_delete_data_failure">Kaikkia kerättyjä tietoja ei voitu poistaa</string>
     <string name="settings_game_goals_title">Tavoitteet</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Ladataan peliasetuksia…</string>
     <string name="settings_game_load_error">Peliasetuksia ei voitu ladata. Yritä uudelleen.</string>
     <string name="settings_map_info_hint">Nämä asetukset ohjaavat kartan visualisoinnin laatua ja suorituskykyä. Useimmat käyttäjät voivat käyttää oletusarvoja.</string>
+    <string name="settings_map_offline_data_section">Offline-kartti tiedot</string>
     <string name="settings_map_online_tiles_section_title">Verkkokarttalaatat</string>
     <string name="settings_map_online_tiles_enable_title">Käytä verkkokarttalaattoja</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Pois — käytetään vain mukana toimitettua offline-taustakarttaa. Ei verkkopyyntöjä.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Mukautettu</string>
     <string name="tracking_preset_custom_description">Säädä jokaista seuranta-arvoa manuaalisesti</string>
     <string name="tracking_preset_selector_subtitle">Valitse aloitusprofiili ja hienosäädä sitten mitä tahansa alla olevaa asetusta.</string>
+    <string name="tracking_preset_change">Vertaile vaihtoehtoja</string>
+    <string name="tracking_preset_done">Näytä vain valittu</string>
     <string name="tracking_preset_customized_summary">Olet hienosäätänyt seurantaa. Palauta esiasetus valitsemalla yläpuolelta.</string>
+    <string name="settings_tracking_section_start_stop">Automaattinen seuranta</string>
+    <string name="settings_tracking_section_battery_detail">Jäljittämislaatu</string>
+    <string name="settings_tracking_section_data_collected">Kerättyjä tietoja</string>
     <string name="settings_tracking_section_detail">Sijainnin keräys</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Ulkopuhelut (valinnainen)</string>
     <string name="settings_tracking_section_notifications">Ilmoitukset</string>
+    <string name="settings_transition_detection_friendly_title">Batterio-efektiivinen liikkeen havainnointi</string>
+    <string name="settings_transition_detection_friendly_summary">Käytetään Android-toiminnan muutoksia, jotta vältetään usein taustatarkastuksia. Automaattinen käynnistys voi reagoida hieman hitaammin.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automaattinen seuranta ei ole käytettävissä</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Automaattisen toimintatapa on tallennettu. Toiminnan tunnistamislupa vaaditaan ennen kuin automaattinen käynnistys voi toimia.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Valitse, mitä tallentaa matkojen välillä.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi Ulkopalvelut</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Selin ulkopuoliset matkat</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Matkojen välissä.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Säilytetty. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Ulkopalvelun kattavuus on opportunistinen ja voi sisältää luvan, palveluntarjoajan, prosessin, uudelleenkäynnityksen tai OS:n aukkoja. Tracker ei vaadi aina keräämistä eikä keksi säilytysjaksoa.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Tuotteen säilytyspolitiikka ei ole vielä saatavilla.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Tarkistan kokoelman...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Sääntely on turvallisesti varattu nykyisellä käyttöönotolla.</string>
+    <string name="settings_ambient_user_turned_off">Seuranta on pois päältä. Valintasi ja tallennetut tiedot säilyvät.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Salli pääsy askelmääriin Health Connectissa, jotta Tracker voi täydentää askelhistorian aukkoja myös sovelluksen ollessa suljettuna.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Pääsy askellaskentaan Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">En voinut tarkistaa Health Connect-pääsyä. Yritä uudestaan.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Askelmäärät voidaan tuoda Trackerin ollessa käynnissä. Taustakäyttö voi vähentää aukkoja askelhistoriassa.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Täyspäivän askeltoimittajan tukemista ei ole.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Päivitä Health Connect niin että Tracker voi lukea askeleiden lukemista.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">En voinut tarkistaa askeltoimittajaa. Yritä uudestaan myöhemmin.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Antaa liikunnan luvan laskea askeleita laitteella.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Tämä laite ei saa tallentaa askeleita.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect on valmis. Joissakin vaiheissa voi olla vielä aukkoja.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Astujen kuvaus on valmiina. Joissakin vaiheissa voi olla vielä aukkoja.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Sijaintitietojen kerääminen istuntojen välillä edellyttää sijainnin käyttöoikeutta taustalla. Istuntojen tallennusasetus ei muutu.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi Skannausluvan vaatimukset eivät täyty. Ne eivät ole mahdollistavat paikallistuksen.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Solujen palautusluvan vaatimukset eivät täyty. Ne eivät ole mahdollistavat paikallistuksen.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passiivinen sijainti on valmis lähde-omistajan sovitteluun. Se tarjoaa opportunistisia pisteitä, ei reitin jatkuvuutta.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Skannaus tulosten palautukset ovat valmiita lähde-omistajan sovitteluun. - Skannaus- tai herätysjärjestelmää ei lupaa.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Aika-merkillä varustetut solunmuutokset ovat valmiina lähde-omistajan sovitukseen. Ei pakotettu virkistysmenettelyä luvattu.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Tarvittu alusto tai palveluntarjoaja ei ole käytettävissä, joten kerääminen ei ole käytettävissä.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Säästetty pois; käyttötilanne odottamassa</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Säästetty; raportoitu käyttötarkoitus</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Säästetty; ei käytössä</string>
+    <string name="settings_location_source_summary">Kirjoita reitti, etäisyys ja nopeus. Yleensä suurin akkuhinto.</string>
+    <string name="settings_activity_source_summary">Tallentaa kävelyn, pyöräilyn, ajamisen ja paikallaanolon koko päivän ajalta.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Se seuraa askeleita koko päivän. Matkat järjestävät saman askeleen historiaa.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Tarkistan askeleiden keräämistä.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Poista seuranta käytöstä</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">- Suljettu...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Pysähdytys, koko päivän kuvaus ja automaattinen käynnistys. Valintasi ja tallennut tiedot pysyvät.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Seuranta on pois päältä. Valintasi ja tallennetut tiedot säilyvät.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">- En voinut sammuttaa jäljityksiä. Yritä uudestaan.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Ilmastonpaine tallennetaan koko päivän seurantailmoituksella.</string>
+    <string name="settings_ambient_activity_ready">Valmis tallentamaan aktiivisuutta.</string>
+    <string name="settings_ambient_pressure_ready">Valmis tallentamaan ilmanpainetta.</string>
+    <string name="settings_pressure_host_unavailable">Ilmanpaineen tallennusta taustalla ei voitu käynnistää.</string>
+    <string name="settings_wifi_source_summary">Kirjoittakaa lähellä olevia Wi-Fi verkostoja lisäämällä paikallista kontekstia. Tiedot pysyvät tässä laitteessa.</string>
+    <string name="settings_cell_source_summary">Kirjoittakaa lähellä olevia kännykkätorneja sijaintiyhteyden lisäämiseksi. Tiedot pysyvät tässä laitteessa.</string>
+    <string name="settings_location_source_compact">Reitti, etäisyys ja nopeus</string>
+    <string name="settings_activity_source_compact">Liikkeen tyyppi ja hiljaisuus</string>
+    <string name="settings_steps_source_compact">Ajatukset koko päivän ajan</string>
+    <string name="settings_barometer_source_compact">Korkeus ja korkeus</string>
+    <string name="settings_wifi_source_compact">Lähiverkon yhteys</string>
+    <string name="settings_cell_source_compact">Lähistöllä sijaitseva torni</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Tekninen tila</string>
+    <string name="settings_technical_status_summary">Akkusarviointi, sallit ja keräysasema.</string>
+    <string name="settings_technical_status_attention">Joillakin keräyslähteillä on oltava huomio. Avaan yksityiskohtia varten.</string>
+    <string name="settings_simple_source_controls_title">Käytä yksinkertaisia ohjauksia</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Seuraa kävelyä ja juoksua automaattisesti.</string>
     <string name="setup_auto_tracking_in_motion">Liikkeellä</string>
     <string name="setup_auto_tracking_in_motion_desc">Seuraa kaikkea liikettä automaattisesti, myös ajoa ja pyöräilyä.</string>
-    <string name="setup_preset_title">Seurannan yksityiskohdat</string>
+    <string name="settings_auto_tracking_mode_summary">Valitse, minkä liikkeen pitäisi aloittaa ja pysäyttää matkat automaattisesti.</string>
     <string name="setup_recommended">Suositeltu</string>
     <string name="setup_what_to_collect_title">Mitä kerätään</string>
     <string name="setup_what_to_collect_subtitle">Lisää vaihtoehtoja alla. Aloita tutkiminen ilman käyttöoikeuksia tai myönnä ne myöhemmin. Tiedot pysyvät tällä laitteella.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Aktiivisuus</string>
     <string name="setup_source_activity_desc">Tunnista, käveletkö, juoksetko, pyöräiletkö vai ajatko.</string>
     <string name="setup_source_steps">Askeleet</string>
-    <string name="setup_source_steps_desc">Laske askeleesi laitteen askelmittarilla.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Seuraa askeleita koko päivän. Matkat järjestävät saman historian.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Ei suoraa askeleiden antaria. Tracker tarkistaa, onko laitteessa oleva askellähde.</string>
+    <string name="setup_perm_steps_why">Salli liikkeen käyttöoikeus, jotta tämä laite voi laskea askeleita koko päivän.</string>
+    <string name="setup_perm_grant_steps_content_description">Salli liikkeen käyttöoikeus askelille</string>
+    <string name="setup_steps_health_connect_why">Salli askeleet Health Connectissa, jotta aukot voidaan täyttää Trackerin ollessa suljettuna.</string>
+    <string name="setup_steps_provider_ready">Laitteen askellähde on valmis. Joissain ajanjaksoissa voi silti olla aukkoja.</string>
+    <string name="setup_steps_provider_checking">Tarkistetaan saatavilla olevia askellähteitä…</string>
     <string name="setup_source_wifi">WiFi-verkot</string>
-    <string name="setup_source_wifi_desc">Tallenna lähellä olevat WiFi-verkot parantaaksesi sijainnin tarkkuutta.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Rekisteröi lähellä olevia Wi-Fi-verkkoja, paikankuljetuksen avulla tai ilman.</string>
     <string name="setup_source_cell">Tukiasemat</string>
-    <string name="setup_source_cell_desc">Tallenna tukiasematiedot sijaintikontekstia varten.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Kirjoita lähellä olevia kännykkötorneja sijaintijälkien kanssa tai ilman.</string>
     <string name="setup_perm_location_why">Tarvitaan reittiesi tallentamiseen ja näyttämiseen kartalla. Sijainti pysyy tällä laitteella — mitään ei lähetetä palvelimelle.</string>
     <string name="setup_perm_location_bg_why">Jotta reittisi tallennus jatkuu, kun vaihdat sovellusta tai näyttö sammuu, Tracker tarvitsee sijaintisi käyttöoikeuden taustalla. Tallennettu sijainti pysyy tällä laitteella — mitään ei lähetetä palvelimelle. Valitse seuraavassa järjestelmäkehotteessa ”Salli aina” ottaaksesi automaattisen seurannan käyttöön; ”Salli vain sovellusta käytettäessä” pitää Trackerin toiminnassa vain, kun sen näyttö on avoinna.</string>
     <string name="setup_perm_activity_why">Antaa Trackerin tunnistaa, mitä teet (kävelet, pyöräilet, ajat tai olet paikallasi), jotta automaattinen seuranta voi keskeytyä, kun et liiku, ja säästää akkua. Aktiivisuustiedot pysyvät tällä laitteella — mitään ei lähetetä palvelimelle.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Myönnä soluradiolupa</string>
     <string name="setup_perm_granted">Myönnetty ✓</string>
     <string name="permission_grant_in_settings">Salli asetuksissa →</string>
-    <string name="permission_disabled_due_to_denial">%1$s poistettiin käytöstä, koska käyttöoikeus evättiin. Myönnä se asetuksissa ottaaksesi toiminnon käyttöön.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s on valittu, mutta se ei voi kerätä ennen lupaa.</string>
     <string name="settings_wifi_permission_required">Vaatii Wi-Fi- tai sijaintiluvan. Ota käyttöön myöntääksesi luvan — Wi-Fi-tietoja ei tallenneta ennen sitä, ja tallennetut tiedot pysyvät tällä laitteella.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Pääsy on vielä tarpeen. Sinun valintasi säilytetään.</string>
     <string name="settings_cell_permission_required">Vaatii puhelimen tilan ja tarkan sijainnin luvan. Ota käyttöön myöntääksesi luvan — solutietoja ei tallenneta ennen sitä, ja tallennetut tiedot pysyvät tällä laitteella.</string>
     <string name="settings_barometer_unavailable">Ilmanpaineanturi ei ole käytettävissä tällä laitteella.</string>
     <string name="settings_activity_permission_required">Vaatii aktiivisuuden tunnistusluvan. Ota käyttöön myöntääksesi luvan.</string>
-    <string name="settings_steps_unavailable">Askelanturi ei ole käytettävissä tällä laitteella.</string>
     <string name="setup_start_exploring">Aloita tutkiminen</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">- Se on valmiina.</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Yritä uudelleen</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">En voinut säätää järjestelyjä. Valitsesi ovat yhä täällä.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">- En voinut laittaa tallennettuja tietoja. Valitsesi ovat yhä täällä.</string>
     <string name="setup_continue">Jatka</string>
     <string name="setup_step_indicator">Vaihe %1$d / %2$d</string>
     <string name="setup_online_tiles_title">Verkkokarttalaatat?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Kun toiminto on käytössä, tarjoaja näkee IP-osoitteesi ja lataamasi karttalaatat — suurin piirtein katsomasi kartta-alueen. Tracker ei koskaan lähetä tiliä, tunnistetta tai sijaintihistoriaasi.</string>
     <string name="setup_online_tiles_change_later">Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Kartta → Verkkokarttalaatat.</string>
     <string name="setup_background_access_optional">Valinnainen, mutta suositeltu. Voit muuttaa tämän milloin tahansa kohdassa Asetukset → Seuranta.</string>
-    <string name="background_reliability_status_exempt">Taustatoiminta sallittu</string>
-    <string name="background_reliability_status_optimized">Akun optimointi on käytössä</string>
-    <string name="background_reliability_allow_action">Salli taustatoiminta</string>
-    <string name="background_reliability_samsung_hint">Samsung-laitteet voivat myös siirtää sovelluksia Nukkuvat sovellukset -luokkaan. Avaa akkuasetukset, poista Tracker Nukkuvat sovellukset -luokasta ja määritä, ettei sitä aseteta nukkumaan.</string>
-    <string name="background_reliability_samsung_action">Avaa laitteen akkuasetukset</string>
-    <string name="settings_tracebox_title">Kaatumisdiagnostiikka</string>
-    <string name="settings_tracebox_root_summary">Paikallinen kaatumis-, ANR- ja rakenteellinen diagnostiikka</string>
     <string name="setup_background_location_title">Salli taustasijainti automaattista seurantaa varten</string>
     <string name="setup_background_location_disclosure">Automaattinen seuranta käynnistyy Trackerin ollessa taustalla ja tallentaa reittisi, vaikka sovelluksen näyttö ei olisi avoinna. Sijaintitiedot pysyvät tässä laitteessa. Valitse sovelluksen sijaintiasetuksissa ”%1$s”.</string>
     <string name="setup_background_location_open_settings">Avaa sijaintiasetukset</string>
     <string name="setup_background_location_decline">Ei nyt</string>
     <string name="setup_background_location_manual_only">Manuaalinen seuranta etualalla on yhä käytettävissä. Automaattinen sijainnin seuranta pysyy poissa käytöstä, kunnes taustasijainti sallitaan.</string>
-    <string name="settings_ambient_user_turned_off">Seuranta on pois päältä. Valintasi ja tallennetut tiedot säilyvät.</string>
-    <string name="setup_perm_steps_why">Salli liikkeen käyttöoikeus, jotta tämä laite voi laskea askeleita koko päivän.</string>
-    <string name="setup_perm_grant_steps_content_description">Salli liikkeen käyttöoikeus askelille</string>
-    <string name="setup_steps_health_connect_why">Salli askeleet Health Connectissa, jotta aukot voidaan täyttää Trackerin ollessa suljettuna.</string>
-    <string name="setup_steps_provider_ready">Laitteen askellähde on valmis. Joissain ajanjaksoissa voi silti olla aukkoja.</string>
-    <string name="setup_steps_provider_checking">Tarkistetaan saatavilla olevia askellähteitä…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Taustajäljen seurantaasetukset</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android ja laitteen käytäntö voi pysäyttää tai pysäyttää taustatoiminnan. Tracker voi ilmoittaa rajoituksista, joita Android paljastaa, mutta se ei voi poistaa rajoitetun tai pakollisen pysähtymisen tilaa.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Taustalla oleva rajoitus havaittiin</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Akkuoptimointi havaittiin</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Rajoitus ei havaittu</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Rajoitustila ei ole käytettävissä</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android ilmoittaa, että taustatoiminta on rajoitettu. Jäljitys voi lopettaa, kun Tracker ei ole näkyvissä; sovellus ei voi poistaa tätä käytäntöä.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android ilmoittaa, että Tracker ei ole akkujen luetteloon. Voimanhallinta voi viivästyttää taustatoiminta; käyttöoikeuksien luettelo vähentää rajoituksia, mutta ei takaa jatkuvaa seurantaa.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ei ilmoita taustalla olevista rajoituksista ja Tracker on akkujen luetteloissa. Järjestelmä voi silti pysäyttää sovelluksen, eikä force-stopia voida poistaa.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker ei voinut lukea kaikkia asiaankuuluvia rajoitussignaaleja Android. Laitteen erityistä syytä tai parannuskeinoa ei voida vahvistaa.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Avaa sovelluksen akkuasetukset</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Avatkaa akkuoptimointiasetukset</string>
+    <string name="settings_tracebox_title">Kaatumisdiagnostiikka</string>
+    <string name="settings_tracebox_root_summary">Paikallinen kaatumis-, ANR- ja rakenteellinen diagnostiikka</string>
     <string name="settings_tracking_changes_apply_live">Muutokset päivittävät käynnissä olevan seurannan</string>
     <string name="settings_balance_title">Virta ja yksityiskohdat</string>
     <string name="settings_balance_custom">Mukautetut asetukset · Valitse tasapaino</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Yksityiskohdat · Yleinen tasapaino: %1$s</string>
     <string name="settings_balance_inherit">Käytä yleistä tasapainoa</string>
     <string name="settings_balance_summary">Valitse valitsemiesi lähteiden tavallinen laatu. Aktiiviset istunnot suosivat osallistuvien lähteiden yksityiskohtia. Tasapainon valinta korvaa aiemmat keräystiheydet; lähdevalinnat, taustakeräyksen suostumus ja tarkkuussuodattimet säilyvät.</string>
-    <string name="export_format_portable_steps_desc">Varmennettu askelhistoria, kattavuus ja aukot ilman reittikoordinaatteja</string>
-    <string name="export_format_portable_ambient_steps_desc">Tausta-askelmäärät, aktiivisuusaika, päivämäärät, kattavuusaukot ja tallennettu aikavyöhyke ilman reittikoordinaatteja</string>
-    <string name="export_format_portable_activity_desc">Tallennetut liikejaksot, varmuus ja kattavuus ilman reittikoordinaatteja</string>
-    <string name="export_format_portable_pressure_desc">Suorat painemittaukset hPa-yksikköinä, kattavuus ja aukot ilman reittikoordinaatteja</string>
-    <string name="export_sensitivity_portable_title">Viedäänkö tallennettu historia?</string>
-    <string name="export_sensitivity_portable_steps_message">Tämä tiedosto sisältää askelmäärät, aikavälit ja kattavuustiedot. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Tämä tiedosto sisältää tausta-askelmäärät, aktiivisuusjaksot, päivämäärät, kattavuusaukot ja tallennetun aikavyöhykkeen. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
-    <string name="export_sensitivity_portable_activity_message">Tämä tiedosto sisältää tallennetut liikejaksot, aikavälit ja kattavuustiedot. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
-    <string name="export_sensitivity_portable_pressure_message">Tämä tiedosto sisältää painemittauksia ja aikavälejä, jotka voivat paljastaa tietoja ympäristöstä. Se ei sisällä reittikoordinaatteja tai kalibroitua korkeutta. Jatka vain, jos luotat kohteeseen.</string>
-    <string name="settings_activity_source_summary">Tallentaa kävelyn, pyöräilyn, ajamisen ja paikallaanolon koko päivän ajalta.</string>
-    <string name="settings_ambient_activity_ready">Valmis tallentamaan aktiivisuutta.</string>
-    <string name="settings_ambient_pressure_ready">Valmis tallentamaan ilmanpainetta.</string>
-    <string name="settings_pressure_host_unavailable">Ilmanpaineen tallennusta taustalla ei voitu käynnistää.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Jatka seurantaa</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">En voinut jatkaa jäljittämistä. Yritä uudestaan.</string>
 </resources>

@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Vietovės duomenys visą dieną</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Nuo sesijos iki sesijos.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Įjungtas tarp sesijų. Įmanumas priklauso nuo prieigos ir Android foninės ribos.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptingumas</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Tik pasyvus</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Pasitaiko vietos rinkimą prie judėjimo ir jūsų detalių pageidavimų, su nuolatiniu pranešimu.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Naudojasi kitų programų ar sistemos pateiktais pozicijomis. Galima turėti ilgas atstumas.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker surinks vietą tarp sesijų, pritaikys pastangas judėjimui ir parodys nuolatinį pranešimą. Tai gali naudoti daugiau baterijų nei pasyvus surinkimas. Jūsų pasirinkimas saugomas prieš Android prašydamas vietos prieigos. Jei prieigos trūksta, jis laukia; galite jį išjungti bet kada.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Naudokite adaptuojamą vietą</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Leisti pasiekti vietovės duomenis</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Pasirinkite adaptuojamą vietą</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Pažymimo vieta: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Įtraukimo galia ir detalės</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Pasirinkite lygį, kuriuo pritaikytina vieta. Išbalansuotas yra privalomasis; gyvos sesijos mėgsta daugiau detalių. Android ir jūsų prieiga gali apriboti rezultatą.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Pirmiausia galia</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Pažengimo galia</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Subalansuotas</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Patenkime detales</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Pirmiausia detaile.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Parengiamosios pagalbos</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Galima naudoti judesio indėlius, kad nustatytumėte vietą. Šis įrašas neturi veiklos istorijos ir negali pradėti sesijos. Jei atsisakote, vieta vis dar veikia.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Privalokite judėjimo įrašus</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Negaliu taikyti šio pakeitimo. Pabandyk dar kartą.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptinis surinkimas dar nėra vykdomas.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Naudokite jūsų adaptuojamą vietos detalių lygį.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Atitinkama vieta.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Įrankio pritaikytas vietos prašymas.</string>
+</resources>

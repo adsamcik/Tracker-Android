@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Atrašanās vieta visas dienas garumā</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">No sesijas līdz sesijām.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Atbalsta starp sesijām. Atbalsts ir atkarīgs no piekļuves un Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptīvs</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Tikai pasīva</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Pievienoja atrašanās vietas savākšanu uz kustību un jūsu detalizācijas izvēli, ar pastāvīgu paziņojumu.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Izmanto pozīcijas, ko sniedz citas aplikācijas vai sistēma. Ir iespējams, ka ir garas atkāpes.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker apkopos atrašanās vietu starp sesijām, pielāgo savu kustību un parādīs pastāvīgu paziņojumu. Tas var izmantot vairāk akumulatoru nekā pasīva kolekcija. Jūsu izvēle ir saglabāta pirms Android lūdz piekļuvi atrašanās vietu. Ja nav pieejas, tas paliek gaidāms; jūs varat to izslēgt jebkurā laikā.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">izmanto pielāgojamā vieta</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Atļaut piekļuvi atrašanās vietai</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Izvēlējiet pielāgojošu atrašanās vietu detaļu</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Uz vietas informācija: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Lokalitātes spēks un detaļas</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Izvēli sevi, lai pieņemtu pielāgojamā vieta. Balansēts ir standarts; dzīvojamo sesiju preferē vairāk detaļu. Android un jūsu piekļuve var ierobežot rezultātu.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Pirmkārt enerģija</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Atbalsta spēju</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Līdzsvarots</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Atbalsta detaļas</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Vispirms detaļas.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Pieprasījuma palīdzība</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Opcionāli izmanto kustības norādījumus, lai regulētu atrašanās vietu. Tas ne reģistrē aktivitātes vēsturi un nevar sākt sesiju. Ja atteiksi, vieta joprojām darbojas.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Pieļaut kustības signālus</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Nevaru piemērot šo pārmaiņu. Izprāvi vēlreiz.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptīvā kolekcija vēl nav veikta.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Izmanto jūsu pielāgojošo vietas detaļu līmeni.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptīva vieta ir pieejama.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Pieprasījums par atrašanās vietu, ko regulē ierīce.</string>
+</resources>

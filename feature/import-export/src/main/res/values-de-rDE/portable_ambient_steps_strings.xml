@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Übertragbare Hintergrundschritte</string>
+    <string name="export_error_no_portable_ambient_steps">Es sind keine überprüften Hintergrund-Schrittdaten zum Exportieren verfügbar.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Die Hintergrund-Schrittdaten sind unvollständig oder können für den Export nicht überprüft werden.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Der Export von Hintergrundschritten ist vorübergehend nicht verfügbar. Versuche es erneut.</string>
+    <string name="export_error_portable_ambient_steps_scope">Diese Auswahl von Hintergrundschritten lässt sich nicht im übertragbaren Dateiformat darstellen.</string>
+    <string name="export_error_portable_ambient_steps_write">Die Datei mit übertragbaren Hintergrundschritten konnte nicht erstellt werden.</string>
+    <string name="export_ambient_steps_sensitivity_title">Hintergrund-Schrittdaten exportieren?</string>
+    <string name="export_ambient_steps_sensitivity_message">Diese Datei enthält Schrittzahlen, Aktivitätszeiträume, Datumsangaben, Erfassungslücken und gespeicherte Zeitzoneninformationen, die tägliche Aktivitätsmuster erkennen lassen können. Sie enthält keine Routenkoordinaten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+</resources>

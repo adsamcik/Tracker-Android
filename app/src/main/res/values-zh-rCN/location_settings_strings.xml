@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">全天位置信息</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">在会议之间.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">在会议之间启用.可用性取决于访问和Android背景限制.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">适应性</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">只有被动</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">调整位置收集到移动和您的细节偏好,随着持续的通知.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">使用其他应用程序或系统提供的位置.长时间的差距是可能的.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker将收集会议之间的位置,调整其运动努力,并显示正在进行的通知.这种电池可以比被动收集更多.在Android请求位置访问之前,您的选择被保存.由于缺少访问,它会等待;你可以随时关闭它.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">使用适应位置</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">允许访问位置信息</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">选择适应位置详细</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">位置详情: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">位置能力和细节</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">选择一个适应位置的级别.预设是平衡; 现场会议更喜欢详细.Android和你的访问可以限制结果.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">首先是电力</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">支持权力</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">均衡</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">支持细节</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">详细一点</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">动议援助</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">选择使用移动提示来调整位置.这没有记录活动历史记录,不能启动会话.如果你拒绝,位置仍然有效.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">允许移动提示</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">我无法执行这一变化.再试一次.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">适应收藏还没有运行.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">使用您的适应位置细节级别.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">适应位置可用.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">设备调整的位置要求.</string>
+</resources>

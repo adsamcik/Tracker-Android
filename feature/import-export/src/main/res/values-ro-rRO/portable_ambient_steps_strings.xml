@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Pași în fundal în format portabil</string>
+    <string name="export_error_no_portable_ambient_steps">Nu există un istoric verificat al pașilor în fundal disponibil pentru export.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Istoricul pașilor în fundal este incomplet sau nu poate fi verificat pentru export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Exportul pașilor în fundal este temporar indisponibil. Încercați din nou.</string>
+    <string name="export_error_portable_ambient_steps_scope">Această selecție de pași în fundal nu poate fi reprezentată în formatul de fișier portabil.</string>
+    <string name="export_error_portable_ambient_steps_write">Fișierul cu pași în fundal în format portabil nu a putut fi creat.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportați istoricul pașilor în fundal?</string>
+    <string name="export_ambient_steps_sensitivity_message">Acest fișier conține numărul de pași, intervale de activitate, date, lacune în înregistrare și informații salvate despre fusul orar, care pot dezvălui tipare de activitate zilnică. Nu conține coordonate de traseu. Continuați doar dacă aveți încredere în destinație.</string>
+</resources>

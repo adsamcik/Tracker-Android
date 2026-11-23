@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Jõua iga virtuaalse plahvatuse raadiusest välja enne süütenööri lõppemist</string>
     <string name="minigame_switchback_name">Siksak</string>
     <string name="minigame_switchback_description">Tee voolukombo loomiseks järske vahelduvaid pöördeid</string>
-    <string name="minigame_locked">Avaneb tasemel %1$d</string>
     <string name="game_play_section_title">Mängi</string>
     <string name="game_progress_section_title">Edenemine</string>
     <string name="minigame_outrun_goal_line">Hoia kummituse ees 25–100 m edumaad</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Saavutasite oma %2$s eesmärgi!</string>
     <string name="goals_daily_goal">päevase</string>
     <string name="goals_weekly_goal">nädalase</string>
-    <string name="goals_monthly_goal">kuise</string>
     <string name="game_steps_goals_title">Sammueesmärgid</string>
     <string name="game_step_sensor_unavailable">Sammuandur pole saadaval</string>
     <string name="game_step_sensor_unavailable_detail">Sellel seadmel pole sammulugeja andurit. Sammueesmärke ei saa jälgida.</string>

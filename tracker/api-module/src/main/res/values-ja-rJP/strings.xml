@@ -14,7 +14,6 @@
     <string name="coordinates_title">座標</string>
     <string name="description_settings">設定ボタン</string>
     <string name="description_tracking_start">トラッキング開始ボタン</string>
-    <string name="description_tracking_stop">トラッキング停止ボタン</string>
     <string name="description_tracking_start_no_permission">トラッキングを開始 — 権限が必要です</string>
     <string name="description_points_today">今日獲得したポイント: %s</string>
     <string name="description_copy">値をコピー</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">セッション時間</string>
     <string name="duration_value">時間 %s</string>
     <string name="error_nothing_to_track">少なくとも1つのトラッキングオプション（位置情報、歩数、アクティビティ）を有効にしてください</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">追跡源を有効にするために 位置サービスを有効にします.</string>
     <string name="hint_customize_notification_show_in_content">通知内容に表示</string>
     <string name="hint_customize_notification_show_in_title">通知タイトルに表示</string>
     <string name="horizontal_accuracy_title">水平方向の精度</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Trackerを開始中 — 位置情報を使用中</string>
     <string name="notification_starting_without_location">Trackerを開始中</string>
-    <string name="notification_stop">停止</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">%d分間停止</string>
     <string name="notification_stop_til_recharge">充電するまで停止</string>
-    <string name="stop_tracking_dialog_title">トラッキングを停止しますか？</string>
     <string name="stop_tracking_dialog_message">自動トラッキングがオンのため、停止するだけでは間もなく新しいセッションが開始されることがあります。</string>
     <string name="notification_tracker_active_ticker">ルートを記録中 — 位置情報を使用中</string>
     <string name="notification_tracker_active_without_location">位置情報なしでトラッキング中</string>
     <string name="notification_tracking_active">トラッキング中</string>
     <string name="notification_tracking_start_failed_title">トラッキングを開始できませんでした</string>
     <string name="notification_tracking_start_failed_text">アプリを開いて権限を確認し、トラッキングを再開してください。</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">追跡を準備する</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">回復が完了するまでデータは収集されません</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">追跡を準備する</string>
     <string name="settings_activity_enabled_title">アクティビティ</string>
     <string name="settings_cell_enabled_title">セル</string>
     <string name="settings_disabled_recharge_summary">端末を充電器に接続するまで自動トラッキングを無効にします</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">位置情報</string>
     <string name="settings_notification_customize_summary">トラッキング通知に表示する内容と表示順を変更します。</string>
     <string name="settings_notification_customize_title">通知をカスタマイズ</string>
+    <string name="settings_notification_move_up">上へ移動</string>
+    <string name="settings_notification_move_down">下へ移動</string>
+    <string name="settings_notification_load_failed">通知設定を読み込めませんでした。</string>
+    <string name="settings_notification_save_failed">変更は保存されませんでした。</string>
+    <string name="settings_notification_retry">再試行</string>
     <string name="settings_notification_styled_summary">通知にアプリのスタイルカラーを使用します。</string>
     <string name="settings_notification_styled_title">色付きの通知</string>
     <string name="ski_notification_title">スキー統計</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">歩数</string>
     <string name="settings_tracking_min_distance_title">更新間の最小距離</string>
     <string name="settings_tracking_min_time_title">更新間の最小間隔</string>
-    <string name="settings_tracking_notice_summary">変更はトラッキングを再開すると反映されます</string>
     <string name="settings_tracking_required_accuracy_title">必要な位置情報の精度</string>
     <string name="settings_tracking_title">トラッキング</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">トラッキングを開始</string>
     <string name="shortcut_start_tracking_long">位置情報トラッキングを開始</string>
-    <string name="shortcut_stop_tracking">トラッキングを停止</string>
-    <string name="shortcut_stop_tracking_long">位置情報トラッキングを停止</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">セッションを終了</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">現在のセッションを終了</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">追跡をオフにする</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">すべての追跡と自動開始を停止</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">追跡行動</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">停止自動起動</string>
     <string name="speed_title">速度</string>
     <string name="speed_value">速度 %s</string>
     <string name="battery_title">バッテリー</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d分のトラッキング</item>
         <item quantity="other">%1$d分のトラッキング</item>
     </plurals>
-    <string name="insight_exploration_title">探検家！</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">%1$d個の新しいエリアを発見しました</item>
         <item quantity="other">%1$d個の新しいエリアを発見しました</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">戻る</string>
     <string name="insight_distance_title">移動距離</string>
     <string name="insight_distance_desc">このセッションで%1$sを移動しました。</string>
-    <string name="insight_steps_title">記録した歩数</string>
-    <string name="insight_steps_desc">このセッションで%1$s歩 — この調子です！</string>
     <string name="tracker_measurement_partial">一部</string>
 </resources>

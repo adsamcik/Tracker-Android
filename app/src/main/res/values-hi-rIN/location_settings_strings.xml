@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">पूरे दिन की लोकेशन</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">सत्रों के बीच में.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">सत्रों के बीच सक्षम। उपलब्धता पहुंच और Android पृष्ठभूमि सीमाओं पर निर्भर करती है।</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">अनुकूलन</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">केवल निष्क्रिय</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">निरंतर अधिसूचना के साथ स्थान संग्रह को गति और आपके विवरण वरीयता के लिए समायोजित करता है।</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">अन्य ऐप्स या सिस्टम द्वारा प्रदान की जाने वाली स्थिति का उपयोग करता है। लम्बे अंतराल संभव हैं।</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker सत्रों के बीच स्थान एकत्र करेगा, आंदोलन के लिए अपने प्रयास को समायोजित करेगा, और एक चल रही सूचना दिखाएगा। यह निष्क्रिय संग्रह की तुलना में अधिक बैटरी का उपयोग कर सकता है। Android स्थान पहुंच के लिए पूछने से पहले आपका विकल्प सहेजा जाता है। अनुपलब्ध पहुंच इसे प्रतीक्षा कर देती है; आप इसे किसी भी समय बंद कर सकते हैं।</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">अनुकूलन स्थान का उपयोग करें</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">लोकेशन का ऐक्सेस दें</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">अनुकूलन स्थान विवरण चुनें</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">स्थान विवरणः %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">स्थान शक्ति और विवरण</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">अनुकूलन स्थान को अपनाने के लिए एक स्तर चुनें। संतुलित डिफ़ॉल्ट है; लाइव सत्र अधिक विवरण पसंद करते हैं। Android और आपकी पहुंच परिणाम को सीमित कर सकती है।</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">बिजली पहले</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">पक्ष शक्ति</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">संतुलित</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">विवरण की कृपा करें</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">सबसे पहले विवरण</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">प्रस्ताव सहायता</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">वैकल्पिक रूप से स्थान को समायोजित करने के लिए गति संकेतों का उपयोग करता है। यह कोई गतिविधि इतिहास रिकॉर्ड नहीं करता है और सत्र शुरू नहीं कर सकता है। यदि आप अस्वीकार करते हैं तो स्थान अभी भी काम करता है।</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">गति संकेतों की अनुमति दें</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">इस परिवर्तन को लागू नहीं कर सका। फिर से कोशिश करो.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">अनुकूलन संग्रह अभी चल रहा नहीं है।</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">अपने अनुकूलन स्थान विवरण स्तर का उपयोग करता है।</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">अनुकूलन स्थान उपलब्ध है।</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">डिवाइस द्वारा समायोजित स्थान अनुरोध।</string>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Cjelodnevna lokacija</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">-Između sjednica.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Aktiviran između sjednica. Dostupnost zavisi od pristupa i ograničenja u pozadini Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptativni</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Samo pasivno</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Prilagođuje prikupljanje lokacije na kretanje i vaše detaljne preferencije, s kontinuiranim obaviještenjem.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Koristi pozicije koje pružaju druge aplikacije ili sustav. Duge praznine su moguće.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker će prikupiti lokaciju između sjednica, prilagoditi svoj napor pokretu i prikazati tekuće obavijesti. Ovo može koristiti više baterija nego pasivno prikupljanje. Vaš izbor je pohranjen prije nego Android zatraži pristup lokaciji. Nedostatak pristupa ostavi ga čeka; možete ga isključiti u bilo koje vrijeme.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Upotreba prilagođivanja Lokacija</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Dopusti pristup lokaciji</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Izaberite adaptivne lokacije</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Podaci o lokaciji: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Sposobnost lokacije i detalje</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Izaberite razinu za prilagođivanje lokacije. Izravno je podrazumevano; uživo sesije vole više detalja. Android i vaš pristup može ograničiti rezultat.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Napredna energija</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Slobodna sila</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Uravnoteženo</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Poštovani detalji</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Najprije detalje</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Pomoć prilikom podnošenja zahtjeva</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Opcionalno koristite sugestije kretanja za podešavanje lokacije. To ne evidentira povijest aktivnosti i ne može započeti sesiju. Lokacija još uvijek radi ako odbijete.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Dopustite namjere kretanja</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Nisam mogao primjenjivati ovu promjenu. Pokušaj još jednom.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptivna kolekcija još nije u toku.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Koristi adaptivnu razinu lokacije.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptivna lokacija je dostupna.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Poziv za lokaciju prilagođen uređajem.</string>
+</resources>

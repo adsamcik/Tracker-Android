@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Verifizierter Schrittverlauf, Abdeckung und Lücken ohne Routenkoordinaten</string>
+    <string name="export_format_portable_ambient_steps_desc">Hintergrundschritte, Aktivitätszeit, Daten, Abdeckungslücken und gespeicherte Zeitzone ohne Routenkoordinaten</string>
+    <string name="export_format_portable_activity_desc">Erfasste Bewegungsintervalle, Zuverlässigkeit und Abdeckung ohne Routenkoordinaten</string>
+    <string name="export_format_portable_pressure_desc">Direkte Druckmessungen in hPa, Abdeckung und Lücken ohne Routenkoordinaten</string>
+    <string name="export_sensitivity_portable_title">Aufgezeichneten Verlauf exportieren?</string>
+    <string name="export_sensitivity_portable_steps_message">Diese Datei enthält Schrittzahlen, Zeitintervalle und Angaben zur Abdeckung. Sie enthält keine Routenkoordinaten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Diese Datei enthält Hintergrundschritte, Aktivitätsintervalle, Daten, Abdeckungslücken und die gespeicherte Zeitzone. Sie enthält keine Routenkoordinaten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+    <string name="export_sensitivity_portable_activity_message">Diese Datei enthält erfasste Bewegungsintervalle, Zeitintervalle und Angaben zur Abdeckung. Sie enthält keine Routenkoordinaten. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+    <string name="export_sensitivity_portable_pressure_message">Diese Datei enthält Druckmessungen und Zeitintervalle, die Hinweise auf die Umgebung geben können. Sie enthält keine Routenkoordinaten oder kalibrierte Höhenangaben. Fahre nur fort, wenn du dem Ziel vertraust.</string>
+</resources>

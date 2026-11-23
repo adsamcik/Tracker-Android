@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">ポータブル形式のバックグラウンド歩数</string>
+    <string name="export_error_no_portable_ambient_steps">エクスポートできる検証済みのバックグラウンド歩数履歴がありません。</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">バックグラウンド歩数履歴が不完全、またはエクスポート用に検証できません。</string>
+    <string name="export_error_portable_ambient_steps_retryable">バックグラウンド歩数のエクスポートは一時的に利用できません。もう一度お試しください。</string>
+    <string name="export_error_portable_ambient_steps_scope">選択したバックグラウンド歩数はポータブル形式のファイルで表現できません。</string>
+    <string name="export_error_portable_ambient_steps_write">ポータブル形式のバックグラウンド歩数ファイルを作成できませんでした。</string>
+    <string name="export_ambient_steps_sensitivity_title">バックグラウンド歩数履歴をエクスポートしますか？</string>
+    <string name="export_ambient_steps_sensitivity_message">このファイルには歩数、活動時間帯、日付、記録の欠落、および保存されたタイムゾーン情報が含まれ、日々の活動パターンが分かる場合があります。ルートの座標は含まれません。保存先を信頼できる場合にのみ続行してください。</string>
+</resources>

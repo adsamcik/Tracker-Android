@@ -371,13 +371,8 @@
     <string name="settings_transition_detection_friendly_title">Battery-efficient motion detection</string>
     <string name="settings_transition_detection_friendly_summary">Uses Android activity changes to avoid frequent background checks. Automatic starts may react a little more slowly.</string>
     <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatic tracking isn’t available</string>
-    <string name="settings_automatic_policy_unavailable_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved, but Activity control stays off until a bounded retention policy for control-only evidence is approved. Manual tracking is unchanged.</string>
     <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved. Activity recognition permission is required before automatic starts can operate.</string>
-    <string name="settings_automatic_unavailable_summary" tools:ignore="MissingTranslation">Your automatic mode choice is saved, but automatic starts are not operational.</string>
-    <string name="settings_automatic_status_code" tools:ignore="MissingTranslation">Status: %1$s</string>
     <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Choose what to record between trips.</string>
-    <string name="settings_ambient_steps_title" tools:ignore="MissingTranslation">Steps outside trips</string>
-    <string name="settings_ambient_location_title" tools:ignore="MissingTranslation">Location outside trips</string>
     <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi outside trips</string>
     <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cell outside trips</string>
     <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Off between trips.</string>
@@ -510,7 +505,6 @@
     <string name="setup_auto_tracking_in_motion">In Motion</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatically track all movement including driving and cycling.</string>
     <string name="settings_auto_tracking_mode_summary">Choose which movement should start and stop trips automatically.</string>
-    <string name="setup_preset_title">Tracking Detail</string>
     <string name="setup_recommended">Recommended</string>
     <string name="setup_what_to_collect_title">What to Collect</string>
     <string name="setup_what_to_collect_subtitle">More options below. Start exploring without permissions or grant them later. Data stays on this device.</string>
@@ -519,7 +513,6 @@
     <string name="setup_source_activity">Activity</string>
     <string name="setup_source_activity_desc">Record walking, running, cycling, and driving throughout the day.</string>
     <string name="setup_source_steps">Steps</string>
-    <string name="setup_source_steps_desc">Count your steps using the device pedometer.</string>
     <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Track steps throughout the day. Trips organize the same history.</string>
     <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">No direct step sensor. Tracker will check for an on-device step source.</string>
     <string name="setup_perm_steps_why">Allow motion access to count steps on this device throughout the day.</string>
@@ -528,10 +521,8 @@
     <string name="setup_steps_provider_ready">An on-device step source is ready. Some periods may still have gaps.</string>
     <string name="setup_steps_provider_checking">Checking available step sources…</string>
     <string name="setup_source_wifi">WiFi Networks</string>
-    <string name="setup_source_wifi_desc">Log nearby WiFi networks to improve location accuracy.</string>
     <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Record nearby Wi-Fi networks, with or without Location tracking.</string>
     <string name="setup_source_cell">Cell Towers</string>
-    <string name="setup_source_cell_desc">Log cell tower info for location context.</string>
     <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Record nearby cell towers, with or without Location tracking.</string>
     <string name="setup_perm_location_why">Required to record your routes and show them on the map. Location stays on this device — nothing is sent to a server.</string>
     <string name="setup_perm_location_bg_why">To keep recording your route when you switch apps or the screen turns off, Tracker needs to access your location in the background. The recorded location stays on this device — nothing is sent to a server. On the next system prompt please pick "Allow all the time" to enable auto-tracking; "While using the app" keeps Tracker working when its screen is open only.</string>
@@ -548,7 +539,6 @@
     <string name="setup_perm_grant_cell_content_description">Grant cell radio permission</string>
     <string name="setup_perm_granted">Granted ✓</string>
     <string name="permission_grant_in_settings">Allow in Settings →</string>
-    <string name="permission_disabled_due_to_denial">%1$s disabled because permission was denied. Grant in Settings to enable.</string>
     <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s is selected but cannot collect until permission is granted.</string>
 
     <string name="settings_wifi_permission_required">Requires Wi-Fi/location permission. Toggle on to grant — no Wi-Fi data is recorded until then, and recorded data stays on this device.</string>
@@ -556,7 +546,6 @@
     <string name="settings_cell_permission_required">Requires phone state and precise location permission. Toggle on to grant — no cell data is recorded until then, and recorded data stays on this device.</string>
     <string name="settings_barometer_unavailable">Pressure sensor is not available on this device.</string>
     <string name="settings_activity_permission_required">Requires activity recognition permission. Toggle on to grant.</string>
-    <string name="settings_steps_unavailable">Step counter sensor is not available on this device.</string>
     <string name="setup_start_exploring">Start Exploring</string>
     <string name="setup_finishing" tools:ignore="MissingTranslation">Finishing setup…</string>
     <string name="setup_retry" tools:ignore="MissingTranslation">Retry</string>
@@ -576,7 +565,6 @@
     <string name="setup_online_tiles_change_later">You can change this any time in Settings → Map → Online map tiles.</string>
 
     <!-- Onboarding step: background access / battery optimization -->
-    <string name="setup_background_access_subtitle" tools:ignore="MissingTranslation">To record trips while the screen is off or the app is closed, Tracker needs background access. Allowing background activity can reduce Doze interruptions, but Android, device, and provider limits still apply.</string>
     <string name="setup_background_access_optional">Optional, but recommended. You can change this any time in Settings → Tracking.</string>
     <string name="setup_background_location_title">Allow background location for automatic tracking</string>
     <string name="setup_background_location_disclosure">Automatic tracking starts while Tracker is in the background and records your route even when its screen is not open. Location stays on this device. In the app location settings, choose “%1$s”.</string>
@@ -586,13 +574,6 @@
 
     <!-- Background reliability (shared: onboarding + settings) -->
     <string name="background_reliability_title" tools:ignore="MissingTranslation">Background tracking settings</string>
-    <string name="background_reliability_status_exempt">Background activity allowed</string>
-    <string name="background_reliability_status_optimized">Battery optimization is on</string>
-    <string name="background_reliability_exempt_desc" tools:ignore="MissingTranslation">Tracker is excluded from battery optimization, which reduces Doze restrictions. Android, device, and provider limits can still delay or pause collection.</string>
-    <string name="background_reliability_optimized_desc" tools:ignore="MissingTranslation">Battery optimization can pause Tracker in the background. Allowing background activity can reduce interruptions, but it cannot guarantee continuous collection.</string>
-    <string name="background_reliability_allow_action">Allow background activity</string>
-    <string name="background_reliability_samsung_hint">Samsung devices may also place apps into \"Sleeping apps\". Open battery settings, then remove Tracker from Sleeping apps and set it to not be put to sleep.</string>
-    <string name="background_reliability_samsung_action">Open device battery settings</string>
     <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android and device policy can pause or stop background work. Tracker can report restrictions Android exposes, but it cannot override Restricted or force-stopped state.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Background restriction detected</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Battery optimization detected</string>

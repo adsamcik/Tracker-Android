@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Localisation toute la journée</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Pas entre les séances.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Activé entre les séances. La disponibilité dépend de l\'accès et des limites d\'arrière-plan Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptable</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Seulement passifs</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Ajustez la collecte de localisation au mouvement et à vos préférences de détails, avec une notification en cours.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Utilise les positions fournies par d\'autres applications ou le système. Il est possible d\'avoir de longs intervalles.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker recueillera l\'emplacement entre les séances, ajustera son effort au mouvement et affichera une notification en cours. Il peut utiliser plus de batterie que de collecte passive. Votre choix est enregistré avant que Android demande l\'accès à l\'emplacement. L\'accès manquant le laisse attendre; vous pouvez l\'éteindre à tout moment.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Utilisez un emplacement adaptatif</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Autoriser l’accès à la position</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Sélectionnez les détails de localisation adaptatifs</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Détail de l\'emplacement: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Puissance de localisation et détails</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Choisissez un niveau pour adopter un emplacement adaptatif. L\'équilibre est par défaut; les séances en direct préfèrent plus de détails. Android et votre accès peut limiter le résultat.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Le pouvoir d\'abord</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Le pouvoir favorisé</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Équilibré</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Favori les détails</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Détail d\'abord</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Assistance à la motion</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Optionnellement, utilisez des indices de mouvement pour ajuster l\'emplacement. Il n\'y a pas d\'historique d\'activité enregistré et ne peut pas démarrer une session. L\'emplacement fonctionne toujours si vous refusez.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Permettez des indices de mouvement</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Je ne pouvais pas appliquer ce changement. Essayez encore.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">La collecte adaptative n\'est pas encore en cours.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Utilisez votre niveau de détail de localisation adaptatif.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Localisation adaptative est disponible.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Requête de localisation réglée par l\'appareil.</string>
+</resources>

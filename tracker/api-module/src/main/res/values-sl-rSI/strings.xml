@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordinate</string>
     <string name="description_settings">Gumb Nastavitve</string>
     <string name="description_tracking_start">Gumb Začni sledenje</string>
-    <string name="description_tracking_stop">Gumb Ustavi sledenje</string>
     <string name="description_tracking_start_no_permission">Začni sledenje — potrebno je dovoljenje</string>
     <string name="description_points_today">Danes pridobljene točke: %s</string>
     <string name="description_copy">Kopiraj vrednost</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Trajanje seje</string>
     <string name="duration_value">trajanje %s</string>
     <string name="error_nothing_to_track">Omogočite vsaj eno možnost sledenja (lokacijo, korake ali dejavnost).</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Vklopite storitve lokacije, da uporabite omogočen vir sledenja.</string>
     <string name="hint_customize_notification_show_in_content">Prikaži v vsebini obvestila</string>
     <string name="hint_customize_notification_show_in_title">Prikaži v naslovu obvestila</string>
     <string name="horizontal_accuracy_title">Vodoravna natančnost</string>
@@ -49,16 +49,17 @@
     </plurals>
     <string name="notification_starting">Tracker se zaganja — lokacija je v uporabi</string>
     <string name="notification_starting_without_location">Tracker se zaganja</string>
-    <string name="notification_stop">Ustavi</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Ustavi za %d min</string>
     <string name="notification_stop_til_recharge">Ustavi do polnjenja</string>
-    <string name="stop_tracking_dialog_title">Ustaviti sledenje?</string>
     <string name="stop_tracking_dialog_message">Samodejno sledenje je vklopljeno in lahko kmalu znova začne novo sejo, če ga le ustavite.</string>
     <string name="notification_tracker_active_ticker">Beleženje poti — lokacija je v uporabi</string>
     <string name="notification_tracker_active_without_location">Sledenje brez lokacije</string>
     <string name="notification_tracking_active">Sledenje</string>
     <string name="notification_tracking_start_failed_title">Sledenja ni bilo mogoče začeti</string>
     <string name="notification_tracking_start_failed_text">Odprite aplikacijo, preglejte dovoljenja in nadaljujte s sledenjem.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Pripravljanje sledenja</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Do zaključka okrevanja se ne zbirajo podatkov.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Pripravljanje sledenja</string>
     <string name="settings_activity_enabled_title">Dejavnost</string>
     <string name="settings_cell_enabled_title">Celica</string>
     <string name="settings_disabled_recharge_summary">Samodejno sledenje je onemogočeno, dokler telefon ni priključen na polnilnik</string>
@@ -66,6 +67,11 @@
     <string name="settings_location_enabled_title">Lokacija</string>
     <string name="settings_notification_customize_summary">Spremenite, kaj in v katerem vrstnem redu se prikaže v obvestilu o sledenju.</string>
     <string name="settings_notification_customize_title">Prilagodi obvestilo</string>
+    <string name="settings_notification_move_up">Premakni gor</string>
+    <string name="settings_notification_move_down">Premakni dol</string>
+    <string name="settings_notification_load_failed">Nastavitev obvestil ni bilo mogoče naložiti.</string>
+    <string name="settings_notification_save_failed">Spremembe niso bile shranjene.</string>
+    <string name="settings_notification_retry">Poskusi znova</string>
     <string name="settings_notification_styled_summary">Za obvestila uporabi barvo sloga aplikacije.</string>
     <string name="settings_notification_styled_title">Barvna obvestila</string>
     <string name="ski_notification_title">Statistika smučanja</string>
@@ -75,14 +81,17 @@
     <string name="settings_steps_enabled_title">Štetje korakov</string>
     <string name="settings_tracking_min_distance_title">Najmanjša razdalja med posodobitvami</string>
     <string name="settings_tracking_min_time_title">Najmanjši zamik med posodobitvami</string>
-    <string name="settings_tracking_notice_summary">Spremembe začnejo veljati, ko znova zaženete sledenje</string>
     <string name="settings_tracking_required_accuracy_title">Zahtevana natančnost lokacije</string>
     <string name="settings_tracking_title">Sledenje</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Začni sledenje</string>
     <string name="shortcut_start_tracking_long">Začni sledenje lokaciji</string>
-    <string name="shortcut_stop_tracking">Ustavi sledenje</string>
-    <string name="shortcut_stop_tracking_long">Ustavi sledenje lokaciji</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Končaj sejo</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Končaj trenutno sejo</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Izklopi sledenje</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Ustavi vse sledenje in samodejne zagone</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Ukrepi za spremljanje</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pauza za samodejno zagon</string>
     <string name="speed_title">Hitrost</string>
     <string name="speed_value">hitrost %s</string>
     <string name="battery_title">Baterija</string>
@@ -114,7 +123,6 @@
         <item quantity="few">%1$d minute sledenja</item>
         <item quantity="other">%1$d minut sledenja</item>
     </plurals>
-    <string name="insight_exploration_title">Raziskovalec!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Odkrili ste %1$d novo območje</item>
         <item quantity="two">Odkrili ste %1$d novi območji</item>
@@ -183,7 +191,5 @@
     <string name="action_navigate_back">Nazaj</string>
     <string name="insight_distance_title">Prevožena razdalja</string>
     <string name="insight_distance_desc">V tej seji ste prevozili %1$s.</string>
-    <string name="insight_steps_title">Zabeleženi koraki</string>
-    <string name="insight_steps_desc">%1$s korakov v tej seji — kar tako naprej!</string>
     <string name="tracker_measurement_partial">Delno</string>
 </resources>

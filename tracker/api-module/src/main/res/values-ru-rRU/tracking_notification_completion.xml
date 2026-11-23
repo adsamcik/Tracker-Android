@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">Местоположение весь день</string>
-    <string name="notification_background_location_text">Адаптивный сбор местоположения включён. Откройте Tracker, чтобы управлять им.</string>
     <string name="settings_notification_unsaved_exit">Повторите попытку сохранить изменения или выйдите без сохранения.</string>
     <string name="settings_notification_leave_without_saving">Выйти без сохранения</string>
     <string name="notification_background_collection_title">Отслеживание в фоне</string>

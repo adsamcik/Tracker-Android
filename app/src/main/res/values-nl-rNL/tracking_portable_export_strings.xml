@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Geverifieerde stappenhistorie, dekking en ontbrekende gegevens zonder routecoördinaten</string>
+    <string name="export_format_portable_ambient_steps_desc">Achtergrondstappen, activiteitstijd, datums, dekkingsgaten en opgeslagen tijdzone zonder routecoördinaten</string>
+    <string name="export_format_portable_activity_desc">Opgenomen bewegingsintervallen, betrouwbaarheid en dekking zonder routecoördinaten</string>
+    <string name="export_format_portable_pressure_desc">Directe drukmetingen in hPa, dekking en ontbrekende gegevens zonder routecoördinaten</string>
+    <string name="export_sensitivity_portable_title">Opgenomen historie exporteren?</string>
+    <string name="export_sensitivity_portable_steps_message">Dit bestand bevat stappenaantallen, tijdsintervallen en informatie over de dekking. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Dit bestand bevat achtergrondstappen, activiteitsintervallen, datums, dekkingsgaten en de opgeslagen tijdzone. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
+    <string name="export_sensitivity_portable_activity_message">Dit bestand bevat opgenomen bewegingsintervallen, tijdsintervallen en informatie over de dekking. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
+    <string name="export_sensitivity_portable_pressure_message">Dit bestand bevat drukmetingen en tijdsintervallen die informatie over de omgeving kunnen onthullen. Het bevat geen routecoördinaten of gekalibreerde hoogte. Ga alleen verder als je de bestemming vertrouwt.</string>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Locatie gedurende de hele dag</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Af tussen sessies.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Betreft tussen sessies. Beschikbaarheid is afhankelijk van toegang en achtergrondlimieten Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Aanpasbaar</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Alleen passief</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Stelt de locatieverzameling aan op beweging en uw detailvoorkeur, met een lopende kennisgeving.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Gebruikt posities die worden aangeboden door andere apps of het systeem. Lange gaps zijn mogelijk.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker verzamelt Locatie tussen sessies, past zijn inspanning aan beweging en toont een lopende kennisgeving. Dit kan meer batterij gebruiken dan passief verzamelen. Uw keuze wordt opgeslagen voordat Android om locatie-toegang vraagt. Het ontbreken van toegang laat het wachten; je kunt het op elk moment uitschakelen.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Gebruik adaptieve locatie</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Toegang tot locatie toestaan</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Selecteer adaptieve locatie details</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Locatie: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Locatievermogen en detail</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Kies een niveau om adaptieve locatie aan te nemen. De standaard is evenwichtig; live sessies geven de voorkeur aan meer details. Android en uw toegang kan het resultaat beperken.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Vooruitgang</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Gefavoriete macht</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Gebalanceerd</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Gefavoriete details</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Detail eerst .</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Steun bij het indienen van voorstellen</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Als optie gebruikt u bewegingswijzingen om de locatie aan te passen. Dit registreert geen Activiteitsgeschiedenis en kan geen sessie starten. De locatie werkt nog steeds als je weigert.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Bewegingen laten zien</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Ik kon deze verandering niet toepassen. Probeer het nog eens.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptieve verzameling is nog niet aan de gang.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Gebruik je adaptieve locatie detailniveau.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptieve locatie is beschikbaar.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Locatieverzoek aangepast door het apparaat.</string>
+</resources>

@@ -127,7 +127,6 @@
     <string name="settings_map_zoom_buttons_subtitle">Rādīt ekrānā pogas + un − kartes tuvināšanai, ja žestu tuvināšanu ir grūti izmantot.</string>
     <string name="tips_map_date_range_title">Datumu diapazons</string>
     <string name="tips_map_my_location_title">Mana atrašanās vieta</string>
-    <string name="tips_map_sheet_description">Pieskaroties šai joslai vai pavelkot to uz augšu, tiks atvērtas papildu kartes opcijas, tostarp slāņa atlase un apzīmējumi.</string>
     <string name="map_search_placeholder">Plat., gar. piem. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Izmēģiniet 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">Notīrīt meklēšanu</string>

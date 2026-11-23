@@ -25,7 +25,6 @@
         <item quantity="other">Streak: %1$d days. Tap to view streak details</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Start a streak. Tap to view streak details</string>
-    <string name="dashboard_cd_stop_tracking">Stop tracking</string>
     <string name="dashboard_action_enable_location">Enable location access</string>
     <string name="dashboard_action_view_details">View details</string>
     <string name="dashboard_action_view_map">View map</string>
@@ -79,7 +78,6 @@
     <string name="dashboard_last_session_title">Last Session</string>
     <string name="dashboard_last_session_duration">Duration</string>
     <string name="dashboard_last_session_distance">Distance</string>
-    <string name="dashboard_last_session_steps">Steps</string>
     <string name="dashboard_last_session_view_map">View Map</string>
     <string name="dashboard_recent_trips_title">Recent Tracking</string>
     <string name="dashboard_recent_trips_empty">No recent tracking sessions. Start tracking to see them here.</string>
@@ -277,7 +275,6 @@
     <string name="dashboard_ring_start_tracking">Start tracking</string>
     <string name="dashboard_ring_enable_location">Enable location</string>
     <string name="dashboard_pill_start">Start</string>
-    <string name="dashboard_pill_stop">Stop</string>
     <string name="dashboard_pill_enable_location">Enable location</string>
 
     <!-- Session Insights Card (Task F) -->

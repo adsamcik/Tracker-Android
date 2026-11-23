@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Bekræftet skridthistorik, dækning og huller uden rutekoordinater</string>
+    <string name="export_format_portable_ambient_steps_desc">Skridttal fra baggrunden, aktivitetstid, datoer, dækningshuller og gemt tidszone uden rutekoordinater</string>
+    <string name="export_format_portable_activity_desc">Registrerede bevægelsesintervaller, sikkerhed og dækning uden rutekoordinater</string>
+    <string name="export_format_portable_pressure_desc">Direkte trykmålinger i hPa, dækning og huller uden rutekoordinater</string>
+    <string name="export_sensitivity_portable_title">Eksportér registreret historik?</string>
+    <string name="export_sensitivity_portable_steps_message">Denne fil indeholder skridttal, tidsintervaller og oplysninger om dækning. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du har tillid til destinationen.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Denne fil indeholder skridttal fra baggrunden, aktivitetsintervaller, datoer, dækningshuller og gemt tidszone. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du har tillid til destinationen.</string>
+    <string name="export_sensitivity_portable_activity_message">Denne fil indeholder registrerede bevægelsesintervaller, tidsintervaller og oplysninger om dækning. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du har tillid til destinationen.</string>
+    <string name="export_sensitivity_portable_pressure_message">Denne fil indeholder trykmålinger og tidsintervaller, der kan afsløre oplysninger om omgivelserne. Den indeholder ikke rutekoordinater eller kalibreret højde. Fortsæt kun, hvis du har tillid til destinationen.</string>
+</resources>

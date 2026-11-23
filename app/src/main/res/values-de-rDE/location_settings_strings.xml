@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Ganztägige Standorterfassung</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Zwischen den Sitzungen.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Zwischen Sitzungen aktiviert. Die Verfügbarkeit hängt von den Zugangs- und Hintergrundgrenzen von Android ab.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Anpassungsfähig</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Nur passiv</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Anpasst die Standort-Erhebung an die Bewegung und Ihre Detailpräferenzen mit einer laufenden Benachrichtigung.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Nutzt Positionen, die von anderen Apps oder dem System bereitgestellt werden. Lange Abstände sind möglich.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker sammelt die Lage zwischen den Sitzungen, passt den Bewegungsaufwand an und zeigt eine laufende Benachrichtigung an. Dies kann mehr Batterie als passive Sammlung verwenden. Ihre Wahl wird gespeichert, bevor Android um Standortzugriff bittet. Der fehlende Zugriff lässt ihn warten; Sie können ihn jederzeit ausschalten.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Verwenden Sie adaptive Standort</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Standortzugriff erlauben</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Wählen Sie adaptive Standort Details</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Standort: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Standortleistung und Detail</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Wählen Sie eine Ebene, um adaptive Lage zu übernehmen. Ausgeglichen ist die Standard-Sitzung; Live-Sitzungen bevorzugen mehr Details. Android und Ihr Zugriff kann das Ergebnis einschränken.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Macht zuerst</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Gefälligkeitsmacht</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Ausgewogen</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Vorteil für Einzelheiten</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Details zuerst</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Beiträge zur Unterstützung</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Optional benutzt Bewegungsintexte, um Standort anzupassen. Hier wird kein Aktivitätsverlauf aufgezeichnet und kann keine Sitzung gestartet werden. Der Standort funktioniert, wenn Sie ablehnen.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Bewegungsinhalte lassen</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Diese Änderung konnte ich nicht anwenden. Versuchen Sie es noch mal.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Die Adaptive Sammlung läuft noch nicht.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Verwenden Sie Ihre adaptive Standort-Detail-Level.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptiver Standort ist verfügbar.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Standortanforderung, die vom Gerät angepasst wird.</string>
+</resources>

@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Escape a cada raio de explosão virtual antes de o respetivo fusível expirar</string>
     <string name="minigame_switchback_name">Ziguezague</string>
     <string name="minigame_switchback_description">Faça curvas alternadas apertadas para criar um combo de fluxo</string>
-    <string name="minigame_locked">Desbloqueia no nível %1$d</string>
     <string name="game_play_section_title">Jogar</string>
     <string name="game_progress_section_title">Progresso</string>
     <string name="minigame_outrun_goal_line">Mantenha uma vantagem de 25–100 m sobre o fantasma</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Atingiu o seu objetivo %2$s!</string>
     <string name="goals_daily_goal">diário</string>
     <string name="goals_weekly_goal">semanal</string>
-    <string name="goals_monthly_goal">mensal</string>
     <string name="game_steps_goals_title">Objetivos de passos</string>
     <string name="game_step_sensor_unavailable">Sensor de passos indisponível</string>
     <string name="game_step_sensor_unavailable_detail">Este dispositivo não tem um sensor de contador de passos. Não é possível monitorizar objetivos de passos.</string>

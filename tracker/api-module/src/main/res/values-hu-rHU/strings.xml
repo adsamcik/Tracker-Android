@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordináták</string>
     <string name="description_settings">Beállítások gomb</string>
     <string name="description_tracking_start">Nyomkövetés indítása gomb</string>
-    <string name="description_tracking_stop">Nyomkövetés leállítása gomb</string>
     <string name="description_tracking_start_no_permission">Nyomkövetés indítása — engedély szükséges</string>
     <string name="description_points_today">Ma szerzett pontok: %s</string>
     <string name="description_copy">Érték másolása</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Munkamenet időtartama</string>
     <string name="duration_value">időtartam: %s</string>
     <string name="error_nothing_to_track">A nyomkövetéshez az időnél több adat szükséges</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Kapcsold be a Helytállási Szolgáltatásokat, hogy használd az engedélyezett nyomon követési forrást.</string>
     <string name="hint_customize_notification_show_in_content">Megjelenítés az értesítés tartalmában</string>
     <string name="hint_customize_notification_show_in_title">Megjelenítés az értesítés címében</string>
     <string name="horizontal_accuracy_title">Vízszintes pontosság</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker szolgáltatás indítása</string>
     <string name="notification_starting_without_location">Tracker indítása</string>
-    <string name="notification_stop">Leállítás</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Leállítás %d percre</string>
     <string name="notification_stop_til_recharge">Leállítás töltésig</string>
-    <string name="stop_tracking_dialog_title">Leállítja a nyomkövetést?</string>
     <string name="stop_tracking_dialog_message">Az automatikus nyomkövetés be van kapcsolva, és hamarosan új munkamenetet indíthat, ha csak leállítja.</string>
     <string name="notification_tracker_active_ticker">A Tracker aktív</string>
     <string name="notification_tracker_active_without_location">Nyomkövetés helyadat nélkül</string>
     <string name="notification_tracking_active">Nyomkövetés</string>
     <string name="notification_tracking_start_failed_title">A nyomkövetés nem indítható</string>
     <string name="notification_tracking_start_failed_text">Nyissa meg az alkalmazást az engedélyek áttekintéséhez és a nyomkövetés folytatásához.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">A nyomkövetés előkészítése</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">A felépítés befejezése előtt nem gyűjtenek adatokat.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">A nyomkövetés előkészítése</string>
     <string name="settings_activity_enabled_title">Tevékenység</string>
     <string name="settings_cell_enabled_title">Cella</string>
     <string name="settings_disabled_recharge_summary">Az automatikus nyomkövetés addig le van tiltva, amíg a telefon töltőhöz nem csatlakozik</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Helyadatok</string>
     <string name="settings_notification_customize_summary">Módosítsa, mi és milyen sorrendben jelenjen meg a nyomkövetési értesítésben.</string>
     <string name="settings_notification_customize_title">Értesítés testreszabása</string>
+    <string name="settings_notification_move_up">Mozgatás fel</string>
+    <string name="settings_notification_move_down">Mozgatás le</string>
+    <string name="settings_notification_load_failed">Az értesítési beállítások nem tölthetők be.</string>
+    <string name="settings_notification_save_failed">A módosítások nem lettek mentve.</string>
+    <string name="settings_notification_retry">Újrapróbálás</string>
     <string name="settings_notification_styled_summary">Értesítésekhez használja az alkalmazásstílus színét.</string>
     <string name="settings_notification_styled_title">Színes értesítések</string>
     <string name="ski_notification_title">Síelési statisztikák</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Lépésszám</string>
     <string name="settings_tracking_min_distance_title">Gyűjtések közötti minimális távolság</string>
     <string name="settings_tracking_min_time_title">Gyűjtések közötti minimális késleltetés</string>
-    <string name="settings_tracking_notice_summary">Technikai okokból a nyomkövető beállításainak legtöbb módosítása a nyomkövetés újraindítását igényli. (Ha a nyomkövetés aktív, állítsa le, majd indítsa újra. Az alkalmazás bezárása és megnyitása nem feltétlenül segít.)</string>
     <string name="settings_tracking_required_accuracy_title">Szükséges helypontosság</string>
     <string name="settings_tracking_title">Nyomkövetés</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Nyomkövetés indítása</string>
     <string name="shortcut_start_tracking_long">Nyomkövető szolgáltatás indítása</string>
-    <string name="shortcut_stop_tracking">Nyomkövetés leállítása</string>
-    <string name="shortcut_stop_tracking_long">Nyomkövető szolgáltatás leállítása</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Munkamenet befejezése</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Aktuális munkamenet befejezése</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Követés kikapcsolása</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Minden követés és automatikus indítás leállítása</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Nyomon követési intézkedések</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Páraz automatikus indítás</string>
     <string name="speed_title">Sebesség</string>
     <string name="speed_value">sebesség: %s</string>
     <string name="battery_title">Akkumulátor</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d perc nyomkövetés</item>
         <item quantity="other">%1$d perc nyomkövetés</item>
     </plurals>
-    <string name="insight_exploration_title">Felfedező!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">%1$d új területet fedezett fel</item>
         <item quantity="other">%1$d új területet fedezett fel</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Visszalépés</string>
     <string name="insight_distance_title">Megtett távolság</string>
     <string name="insight_distance_desc">Ebben a munkamenetben %1$s távolságot tett meg.</string>
-    <string name="insight_steps_title">Rögzített lépések</string>
-    <string name="insight_steps_desc">%1$s lépés ebben a munkamenetben — csak így tovább!</string>
     <string name="tracker_measurement_partial">Részleges</string>
 </resources>

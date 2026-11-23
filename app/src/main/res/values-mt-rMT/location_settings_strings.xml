@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Post matul il-ġurnata kollha</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Bejn is-sessjonijiet.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Enabled bejn is-sessjonijiet. Id-disponibbiltà tiddependi fuq l-aċċess u l-limiti ta\' sfond Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptiv</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Passiv biss</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Adjusta l- ġbir tal- Pożizzjoni għall- moviment u l- preferenza tad- dettall tiegħek, b\' avviż kontinwu.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Uża pożizzjonijiet pprovduti minn applikazzjonijiet oħra jew is-sistema. Hemm possibbiltajiet ta\' waqfien twil.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker se jiġbor il- Lokalizzazzjoni bejn is- sesjonijiet, aġġusta l- sforz tiegħu għall- moviment, u turi notifika kontinwa. Dan jista\' juża aktar batterja milli ġbir passiv. L- għażla tiegħek hija msejsa qabel Android titlob għal aċċess Lokali. Jekk ma jkollokx aċċess, tista\' tħalliha tistenna; tista\' tneħħih fi kwalunkwe ħin.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Uża Lokalizzazzjoni adattattiva</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Ħalli aċċess għall-post</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Agħżel id- dettall ta \' post adattattiv</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Id-dettalji tal-post: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Il-potenza tal-pożizzjoni u d-dettalji</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Agħżel livell biex jadotta Lokalizzazzjoni adattattiva. Il- bilanċ huwa l- default; sessjonijiet ħajjin jippreferu aktar dettalji. Android u l-aċċess tiegħek jistgħu jillimitaw ir-riżultat.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">L-enerġija l-ewwel</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Il-poter ta \' favori</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Ibbilanċjat</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Favorizza dettalju</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">L-ewwel dettalju</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Għajnuna għall-mozzjoni</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Jekk jogħġbok uża l- issinji tal- moviment biex aġġusta l- Pożizzjoni. Dan ma jirreġistra l- istorja tal- Azzjoni u ma jistax jibda sessjoni. Il-post għadu jaħdem jekk tirrifjuta.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Ħalli l- indikazzjonijiet tal- moviment</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Ma setgħux japplikaw dan il-bidla. Ipprova mill-ġdid.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Il-ġbir adattattiv għadu mhux qed isir.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Uża l- livell ta \' dettall lokalizzazzjoni adattattiva tiegħek.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Il- Lokalizzazzjoni Adattattiva hija disponibbli.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">It-talba tal-lokazzjoni aġġustata mill-apparat.</string>
+</resources>

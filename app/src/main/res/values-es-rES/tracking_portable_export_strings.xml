@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Historial de pasos verificado, cobertura y huecos sin coordenadas de ruta</string>
+    <string name="export_format_portable_ambient_steps_desc">Pasos en segundo plano, tiempo de actividad, fechas, huecos de cobertura y zona horaria guardada sin coordenadas de ruta</string>
+    <string name="export_format_portable_activity_desc">Intervalos de movimiento registrados, confianza y cobertura sin coordenadas de ruta</string>
+    <string name="export_format_portable_pressure_desc">Mediciones directas de presión en hPa, cobertura y huecos sin coordenadas de ruta</string>
+    <string name="export_sensitivity_portable_title">¿Exportar el historial registrado?</string>
+    <string name="export_sensitivity_portable_steps_message">Este archivo contiene recuentos de pasos, intervalos de tiempo e información de cobertura. No contiene coordenadas de ruta. Continúa solo si confías en el destino.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Este archivo contiene pasos en segundo plano, intervalos de actividad, fechas, huecos de cobertura y la zona horaria guardada. No contiene coordenadas de ruta. Continúa solo si confías en el destino.</string>
+    <string name="export_sensitivity_portable_activity_message">Este archivo contiene intervalos de movimiento registrados, intervalos de tiempo e información de cobertura. No contiene coordenadas de ruta. Continúa solo si confías en el destino.</string>
+    <string name="export_sensitivity_portable_pressure_message">Este archivo contiene mediciones de presión e intervalos de tiempo que pueden revelar información del entorno. No contiene coordenadas de ruta ni altitud calibrada. Continúa solo si confías en el destino.</string>
+</resources>

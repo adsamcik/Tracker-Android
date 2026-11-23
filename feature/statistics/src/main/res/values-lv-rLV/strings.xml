@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistika</string>
     <string name="stats_cell_count">Šūnu skaits</string>
     <string name="stats_collections">Atjauninājumu skaits</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Šūna %1$s · %2$s paraugi</string>
     <string name="stats_cell_signal_carrier">Operators %1$s‑%2$s</string>
     <string name="trip_detail_title">Brauciena informācija</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Izsākšanas vēsture</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Izsākšanas dati nav pieejami</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Šī privāta izvēle nav saglabāta pēc aplikācijas procesa atkārtotas izveides. Atpakaļ uz nesen esošo vēsturi un atlasiet to vēlreiz.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Izvēlēta saglabāta avota ieraksta vairs nav pieejama.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Izlasiet ierobežotu avotu vēsturi nevarēja pabeigt droši.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Izvēlēts saglabāts avots ieraksts nav pabeigts integritātes pārbaudes.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Šā atlases laikā nav pieejams vajadzīgais avots-pazīme attēls.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Izvēle, kas ir izdota no avota, vairs neatzīmē pašreizējo saglabāto ierakstu.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Izslēgtās ziņas neizpildītas. Izdzīvojiet to vēlreiz.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Brauciens nav atrasts</string>
     <string name="trip_detail_not_found_subtitle">Iespējams, šis brauciens ir dzēsts</string>
     <string name="trip_detail_error_title">Neizdevās ielādēt braucienu</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Attālums</string>
     <string name="trip_detail_date">Datums</string>
     <string name="trip_detail_steps">Soļi</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Pilns pārklājums</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Vismaz tas daudz · daļēji</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Daļa vēsture · nav pieejama uzticama skaitļa</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Neverificēts: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Pamatvērtība · pilnība nav pārbaudīta</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Aktualizējot vēsturi...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Neatkarēts šajā sesijā.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Šā sesijā nav iespējams</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Nepiemērots</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Vajadzēja atļauja</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Ar ierobežošanu par Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Nav pieejams</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Neatbilstīga novērošana</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Izmazgā</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Neatbalsta vēsture</string>
     <string name="trip_detail_samples">Paraugi</string>
     <string name="trip_detail_source">Avots</string>
     <string name="trip_detail_avg_speed">Vid. ātrums</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Dzēst</string>
     <string name="trip_detail_cancel">Atcelt</string>
     <string name="trip_detail_more_options">Vairāk opciju</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Akcijas, kas nav pieejamas šim aizturētajam avota</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Izsākuma iestāde</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Izsākums</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Atbalsta mērķis</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Precīzs tikai avots sesijas uzskats</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Pārņemamo avotu loceklis</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Autentikoties neizmaināms ierakstu vēsture norāda, ka tas ir vienīgais ieraksta avots.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Importētais formāts apliecina saglabātu avotu locekļu skaitu, nevis tas, ka šis ierīce reģistrēja pierādījumus.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi sesija</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Cellu sesija</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Raidejošs apkopojums</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Statuss</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Apdrošināšana</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Ražošana saglabāto radio vēsturi</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Daži saglabātie radiju vēsturi</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Ražotais radiju vēsture</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Radijas vēsture nepastāvēta</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Neatbilstīgi saglabāti radio pierādījumi</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Izdzēvēts saglabāts radiju vēsture</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Nevarēja pārbaudīt radiju vēsturi</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Radijas vēstures integritātes pārbaude neizpildīta</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Nav pārbaudīta pārklājuma</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">daļēji pārbaudīta aptverība</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Vispārīgi pārbaudīta aptverība</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Pārklājums nav pieejams</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Sagaidām saglabātu radio novērojumus.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Nav pieejami saglabāti radio novērojumi.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Izmazgāti saglabāti pierādījumi no avota.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Atbalsta pierādījumus nevar droši iesniegt.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Pārliecinošās piegādes</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Pārliešanas ar daļējiem rezultātiem</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Pārstrādāti Wi‑Fi pierādījumi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Atstāti skanēšanas rezultāti</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Frekvenču līmeņu rezultāta maisījums</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Atgādināts signala diapazons</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">no %1$d līdz %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Citas bandas</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Pārsteidzoši šūnu pierādījumi</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Raadiokārtu saglabāšana</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Registētās statusa ieraksti</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radiotehnoloģijas ierakstu maisījums</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Šī detalizācija nav atklājusi nekādu tīklu, tornu, abonentu, maršrutu, attālumu, ātrumu, augstumu vai atrašanās vietas identitāti.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Soļu sesija</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Atbalsta pasākumi pierādījumi</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Apdrošināšana</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Neapstrādāts intervāls</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Komplekts aplūkotais intervāls</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">daļēji aplūkotais intervāls</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Pārklājums nav pieejams</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Tikai saglabāti Steps pierādījumi ir parādīti. Viņu atrašanās vieta nav reģistrēta, tāpēc maršruta un atrašanās vietas rādītāji nav pieejami.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Aktivitāšu sesija</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Aktivitātes diapazonas, ilgums un uzticamība ir apjomīgi apkopoti pierādījumi, kas saglabāti ierīcē.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Darbības kopsavilkums</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Statuss</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Apdrošināšana</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Izsākums</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Zinātā aktīvais laiks</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Zinātā neaktivitātes laiks</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Neklasificēts laiks</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Zinātā laika atkāpe</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Atbalsta darbības diapazonas un atkāpes</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Apmēram ilgums</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Pārliecība</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktivitātes pārejas signāls</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Aptuveni %1$d ⁇ %2$d%% no %3$d saglabāto novērošanu</item>
+        <item quantity="other">Aptuveni %1$d ⁇ %2$d%% no %3$d saglabātiem novērojumiem</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">pierādījumu veids</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Rafinēta pāreja</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Zinātne atšķirība</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Pamatojums</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Apmēram ilgums</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Darbības vēsture</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Daļēja aktivitāšu vēsture</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Aktivitāšu vēsture ir pieejama</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Aktivitāšu vēsture nav pieejama</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Neizdevās pārbaudīt aktivitāšu vēsturi</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Atbalsta darbības vēsture joprojām tiek sagatavota; vēl nav secināts ilgums.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Tikai daļa no sesijas ir saglabājusi aktivitātes pierādījumus.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Neapstrādāts darbības ilgums.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Nav pieejami uzticami saglabāti darbības rezultāti.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Pārbaudēts Aktivitātes pierādījums neizpildīja integritātes pārbaudes.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Nav pārbaudīta pārklājuma</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Daļējs pārklājums</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Pilns pārklājums</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Apņemts ar šo ierīci</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Importētie saglabāti pierādījumi</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Nekustīgs</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Iešana</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Skriešana</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Braukšana ar velosipēdu</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Transportlīdzeklī</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Kājām</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Sasvērts</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Nezināma aktivitāte</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Pārmaiņas</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Izmēģinājuma rafinēšana</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Izmēģinājuma klasifikācija</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Neatkarīgi no kvalifikācijas, saglabāto pierādījumu</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Aktivitātes sniedzēja pārtraukšana</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Izmainīta atļauja</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Proces vai ierīce atkārtoti startē</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Neatbilstīgi pierādījumi</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Sēcija noņemta</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Viņu atrašanās vieta nav iegūta.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Apņemtie avārijas avoti</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Izvēlēts detalizēts nav pieejams šajā precizā avotu kombinācijā. Rūte, GPX, attālums, ātrums, augstums un citas darbības, kas saistītas ar atrašanās vietu, joprojām nav pieejamas.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Atrašanās vieta</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Šūna</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Aktivitāte</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Soļi</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Spiediens</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Neverificēti aizņemšanas avoti</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Šī vecāka sesija ir vecāka par verificējamu ierakstu vēsturi. Izstāde ir norādīta, un tā var būt nepilnīga.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Spiediena sesija</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Gaisa spiediens</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Statuss</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Jaunākie</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Pārsteidzošs diapazons</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Pirmās līdz pēdējās izmaiņas</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Apdrošināšana</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Uzglabāšanas zona</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Atbalsta spiedienu...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Daži saglabātie spiedieni</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Atbalsta spiediens</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Izņemts aizturēts spiediens</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Nevarēja pārbaudīt saglabāto spiedienu</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Stāsts nav pieejams</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Preses vēsture nav panākta</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Neatbalsta vēsture</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Izdzīvojot atjaunināt šo brauciena kopiju vēsturi.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Atgādināts avots, kurā ir pierādījumi, nav pieejams. Izdzīvojiet to vēlreiz.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Izlasiet ierobežotu avotu vēsturi nevarēja pabeigt droši. Izdzīvojiet to vēlreiz.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Pārbaudēta avots vēsture neizpildīja integritātes pārbaudes. Pēc tam, kad ir pieejams avots, atkārtoti mēģiniet.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Fizisko vēsturi nav iespējams droši pārbaudīt.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Nav saglabāta pārklājuma</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Pilns saglabātais apjoms</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Daži aizturētie aizturējumi</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Pārklājums nav pieejams</string>
     <string name="ski_detail_header">Slēpošanas sesija</string>
     <string name="ski_detail_runs">Nobraucieni</string>
     <string name="ski_detail_vertical">Vertikālais kritums</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Pēdējo reizi redzēts</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Laika skala</string>
-    <string name="history_tab_trips">Braucieni</string>
     <string name="history_tab_calendar">Kalendārs</string>
     <string name="history_screen_title">Vēsture</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Nākamais mēnesis</string>
     <string name="history_calendar_distance">Attālums</string>
     <string name="history_calendar_steps">Soļi</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Jautājums...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Neapcietināts</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Neaplikti</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Nav pieejams</string>
     <string name="history_calendar_trips">Braucieni</string>
     <string name="history_exploration_title">Izpēte</string>
     <string name="history_exploration_cells">Šūnas</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Vēsture</string>
     <string name="history_view_trip_on_map">Skatīt braucienu kartē</string>
     <string name="stats_heatmap_title">Aktivitāte</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Importētie pasākumi</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Nav iekļauti maršruta un citi detektoru dati.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sesijas</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Pievieno sesiju</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Sēšana</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Nomi (neatkarīgi)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Aktivitātes marķējums</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Bez marķējuma</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Sākums</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Beigas</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Laikaru zona</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Aplikēt laikapstākļus</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Pirms uzkrāšanas izmantojiet laikapstākļus.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Pārkraušanas sesija</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Registra detaļas</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Izņemšanas sesija</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Saimniekot</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Atcelt</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Atcelt šo sesiju?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Registratīvie dati paliek vēsturē.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Datums</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Laiks</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Šī vietējā laika nav, jo laikraksti pārvietojas uz priekšu. Izvēli vēl kādu laiku.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Šoreiz tas notiek divas reizes. Izrādīt tā UTC pārvēršanu.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Visbeidzot, beidzas pēc sākuma. Abiem dienām jābūt 1970. gada 1. janvārī vai pēc tam.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Galvenais laiks nav nākamgad.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Iegādājiet IANA laika zonā, piemēram, Europa/Praga vai UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Izmantojiet maksimāli 200 rakstus.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Šis marķējums tika noņemts. Izvēli citu marķējumu vai ne marķējumu.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Šī sesija ir mainījusies vai apkopoti dati ir izslēgti. Pārkraut pirms uzkrāšanas.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Šī sesija vairs nav pieejama.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Sesijas nav pagaidu pieejamas. Izdzīvojiet vēsturi.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Šajā periodā nav sesiju.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Neatnākta sesija</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Ierakstīšana</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Izskats laiks nav skaidrs. Pārsteidzojiet laiku, pirms mainīt intervālu.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Turpinājums no iepriekšējā diena</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Visus parādīt.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Sēcija beidz, lai redigētu tās laiku vai noņemtu to.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Izskatīt šīs dienas sesijas</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Daži sesiju marķētāji nav parādīti. Izvēlējiet dienu, kurā varat apskatīt tās sesijas.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Dīne %1$d, ir sesijas</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Diena %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Mēģināt vēlreiz</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Aplūkojiet ierakstu</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Atpakaļ uz sesijām</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Eksporta sesija</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Nevaru saglabāt failu. Izprāvi vēlreiz.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Eksportēta sesija</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Sēcija eksportēta ar pilnām ierakstām, kas ir ilgākas par tās datumiem.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Es nespēju pabeigt. Izprāvi vēlreiz.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Izdzēsiet šo ierakstu?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">To saglabāto skaitīšanu pagaidām izdzēš.</string>
     <string name="stats_recorded_partial_value">%1$s · daļēji</string>
     <string name="history_activity_started">Sākums: %1$s</string>
     <string name="history_activity_ended">Beigas: %1$s</string>

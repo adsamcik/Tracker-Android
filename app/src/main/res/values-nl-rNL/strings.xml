@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Back-up van vóór de upgrade geëxporteerd</string>
     <string name="settings_migration_backup_export_failure">Kon de back-up van vóór de upgrade niet exporteren</string>
     <string name="settings_migration_backup_export_cleanup_required">Export mislukt. Verwijder de gedeeltelijk geëxporteerde back-up van de geselecteerde locatie.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Invoer van legacy-databases vraagt aandacht</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Je oorspronkelijke database zit nog steeds op dit apparaat. Probeer de invoer opnieuw te openen om Tracker te openen.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Gegevensbankgrootte: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Re-proef importen</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Exporteer ouderwetse database</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Verwijder oude database en start opnieuw</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Exporteerde database</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Kon de oude database niet exporteren</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">De uitvoer is mislukt en de onvolledige bestemming kon niet worden verwijderd. Verwijder het handmatig.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Geheard database kluis</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Versie %1$d %2$s %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Bronversie: %1$d\nGeheugen: %2$s\nInvoer: %3$s\nInvoerreeks: %4$d\nReeks alleen bewaard in de kluis: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Invoer voltooid: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Niet ingevoerd</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Invoer</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Import voltooid</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Invoer mislukt</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">De oude database verwijderen?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Hierdoor wordt %1$s permanent verwijderd van dit apparaat. Uw v27-gegevens zijn niet beïnvloed. Bewaar de uitgevoerde kopie als u later de originele database nodig heeft.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Verleden database verwijderd</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Kon de oude database niet verwijderen</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Het volgen van het herstel vereist aandacht</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">De verzameling blijft af, terwijl Tracker zijn trackinggegevens veilig verbindt. Probeer het opnieuw zonder de geschiedenis te verwijderen.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Vervolgens wordt geprobeerd het opsporen te herstellen</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Ontwikkelingsdatabase heeft een handmatige backup nodig</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker vond een niet-gestuurd versie 28-ontwikkelingsdatabase die niet overeenkomt met deze build. De tracking- en databasefuncties blijven uitgeschakeld en het databasebestand is onveranderd. Back-up van de app-gegevens of database voordat u deze ontwikkeling installeert of herstelt.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Database heeft aandacht nodig</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker kon deze database niet veilig identificeren of valideren. De tracking- en databasefuncties blijven uitgeschakeld en het databasebestand is onveranderd. Maak een back-up van de app-gegevens of database voordat u handmatig herstel probeert te doen.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Database is tijdelijk niet beschikbaar</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Tracking- en databasefuncties blijven uitgeschakeld terwijl Tracker veilig opnieuw probeert. Geen gegevens zijn verwijderd. Probeer nu opnieuw te controleren of het probleem met het tijdelijk sluiten of opslaan is weg.</string>
     <string name="settings_delete_data_success">Alle verzamelde gegevens zijn verwijderd</string>
     <string name="settings_delete_data_failure">Kon niet alle verzamelde gegevens verwijderen</string>
     <string name="settings_game_goals_title">Doelen</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Spelinstellingen laden…</string>
     <string name="settings_game_load_error">Spelinstellingen konden niet worden geladen. Probeer het opnieuw.</string>
     <string name="settings_map_info_hint">Deze instellingen bepalen de kwaliteit en prestaties van de kaartweergave. De meeste gebruikers kunnen de standaardwaarden gebruiken.</string>
+    <string name="settings_map_offline_data_section">Offline kaartgegevens</string>
     <string name="settings_map_online_tiles_section_title">Online-kaarttegels</string>
     <string name="settings_map_online_tiles_enable_title">Online-kaarttegels gebruiken</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Uit — alleen de meegeleverde offline-basiskaart wordt gebruikt. Geen netwerkverzoeken.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Aangepast</string>
     <string name="tracking_preset_custom_description">Pas elke trackingparameter handmatig aan</string>
     <string name="tracking_preset_selector_subtitle">Kies een profiel om mee te beginnen en verfijn daarna elke instelling hieronder.</string>
+    <string name="tracking_preset_change">Vergelijk opties</string>
+    <string name="tracking_preset_done">Alleen geselecteerd weergeven</string>
     <string name="tracking_preset_customized_summary">Je hebt tracking verfijnd. Kies hierboven een voorinstelling om te resetten.</string>
+    <string name="settings_tracking_section_start_stop">Automatische opsporing</string>
+    <string name="settings_tracking_section_battery_detail">Trackingkwaliteit</string>
+    <string name="settings_tracking_section_data_collected">Verzamelde gegevens</string>
     <string name="settings_tracking_section_detail">Locatieverzameling</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Buitenlandse reizen (optioneel)</string>
     <string name="settings_tracking_section_notifications">Meldingen</string>
+    <string name="settings_transition_detection_friendly_title">Bewegingsdetectie met batterij-efficiëntie</string>
+    <string name="settings_transition_detection_friendly_summary">Gebruik Android activiteitswijzigingen om frequente achtergrondcontroles te voorkomen. Automatische start kan een beetje langzamer reageren.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatische tracking is niet beschikbaar</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Uw keuze voor automatische modus is opgeslagen. Voor automatische opstart is toestemming voor de activiteitsherkenning vereist.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Kies wat je tussen de reizen moet opnemen.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi buitenreizen</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cellen buiten reizen</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Af tussen de reizen.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Opgeschreven als ingesteld. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Out-trip-dekking is opportunistisch en kan overlappingen in toestemming, provider, proces, herstart of besturingssysteem bevatten. Tracker claimt geen altijd aan verzameling of uitvindt geen bewaartijd.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Het verzamelen blijft niet mogelijk omdat het productbehoudbeleid nog niet beschikbaar is.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Ik controleer de collectie.</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">De verzameling wordt veilig ingehouden door de huidige uitrol.</string>
+    <string name="settings_ambient_user_turned_off">Tracking is uitgeschakeld. Je keuzes en opgeslagen gegevens blijven behouden.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Geef toegang tot stappentellingen in Health Connect om ontbrekende gegevens aan te vullen wanneer Tracker gesloten is.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Toegang to stappen tellen in Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Ik kon de toegang tot Health Connect niet controleren. Probeer het nog eens.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Stappentellingen kunnen worden geïmporteerd terwijl Tracker actief is. Toegang op de achtergrond kan gaten in de stappengeschiedenis beperken.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Er is geen ondersteunde all-day step provider beschikbaar.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Update Health Connect zodat Tracker de stapgetallen kan lezen.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Ik kon de stapprovider niet controleren. Probeer het later nog eens.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Geef de lichamelijke activiteit toestemming om stappen op dit apparaat te tellen.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Stapopname is niet beschikbaar op dit apparaat.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect is klaar. Sommige periodes kunnen nog steeds gaten hebben.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">De stapopname is klaar. Sommige periodes kunnen nog steeds gaten hebben.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Locatietoegang op de achtergrond is nodig om locaties tussen sessies vast te leggen. Je instelling voor vastleggen tijdens sessies blijft hetzelfde.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi scanvergunningvereisten worden niet nagekomen. Het geven van deze gegevens maakt het niet mogelijk om locatie vast te leggen.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android  ⁇ s De vereisten voor toestemming voor celoproepen worden niet nagekomen. Het geven van deze gegevens maakt het niet mogelijk om locatie vast te leggen.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passive Location is klaar voor de bron-eigenaar verzoening. Het biedt opportunistische punten, niet routecontinuïteit.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Callbacks met scanresultaten zijn klaar voor source-owner reconciliatie. Er wordt geen scan of wake cadence beloofd.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Tijdstempel gekwalificeerde cel-uitwisselingsoproepen zijn klaar voor verzoening tussen bron-eigenaar. Er wordt geen gedwongen verfrissingscadence beloofd.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Het vereiste platform of aanbieder is niet beschikbaar, dus de verzameling blijft uit.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Opgeschort; operationele status aan de orde</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Opgeschreven; operationele beschikbaarheid gerapporteerd</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Opgespaard; niet in werking</string>
+    <string name="settings_location_source_summary">Neem je route, afstand en snelheid op. Meestal de grootste batterijkosten.</string>
+    <string name="settings_activity_source_summary">Registreert de hele dag lopen, fietsen, autorijden en stilstaan.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Tracks stappen gedurende de dag. Trips organiseert dezelfde stapgeschiedenis.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Ik controleer de stapverzameling.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Tracking uitschakelen</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Ik sluit me af.</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Stop sessies, hele dag opname en automatische start. Je keuzes en opgeslagen gegevens blijven.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Tracking is uitgeschakeld. Je keuzes en opgeslagen gegevens blijven behouden.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Ik kon het spoor niet uitschakelen. Probeer het nog eens.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">De luchtdruk wordt de hele dag geregistreerd met een melding.</string>
+    <string name="settings_ambient_activity_ready">Klaar om activiteiten te registreren.</string>
+    <string name="settings_ambient_pressure_ready">Klaar om luchtdruk te registreren.</string>
+    <string name="settings_pressure_host_unavailable">Registratie van luchtdruk op de achtergrond kon niet starten.</string>
+    <string name="settings_wifi_source_summary">Registratie in de buurt van Wi-Fi netwerken om lokale context toe te voegen. De gegevens blijven op dit apparaat.</string>
+    <string name="settings_cell_source_summary">Record nabijgelegen mobiele torens om locatie context toe te voegen. De gegevens blijven op dit apparaat.</string>
+    <string name="settings_location_source_compact">Rout, afstand en snelheid</string>
+    <string name="settings_activity_source_compact">Bewegingstype en stilte</string>
+    <string name="settings_steps_source_compact">Stapjes gedurende de dag</string>
+    <string name="settings_barometer_source_compact">Hoogte en hoogte</string>
+    <string name="settings_wifi_source_compact">Nabijgelegen netwerkcontext</string>
+    <string name="settings_cell_source_compact">Nabijgelegen torencontext</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Technische status</string>
+    <string name="settings_technical_status_summary">Batterijschatting, toestemmingen en verzamelstatus.</string>
+    <string name="settings_technical_status_attention">Sommige bronnen van verzameling hebben aandacht nodig. Open voor details.</string>
+    <string name="settings_simple_source_controls_title">Gebruik eenvoudige controles</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Wandelingen en hardlopen automatisch volgen.</string>
     <string name="setup_auto_tracking_in_motion">In beweging</string>
     <string name="setup_auto_tracking_in_motion_desc">Volg automatisch alle beweging, inclusief autorijden en fietsen.</string>
-    <string name="setup_preset_title">Trackingdetail</string>
+    <string name="settings_auto_tracking_mode_summary">Kies welke beweging automatisch moet starten en stoppen.</string>
     <string name="setup_recommended">Aanbevolen</string>
     <string name="setup_what_to_collect_title">Wat verzamelen</string>
     <string name="setup_what_to_collect_subtitle">Meer opties hieronder. Begin met verkennen zonder machtigingen of verleen ze later. Gegevens blijven op dit apparaat.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Activiteit</string>
     <string name="setup_source_activity_desc">Detecteer of je wandelt, hardloopt, fietst of rijdt.</string>
     <string name="setup_source_steps">Stappen</string>
-    <string name="setup_source_steps_desc">Tel je stappen met de stappenteller van het apparaat.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Volg de stappen door de dag heen. Trips organiseren hetzelfde verhaal.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Geen directe stapsensor. Tracker controleert of er een stapbron is op het apparaat.</string>
+    <string name="setup_perm_steps_why">Sta bewegingstoegang toe om op dit apparaat de hele dag stappen te tellen.</string>
+    <string name="setup_perm_grant_steps_content_description">Bewegingstoegang voor Stappen toestaan</string>
+    <string name="setup_steps_health_connect_why">Sta Stappen in Health Connect toe om ontbrekende gegevens aan te vullen als Tracker gesloten is.</string>
+    <string name="setup_steps_provider_ready">Een stappenbron op het apparaat is gereed. Sommige perioden kunnen nog ontbrekende gegevens hebben.</string>
+    <string name="setup_steps_provider_checking">Beschikbare stappenbronnen controleren…</string>
     <string name="setup_source_wifi">Wifi-netwerken</string>
-    <string name="setup_source_wifi_desc">Registreer wifi-netwerken in de buurt om de locatienauwkeurigheid te verbeteren.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Registratie van nabijgelegen netwerken Wi-Fi, met of zonder locatie-tracking.</string>
     <string name="setup_source_cell">Zendmasten</string>
-    <string name="setup_source_cell_desc">Registreer gegevens over zendmasten voor locatiecontext.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Record nabijgelegen mobiele torens, met of zonder locatieopsporing.</string>
     <string name="setup_perm_location_why">Nodig om je routes vast te leggen en op de kaart te tonen. Locatie blijft op dit apparaat — er wordt niets naar een server verzonden.</string>
     <string name="setup_perm_location_bg_why">Om je route te blijven vastleggen wanneer je van app wisselt of het scherm uitgaat, heeft Tracker toegang nodig tot je locatie op de achtergrond. De vastgelegde locatie blijft op dit apparaat — er wordt niets naar een server verzonden. Kies bij de volgende systeemprompt "Altijd toestaan" om automatisch volgen in te schakelen; "Alleen toestaan tijdens gebruik van de app" laat Tracker alleen werken wanneer het scherm geopend is.</string>
     <string name="setup_perm_activity_why">Laat Tracker detecteren wat je doet (wandelen, fietsen, autorijden, stilstaan), zodat automatisch volgen kan pauzeren wanneer je niet beweegt en batterij bespaart. Activiteitsgegevens blijven op dit apparaat — er wordt niets naar een server verzonden.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Machtiging voor mobiele radio verlenen</string>
     <string name="setup_perm_granted">Toegestaan ✓</string>
     <string name="permission_grant_in_settings">Toestaan in Instellingen →</string>
-    <string name="permission_disabled_due_to_denial">%1$s uitgeschakeld omdat de machtiging is geweigerd. Verleen deze in Instellingen om in te schakelen.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s is geselecteerd, maar kan niet worden verzameld totdat toestemming is verleend.</string>
     <string name="settings_wifi_permission_required">Vereist wifi-/locatiemachtiging. Schakel in om te verlenen — tot die tijd worden geen wifi-gegevens vastgelegd en vastgelegde gegevens blijven op dit apparaat.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Toegang is nog steeds nodig. Je keuzes worden bewaard.</string>
     <string name="settings_cell_permission_required">Vereist machtiging voor telefoonstatus en nauwkeurige locatie. Schakel in om te verlenen — tot die tijd worden geen celgegevens vastgelegd en vastgelegde gegevens blijven op dit apparaat.</string>
     <string name="settings_barometer_unavailable">Druksensor is niet beschikbaar op dit apparaat.</string>
     <string name="settings_activity_permission_required">Vereist machtiging voor activiteitsherkenning. Schakel in om te verlenen.</string>
-    <string name="settings_steps_unavailable">Sensor voor stappenteller is niet beschikbaar op dit apparaat.</string>
     <string name="setup_start_exploring">Begin met verkennen</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Afgerond...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Opnieuw proberen</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Ik kon de setup niet opslaan. Je keuzes zijn nog steeds hier.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Ik kon de opgeslagen gegevens niet voorbereiden. Je keuzes zijn nog steeds hier.</string>
     <string name="setup_continue">Doorgaan</string>
     <string name="setup_step_indicator">Stap %1$d van %2$d</string>
     <string name="setup_online_tiles_title">Online kaarttegels?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Wanneer deze optie is ingeschakeld, kan de provider je IP-adres zien en welke tegels je laadt — ruwweg welk gebied op de kaart je bekijkt. Tracker verzendt nooit een account, identificatiecode of je locatiegeschiedenis.</string>
     <string name="setup_online_tiles_change_later">Je kunt dit altijd wijzigen via Instellingen → Kaart → Online-kaarttegels.</string>
     <string name="setup_background_access_optional">Optioneel, maar aanbevolen. Je kunt dit altijd wijzigen via Instellingen → Tracking.</string>
-    <string name="background_reliability_status_exempt">Activiteit op de achtergrond toegestaan</string>
-    <string name="background_reliability_status_optimized">Batterijoptimalisatie is ingeschakeld</string>
-    <string name="background_reliability_allow_action">Activiteit op de achtergrond toestaan</string>
-    <string name="background_reliability_samsung_hint">Samsung-apparaten kunnen apps ook in "Slapende apps" plaatsen. Open de batterij-instellingen, verwijder Tracker uit Slapende apps en stel in dat de app niet in slaap mag worden gezet.</string>
-    <string name="background_reliability_samsung_action">Batterij-instellingen van apparaat openen</string>
-    <string name="settings_tracebox_title">Crashdiagnostiek</string>
-    <string name="settings_tracebox_root_summary">Lokale crash-, ANR- en structurele diagnostiek</string>
     <string name="setup_background_location_title">Locatie op de achtergrond toestaan voor automatisch bijhouden</string>
     <string name="setup_background_location_disclosure">Automatisch bijhouden start wanneer Tracker op de achtergrond actief is en registreert je route ook wanneer het appscherm niet geopend is. Locatiegegevens blijven op dit apparaat. Kies in de locatie-instellingen van de app ‘%1$s’.</string>
     <string name="setup_background_location_open_settings">Locatie-instellingen openen</string>
     <string name="setup_background_location_decline">Niet nu</string>
     <string name="setup_background_location_manual_only">Handmatig bijhouden op de voorgrond blijft beschikbaar. Automatisch bijhouden van de locatie blijft uit totdat locatie op de achtergrond is toegestaan.</string>
-    <string name="settings_ambient_user_turned_off">Tracking is uitgeschakeld. Je keuzes en opgeslagen gegevens blijven behouden.</string>
-    <string name="setup_perm_steps_why">Sta bewegingstoegang toe om op dit apparaat de hele dag stappen te tellen.</string>
-    <string name="setup_perm_grant_steps_content_description">Bewegingstoegang voor Stappen toestaan</string>
-    <string name="setup_steps_health_connect_why">Sta Stappen in Health Connect toe om ontbrekende gegevens aan te vullen als Tracker gesloten is.</string>
-    <string name="setup_steps_provider_ready">Een stappenbron op het apparaat is gereed. Sommige perioden kunnen nog ontbrekende gegevens hebben.</string>
-    <string name="setup_steps_provider_checking">Beschikbare stappenbronnen controleren…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Achtergrondopsporingsinstellingen</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android en het apparaatbeleid kunnen de achtergrondwerkzaamheden pauzeren of stoppen. Tracker kan de beperkingen rapporteren die Android blootstelt, maar kan de beperkte of gedwongen staat niet overtreffen.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Geconstateerde achtergrondbeperking</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Batterijoptimalisatie gedetecteerd</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Geen beperking opgemerkt</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Beperkingsstaat niet beschikbaar</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android meldt dat de achtergrondactiviteit beperkt is. Het volgen kan stoppen wanneer Tracker niet zichtbaar is; de app kan dit beleid niet overtreffen.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android meldt dat Tracker niet op de batterijlijst staat. Het beheer van de stroom kan de achtergrondwerkzaamheden vertragen; de toelating van de lijst vermindert de beperkingen, maar zorgt niet voor een continue opsporing.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android meldt geen achtergrondbeperking en Tracker staat op de batterijvergunninglijst. Het systeem kan de app nog steeds stoppen, en force-stop kan niet worden ingetrokken.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker kon niet alle relevante Android-beperkingsinstallaties lezen. Er kan geen apparaatspecifieke oorzaak of remedie worden bevestigd.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Open app batterijinstellingen</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Open batterijoptimalisatie-instellingen</string>
+    <string name="settings_tracebox_title">Crashdiagnostiek</string>
+    <string name="settings_tracebox_root_summary">Lokale crash-, ANR- en structurele diagnostiek</string>
     <string name="settings_tracking_changes_apply_live">Wijzigingen werken de huidige tracking bij</string>
     <string name="settings_balance_title">Energie en detail</string>
     <string name="settings_balance_custom">Aangepaste instellingen · Balans kiezen</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Details · Algemene balans: %1$s</string>
     <string name="settings_balance_inherit">Algemene balans gebruiken</string>
     <string name="settings_balance_summary">Kies de gebruikelijke kwaliteit voor je geselecteerde bronnen. Actieve sessies geven voorrang aan detail voor deelnemende bronnen. Een gekozen balans vervangt eerdere verzamelfrequenties; bronkeuzes, toestemming voor achtergrondverzameling en nauwkeurigheidsfilters blijven bewaard.</string>
-    <string name="export_format_portable_steps_desc">Geverifieerde stappenhistorie, dekking en ontbrekende gegevens zonder routecoördinaten</string>
-    <string name="export_format_portable_ambient_steps_desc">Achtergrondstappen, activiteitstijd, datums, dekkingsgaten en opgeslagen tijdzone zonder routecoördinaten</string>
-    <string name="export_format_portable_activity_desc">Opgenomen bewegingsintervallen, betrouwbaarheid en dekking zonder routecoördinaten</string>
-    <string name="export_format_portable_pressure_desc">Directe drukmetingen in hPa, dekking en ontbrekende gegevens zonder routecoördinaten</string>
-    <string name="export_sensitivity_portable_title">Opgenomen historie exporteren?</string>
-    <string name="export_sensitivity_portable_steps_message">Dit bestand bevat stappenaantallen, tijdsintervallen en informatie over de dekking. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Dit bestand bevat achtergrondstappen, activiteitsintervallen, datums, dekkingsgaten en de opgeslagen tijdzone. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
-    <string name="export_sensitivity_portable_activity_message">Dit bestand bevat opgenomen bewegingsintervallen, tijdsintervallen en informatie over de dekking. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
-    <string name="export_sensitivity_portable_pressure_message">Dit bestand bevat drukmetingen en tijdsintervallen die informatie over de omgeving kunnen onthullen. Het bevat geen routecoördinaten of gekalibreerde hoogte. Ga alleen verder als je de bestemming vertrouwt.</string>
-    <string name="settings_activity_source_summary">Registreert de hele dag lopen, fietsen, autorijden en stilstaan.</string>
-    <string name="settings_ambient_activity_ready">Klaar om activiteiten te registreren.</string>
-    <string name="settings_ambient_pressure_ready">Klaar om luchtdruk te registreren.</string>
-    <string name="settings_pressure_host_unavailable">Registratie van luchtdruk op de achtergrond kon niet starten.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Tracking hervatten</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Ik kon niet opnieuw traceren. Probeer het nog eens.</string>
 </resources>

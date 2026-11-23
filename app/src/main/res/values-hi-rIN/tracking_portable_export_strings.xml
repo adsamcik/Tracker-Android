@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">सत्यापित कदमों का इतिहास, कवरेज और छूटा डेटा, बिना मार्ग के निर्देशांक</string>
+    <string name="export_format_portable_ambient_steps_desc">बैकग्राउंड के कदम, गतिविधि का समय, तारीखें, कवरेज में छूटा डेटा और सहेजा गया समय क्षेत्र, बिना मार्ग के निर्देशांक</string>
+    <string name="export_format_portable_activity_desc">दर्ज किए गए गति अंतराल, भरोसे का स्तर और कवरेज, बिना मार्ग के निर्देशांक</string>
+    <string name="export_format_portable_pressure_desc">hPa में सीधे दबाव के माप, कवरेज और छूटा डेटा, बिना मार्ग के निर्देशांक</string>
+    <string name="export_sensitivity_portable_title">दर्ज किया गया इतिहास निर्यात करें?</string>
+    <string name="export_sensitivity_portable_steps_message">इस फ़ाइल में कदमों की गिनती, समयावधियाँ और कवरेज की जानकारी है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">इस फ़ाइल में बैकग्राउंड के कदम, गतिविधि की समयावधियाँ, तारीखें, कवरेज में छूटा डेटा और सहेजा गया समय क्षेत्र है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
+    <string name="export_sensitivity_portable_activity_message">इस फ़ाइल में दर्ज किए गए गति अंतराल, समयावधियाँ और कवरेज की जानकारी है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
+    <string name="export_sensitivity_portable_pressure_message">इस फ़ाइल में दबाव के माप और समयावधियाँ हैं जिनसे आसपास के वातावरण की जानकारी मिल सकती है। इसमें मार्ग के निर्देशांक या कैलिब्रेट की गई ऊँचाई नहीं है। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
+</resources>

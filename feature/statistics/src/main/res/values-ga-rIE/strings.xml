@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Staitisticí</string>
     <string name="stats_cell_count">Líon na gceall</string>
     <string name="stats_collections">Líon nuashonruithe</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Cill %1$s · %2$s sampla</string>
     <string name="stats_cell_signal_carrier">Oibreoir %1$s‑%2$s</string>
     <string name="trip_detail_title">Sonraí an turais</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Stairiúil foinse</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Taisce foinse nach bhfuil ar fáil</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Níor choinnigh an rogha príobháideach seo tar éis an próiseas aip a athchreatú. Téigh ar ais go stair nua agus roghnaigh é arís.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Ní bheidh an t-iontráil foinse choigeartaithe ar fáil níos mó.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Níorbh fhéidir leis an stair foinse teoranta a léamh a chríochnú go sábháilte.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Níor éirigh leis na seiceálacha sláintiúlachta ar an iontráil fhoinse a chaithtear.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Ní féidir an grianghraf foinse-fhianaise is gá chun an roghnú seo a chur i láthair.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Ní aithníonn an t-oideas reatha a choimeádtar ar bun ag an dtoghchán a eisiúint ar an bhfoinse.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Níor éirigh leis an stair foinse a léamh. Déan iarracht é a athnuachan arís.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Níor aimsíodh an turas</string>
     <string name="trip_detail_not_found_subtitle">D’fhéadfadh an turas seo a bheith scriosta</string>
     <string name="trip_detail_error_title">Theip ar an turas a luchtú</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Fad</string>
     <string name="trip_detail_date">Dáta</string>
     <string name="trip_detail_steps">Céimeanna</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Clúdach iomlán</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Ar a laghad an líon seo · comhchuimsithe páirteach</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Stairiúlacht páirteach · níl aon líon iontaofa ar fáil</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Ní dhéantar é a fhíorú: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Luach oidhreachta · iomlán gan fhíorú</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Nua-aimsiú stair...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Ní ghlactar leis an seisiún seo</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Diúltaithe don seisiún seo</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Ní thacaítear leis</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Bhí cead riachtanach</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Rinneadh teorainn le Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Níl ar fáil</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Níl aon choimhníocht cáilithe</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Criosadh</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">An stair nach bhfuil ar fáil</string>
     <string name="trip_detail_samples">Samplaí</string>
     <string name="trip_detail_source">Foinse</string>
     <string name="trip_detail_avg_speed">Meánluas</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Scrios</string>
     <string name="trip_detail_cancel">Cealaigh</string>
     <string name="trip_detail_more_options">Tuilleadh roghanna</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Gníomhaíochtaí nach bhfuil ar fáil don fhoinse a ghabháil</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Údarás foinse</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Tús</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Cúlra a choinneáil</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Scagadh seisiúin díreach amháin as foinse</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Comhaltacht foinse iomlánach</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Ainmnítear go bhfuil an stair gabhála neamhghnách dearfaithe mar an t-aon fhoinse gabhála.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Is é an cruth allmhairithe a chruthaíonn ballraíocht fhoinse a choimeádtar, ní gur taifeadadh an t-uisce leis an bhfeiste seo.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Seisiún Wi‑Fi</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Seisiún cealla</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Réimeacht ráideo a chaomhnú</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Stádas</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Clúdach</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Rannógáil stair na ráide a chaithtear</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Stairiúil ráideo a chaithtear go páirteach</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Stairiúil raidió atá ar fáil</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Taispeántas ar stair an raidió</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Ní bheidh aon fhianaise ráideacha incháilithe</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Rinneadh stair ráideo a chaomhnú a scriosadh</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Ní raibh sé in ann stair an raidió a fhíorú</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Níor éirigh le seiceáil sláintiúlacht stair na rádh</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Gan clúdach fíoraithe</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Clúdach áirithe arna fhíorú</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Clúdach iomlán arna fhíorú</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Clúdach gan fáil</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Ag fanacht le faireacháin ráideacha a choinneáil.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Níl aon fhaireanais ráideacha coimeádta ar fáil.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Críochnaíodh an fianaise foinse a chaithtear.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Ní féidir fianaise a choimeádtar a chur i láthair go sábháilte.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Seachadadh a choinneáil</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Leantálacha le torthaí páirteach</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Wi‑Fi fianaise a choimeádtar</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Taispeántar torthaí scánaithe</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Measc torthaí baindí tréimhsí</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">An raon comhartha a choimeádtar</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d go %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Seán eile</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Fógraí cealla a choinneáil</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Clárra ráideacha coimeádta</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Clár stádas cláraithe</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Measc taifeadadh radio-teicneolaíochta</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Ní léirítear aon líonra, torr, síntiúsóir, bealach, fad, luas, airde, nó aitheantas an shuíomh ag an mionfhocal seo.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Seisiún céimeanna</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Taispeántas na céimeanna coimeádta</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Clúdach</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Níl aon idirlíon clúdaithe</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">An t-am iomlán a chuimsítear</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">An t-airgead</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Clúdach gan fáil</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Ní thaispeántar ach fianaise Steps a choimeádtar. Ní raibh suíomh á ghabháil, mar sin níl tarchur agus méatraicí a dhíorthaítear as suíomh ar fáil.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Seisiún gníomhaíochta</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Is iad na faillí gníomhaíochta, na tréimhsí agus an iontaofacht achoimre thart ar fhianaise a choimeádtar ar an bhfeiste.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Tuarascáil achoimre ar ghníomhaíocht</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Stádas</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Clúdach</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Tús</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Am gníomhach ar a dtugtar</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Am neamhghníomhach ar a dtugtar</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Am neamh-chlásaithe</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Tuairiscí an t-am</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Cinntí agus cailleanna gníomhaíochta a choinneáil</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Tuairiscíocht</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Muinín</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Tuairiscí ar an ngníomhaíocht</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Maidir le %1$d ⁇ %2$d%% ó %3$d faireachán a choimeádtar</item>
+        <item quantity="other">Maidir le %1$d ⁇ %2$d%% ó %3$d faireachán a choimeádtar</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Tír fianaise</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Tréimhse réifithe</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Glac atá ar eolas</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Reason</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Tuairiscíocht</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Stairiúil Gníomhaíochta a ullmhú</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Stair gníomhaíochta pháirteach</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Stair gníomhaíochta ar fáil</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Stair gníomhaíochta gan fáil</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Níorbh fhéidir stair gníomhaíochta a fhíorú</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Tá stair gníomhaíochta coimeádta fós á ullmhú; níl aon fhad leagtha síos fós.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Ní choinnigh ach cuid den seisiún fianaise gníomhaíochta.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Níl aon thréimhse gníomhaíochta coimeádta ar fáil.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Níl aon toradh iontaofa ar an ngníomhaíocht ar fáil.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Rinneadh tástáil neamhspleáchas ar na fianaise gníomhaíochta a choinneáil.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Gan clúdach fíoraithe</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Clúdach páirteach</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Clúdach iomlán</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Cailleadh ar an bhfeiste seo</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Taispeántas ionmhairithe a choimeádtar</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Gan ghluaiseacht</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Ag siúl</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Ag rith</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Rothaíocht</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">I bhfeithicil</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Ar shiúl na gcos</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Ag claonadh</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Gníomhaíocht anaithnid</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Tréimhse</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Réamhabhraithe samplaithe</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Clásaíocht san sampla</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Níl aon fhianaise incháilithe a choimeádtar</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Críochnú ar sholáthraí gníomhaíochta</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Athraigh údarás</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Déan athghníomhú ar an próiseas nó ar an gléas</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Ní raibh fianaise incháilithe</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Seisiún a ghabháil</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Ní raibh áit ar fáil</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Foinsí a ghabháil</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Níl sonraí roghnaithe ar fáil don chomhcheangal foinse cruinn seo fós. Tá an t-airgead, GPX, ar an mbealach, ar an astar, ar an airde, agus ar ghníomhaíochtaí eile a bhaineann le suíomh fós in ann.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Suíomh</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Líonra soghluaiste</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Gníomhaíocht</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Céimeanna</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Brú an aeir</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Foinsí gabhála gan fhíorú</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Tá an seisiún níos sine roimh an stair gabhála a fhíorú. Taispeántar sonraí ar thuras a choimeádtar agus d\'fhéadfadh siad a bheith mífhillte.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Seisiún brú</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Tosaíocht aeir</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Stádas</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">An ceann is déanaí</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Réitigh a choinneáil</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">An chéad athrú go dtí an ceann deireanach</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Clúdach</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Crios stóráilte</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Ag nuashonrú brú coimeádta...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Tosaíocht dílis a choinneáil</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Préisiún a choinneáil ar fáil</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Tosaíocht a choinneáil scriosadh</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Ní fhéadfaí brú coimeádta a fhíorú</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Bronntanas nach bhfuil ar fáil</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Fágadh stair brú</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">An stair nach bhfuil ar fáil</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Déan iarracht arís chun stair foinsithe a nuashonrú don turas seo.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Ní féidir an grianghraf a chaithtear ar an fhianaise foinse a fháil. Déan iarracht é a athnuachan arís.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Níorbh fhéidir leis an stair foinse teoranta a léamh a chríochnú go sábháilte. Déan iarracht é a athnuachan arís.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Ní raibh sé feicthe ag seiceálacha sláintiúlachta ar stair foinse a chaomhnú. Déan iarracht arís tar éis an fhoinse a bheith ar fáil.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Níorbh fhéidir ballraíocht stair fisiceach a fhíorú go sábháilte.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Gan clúdach sábháilte</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Clúdach iomlán a choimeádtar</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Clúdach ghearrthógtha páirteach</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Clúdach gan fáil</string>
     <string name="ski_detail_header">Seisiún sciála</string>
     <string name="ski_detail_runs">Rithí</string>
     <string name="ski_detail_vertical">Ingearach</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Feicthe go deireanach</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Amlíne</string>
-    <string name="history_tab_trips">Turais</string>
     <string name="history_tab_calendar">Féilire</string>
     <string name="history_screen_title">Stair</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">An chéad mhí eile</string>
     <string name="history_calendar_distance">Fad</string>
     <string name="history_calendar_steps">Céimeanna</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Updating...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Ní raibh sé gafa</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Incomplete</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Níl ar fáil</string>
     <string name="history_calendar_trips">Turais</string>
     <string name="history_exploration_title">Taiscéalaíocht</string>
     <string name="history_exploration_cells">Cealla</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Stair</string>
     <string name="history_view_trip_on_map">Féach ar an turas ar an léarscáil</string>
     <string name="stats_heatmap_title">Gníomhaíocht</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Céimeanna Áirítear</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Ní chuimsítear sonraí ar thuras agus ar shaincheaptóirí eile.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Seisiúin</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Seisiún a chur leis</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Seisiún eisiúint</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Ainm (féideartha)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Leibéal gníomhaíochta</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Níl aon lipéad</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Tús</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Deireadh</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Seán ama</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Cuir an t-am-scéal i bhfeidhm</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Cuir an t-am-scéal i bhfeidhm sula ndéanann tú a shábháil.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Seisiún Ath-Láthar</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">sonraí taifeadadh</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Seisiún a bhaint</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Saoráil</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Cealaigh</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Crios an seisiún seo?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Fanfaidh na sonraí a taifeadadh sa stair.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Dáta</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Am</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Níl an t-am áitiúil seo ann toisc go dtéann na huairí ar aghaidh. Roghnaigh am eile.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Tuairiscítear an t-am seo dhá uair. Roghnaigh a UTC offset.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Ní mór an deireadh a bheith tar éis an tús. Ní mór an dá uair a bheith ar an 1 Eanáir 1970 nó tar éis dó.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Ní féidir an deireadh a bheith sa todhchaí.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Cuir isteach ceantar ama IANA, mar shampla an Eoraip/Prague nó UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Úsáid 200 carachtair ar a mhéad.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Cuireadh an lipéad seo ar fáil. Roghnaigh lipéad eile nó lipéad gan.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Athraigh an seisiún seo nó scaoileadh sonraí a bhailíodh. Reload roimh shábháil.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Ní bheidh an seisiún seo ar fáil níos mó.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Ní bheidh séachtaí ar fáil go sealadach. Bain triail as stair a athoscailt.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Ní bheidh aon seisiúin sa tréimhse seo.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Seisiún gan ainm</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Ag taifeadadh</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Tá an t-am taifeadadh neamhchinnte. Déan an t-am a dhearbhú sula n-athraíonn tú an t-am.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Lean ar aghaidh ó lá roimhe seo</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Taispeánadh gach rud</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Críochnaigh an seisiún chun a chuid ama a eisiúint nó é a bhaint.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Seisiún taispeántais don lá seo</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Ní thaispeántar roinnt marcóirí seisiúin. Roghnaigh lá chun na seisiúin a fheiceáil.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Lá %1$d, tá séachtaí aige</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Lá %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Bain triail eile as</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Cuardaigh taifeadadh</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Téigh ar ais go seisiúin</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Seisiún onnmhairí</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann comhad a shábháil. Déan iarracht arís.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Seisiún onnmhairithe</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Seisiún a onnmhairítear le taifeadadh iomlána a théann thar a dhátaí.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann críochnú. Déan iarracht arís.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">A scriosadh an taifeadadh seo?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Déanfar a léargas a shábháil a scriosadh go buan.</string>
     <string name="stats_recorded_partial_value">%1$s · páirteach</string>
     <string name="history_activity_started">Tús: %1$s</string>
     <string name="history_activity_ended">Deireadh: %1$s</string>

@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Dezamorsează fiecare rază virtuală de explozie înainte de expirarea fitilului</string>
     <string name="minigame_switchback_name">Serpentine</string>
     <string name="minigame_switchback_description">Fă viraje alternative strânse pentru a construi un combo de flux</string>
-    <string name="minigame_locked">Se deblochează la nivelul %1$d</string>
     <string name="game_play_section_title">Joacă</string>
     <string name="game_progress_section_title">Progres</string>
     <string name="minigame_outrun_goal_line">Păstrează un avans de 25–100 m față de fantomă</string>
@@ -190,7 +189,6 @@
     <string name="goals_reached_notification">%1$s! Ai atins obiectivul %2$s!</string>
     <string name="goals_daily_goal">zilnic</string>
     <string name="goals_weekly_goal">săptămânal</string>
-    <string name="goals_monthly_goal">lunar</string>
     <string name="game_steps_goals_title">Obiective de pași</string>
     <string name="game_step_sensor_unavailable">Senzorul de pași nu este disponibil</string>
     <string name="game_step_sensor_unavailable_detail">Acest dispozitiv nu are un senzor pentru numărarea pașilor. Obiectivele de pași nu pot fi urmărite.</string>

@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Plats hela dagen</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Av mellan sessionerna.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Aktiverad mellan sessionerna. Tillgängligheten beror på tillgång och Android-gränser.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Anpassningsbara</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Endast passivt</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Justerar platsinsamling till rörelse och din preferens för detaljer, med en pågående meddelande.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Använder positioner som tillhandahålls av andra appar eller systemet. Långsvikt är möjligt.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker kommer att samla plats mellan sessionerna, justera sin ansträngning för rörelse och visa en pågående meddelande. Det kan använda mer batteri än passiv kollektion. Ditt val sparas innan Android begär plats åtkomst. Om man inte har tillgång till den får den att vänta.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Använd adaptiv läge</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Tillåt platsåtkomst</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Välj adaptiv läge detaljer</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Platsuppgifter: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Platsstyrka och detaljer</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Välj en nivå för att anta adaptiv plats. Balancerad är standard; Live-sessions föredrar mer detaljer. Android och din tillgång kan begränsa resultatet.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Ström först</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Favoriserande makt</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Balanserad</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Detaljer</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Detaljer först</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Stöd i rörelseförslag</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Alternativt använder du rörelseshjälp för att justera plats. Detta registrerar ingen aktivitetshistorik och kan inte starta en session. Lokaliseringen fungerar om du vägrar.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Tillåt rörelse indikationer</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Jag kunde inte tillämpa denna förändring. Försök igen.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptiv samling är inte på gång än.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Använder din adaptiva platsnivå.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Anpassningsläget är tillgängligt.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Platsanvändning justerad av enheten.</string>
+</resources>

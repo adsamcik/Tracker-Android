@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistika</string>
     <string name="stats_cell_count">Broj ćelija</string>
     <string name="stats_collections">Broj ažuriranja</string>
@@ -81,6 +81,16 @@
     <string name="stats_cell_signal_tower_detail">Ćelija %1$s · %2$s uzoraka</string>
     <string name="stats_cell_signal_carrier">Operater %1$s‑%2$s</string>
     <string name="trip_detail_title">Pojedinosti putovanja</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Istorija izvora</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Istorija izvora nije dostupna</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Ovaj privatni izbor nije zadržan nakon što je proces aplikacije ponovno kreiran. Vratite se u nedavnu povijest i ponovno je izaberite.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">U skladu s člankom 6. stavkom 1. stavkom 1.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Ograničena izvorna povijest nije mogla završiti sigurno.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">U odabrani zadržavan izvorni ulaz nije uspio provjeriti integritet.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Prikaz izvornih dokaza koji je potreban za predstavljanje ovog izbora nije dostupan.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">U izboru iz izvora više se ne identifikuje trenutni zadržavan upis.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Izvorna povijest nije uspjela. Pokušaj ga opet osvježiti.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Putovanje nije pronađeno</string>
     <string name="trip_detail_not_found_subtitle">Ovo je putovanje možda izbrisano</string>
     <string name="trip_detail_error_title">Nije moguće učitati putovanje</string>
@@ -89,6 +99,21 @@
     <string name="trip_detail_distance">Udaljenost</string>
     <string name="trip_detail_date">Datum</string>
     <string name="trip_detail_steps">Koraci</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Potpuna pokrivenost</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Najmanje toliko · djelomično pokrivenosti</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Delimična povijest · nema pouzdanih brojeva</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Neprovjereno: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Vrijednost nasljedstva · potpunost nije provjerena</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">ažuriranje povijesti...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Nije snimljen za ovu sjednicu.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Određen za ovu sesiju</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Ne podržava se</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Potrebna je dozvola.</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">S ograničenim brojem Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Nije dostupno</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Ne postoji kvalificirana promatra</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Izbrišeno</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Istorija nedostupna</string>
     <string name="trip_detail_samples">Uzorci</string>
     <string name="trip_detail_source">Izvor</string>
     <string name="trip_detail_avg_speed">Prosječna brzina</string>
@@ -112,6 +137,157 @@
     <string name="trip_detail_delete_confirm">Izbriši</string>
     <string name="trip_detail_cancel">Odustani</string>
     <string name="trip_detail_more_options">Više mogućnosti</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Akcije koje nisu dostupne za ovaj snimljen izvor</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Izvorni autoritet</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Povlačenje</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Uložena svrha</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Tačno snimanje sednice samo iz izvora</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Članstvo za prenosni izvor</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Autentični nepromijenljivi povijest hvatanja označava ovo kao jedini uhvaćen izvor.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Uvezeni format dokazuje zadržano izvorno članstvo, a ne da je ovaj uređaj zabilježio dokaze.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi sjednica</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Sjednica ćelije</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Sljedeći članak:</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Pokrivenost</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Priprema zadržavanja radijske povijesti</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Djelovito zadržana povijest radija</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Uloženi radijski povijest dostupna</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Radio povijest nedostupna</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Ne postoje kvalificirani zadržavani radio dokazi</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Izbrišeno zadržavanje radijske povijesti</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Radijska povijest nije mogla biti provjerena</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Provjera integriteta radijske povijesti nije uspjela</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Nema provjerene pokrivenosti</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Čestično provjereno pokriće</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Potpuna provjerena pokrivenost</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Pokrivenost nije dostupna</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Čekajući zadržane radio posmatranje.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Ne postoje zadržane radio posmatranje.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Prikaznici iz izvora su izbrisani.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Uloženi dokazi se ne mogu sigurno predstaviti.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Uložene isporuke</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Predaje s djelomičnim rezultatima</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Uloženi Wi‑Fi dokazi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Uloženi rezultati skeniranja</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Snimka rezultata frekvencijskog opsega</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Uloženi raspon signala</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d do %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">Sljedeći članak</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">S druge strane</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Prikupljeni dokazi o stanicama</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Uloženi radijski zapisi</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Prikaznici o registriranom statusu</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radio-tehnološki mix zapisa</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">Sljedeći članak</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">U skladu s Uredbom (EZ) br.</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Nijedna mreža, toranj, pretplatnik, ruta, udaljenost, brzina, visina ili identitet lokacije nije otkrivena ovim detaljima.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Sesija koraka</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Uloženi dokazi o koraku</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Pokrivenost</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Nema pokrivenog intervala</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Potpuni pokriveni interval</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Čestinski pokriveni intervali</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Pokrivenost nije dostupna</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Pokazano je samo zadržano dokazi Stepsa. Lokacija nije snimljena, tako da ruta i metrike koje se izvode iz lokacije nisu dostupne.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Sesija aktivnosti</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">S obzirom na to da se u skladu s člankom 4. stavkom 1. stavkom 1. stavkom 1. stavkom 1. točka 1. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2. stavku 2.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Povzetek aktivnosti</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Pokrivenost</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Povlačenje</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Poznato aktivno vrijeme</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Poznato neaktivno vrijeme</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Neoklasificirano vrijeme</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Poznato vrijeme praznine</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Uloženi opsegovi aktivnosti i praznine</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Približno razdoblje trajanja</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Pouzdanost</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Snimak prijelaza aktivnosti</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Približno %1$d ⁇ %2$d%% od %3$d zadržao posmatranje</item>
+        <item quantity="other">Oko %1$d ⁇ %2$d%% od %3$d zadržanih promatra</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Vrsta dokaza</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Rafinacija tranzicije</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Poznati razdvoj</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Razlog</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Približno razdoblje trajanja</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Priprema povijest aktivnosti</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Djelomična povijest aktivnosti</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Povijest aktivnosti je dostupna</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Povijest aktivnosti nije dostupna</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Povijest aktivnosti nije se mogla provjeriti</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">U nastavku se priprema povijest o zadržavanju aktivnosti; još se ne može zaključiti trajanje.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Samo je dio sjednice zadržao dokaze o aktivnostima.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Ne postoje zadržavani trajanje aktivnosti.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Ne postoje pouzdani zadržavani rezultati aktivnosti.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Uloženi dokazi o aktivnostima nisu uspjeli provjeriti integritet.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Nema provjerene pokrivenosti</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Djelomična pokrivenost</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Potpuna pokrivenost</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Uhvaćen na ovom uređaju</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Uvezeni zadržavani dokazi</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Mirovanje</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Hodanje</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Trčanje</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Bicikliranje</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">U vozilu</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Pješice</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Naginjanje</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Nepoznata aktivnost</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Prelazak</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Uobičajena rafinacija</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Uobičajena klasifikacija</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Ne postoje kvalificirani dokazi koji su zadržani</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Prekinutost pružatelja aktivnosti</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Promjena ovlaštenja</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Proces ili uređaj se ponovno pokreće</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Dokazi nisu bili kvalificirani</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Sljedeća sjednica</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Lokacija nije otkrivena.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Prikupljeni izvori</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Odabran detalj još nije dostupan za točnu kombinaciju izvora. Ruta, GPX, udaljenost, brzina, visina i druge djelovanja odvojene od lokacije ostaju nedostupne.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Lokacija</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Ćelija</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Aktivnost</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Koraci</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Tlak</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Izvori za hvatanje nisu provjereni</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Ova starija sesija je starija od provjerljive istorije hvatanja. Podrobnosti o zadržavanju putovanja prikazane su i mogu biti nepotpune.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Sesija tlaka</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Tlak zraka</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Posljednje</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Održavan raspon</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Prva do posljednja promjena</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Pokrivenost</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Zona skladištenja</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Ugradnja zadržava pritisak...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Čestinski zadržavani pritisak</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Uloženi pritisak</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Uloženi pritisak izbrisan</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Ne može se provjeriti zadržavanje tlaka</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Pritisak ne dostupan</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Istorija pritiska nije uspjela</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Istorija nedostupna</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Ponovo pokušajte osvježiti povijest snimljenih izvora za ovaj put.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Čuveni snimci izvornih dokaza nisu dostupni. Pokušaj ga opet osvježiti.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Ograničena izvorna povijest nije mogla završiti sigurno. Pokušaj ga opet osvježiti.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Čuvena izvorna povijest nije uspjela provjeriti integritet. Pokušajte ponovno nakon što je izvor dostupan.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Članstvo u fizičkoj povijesti nije moglo biti sigurno provjereno.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Nema spremljene pokrivenosti</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Potpuni zadržavajući pokrivenost</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Čestinski zadržani pokrivenost</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Pokrivenost nije dostupna</string>
     <string name="ski_detail_header">Skijaška sesija</string>
     <string name="ski_detail_runs">Spustovi</string>
     <string name="ski_detail_vertical">Visinska razlika</string>
@@ -136,7 +312,6 @@
     <string name="wifilist_title_last_seen">Posljednji put viđeno</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Vremenska crta</string>
-    <string name="history_tab_trips">Putovanja</string>
     <string name="history_tab_calendar">Kalendar</string>
     <string name="history_screen_title">Povijest</string>
     <plurals name="history_trip_count">
@@ -154,6 +329,10 @@
     <string name="history_calendar_next_month">Sljedeći mjesec</string>
     <string name="history_calendar_distance">Udaljenost</string>
     <string name="history_calendar_steps">Koraci</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Ugradnja...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Nije zarobljen.</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Nepotpuno</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Nije dostupno</string>
     <string name="history_calendar_trips">Putovanja</string>
     <string name="history_exploration_title">Istraživanje</string>
     <string name="history_exploration_cells">Ćelije</string>
@@ -163,6 +342,59 @@
     <string name="history_button_label">Povijest</string>
     <string name="history_view_trip_on_map">Prikaži putovanje na karti</string>
     <string name="stats_heatmap_title">Aktivnost</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Uvezeni koraci</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">S obzirom na to da je to moguće, u skladu s člankom 4. stavkom 1.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sesije</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Dodavanje sesije</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Sjednica uređenja</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Iznos (neopcionalno)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Naziv aktivnosti</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Nema oznake</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Početak</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Kraj</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Vremena zona</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Upotreba vremenske zone</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Primjenite vremensku zonu prije spašavanja.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Sesija ponovnog učitavanja</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Podrobnosti o snimanju</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Uklonite sesiju</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Sačuvati</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Odustani</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Da uklonim ovaj sastanak?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Zapisane podatke će ostati u povijesti.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Datum</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Vrijeme</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Ovo lokalno vrijeme ne postoji jer satovi kreću naprijed. Izaberite drugi put.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Ovaj put se događa dva puta. Izaberite njegov UTC offset.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Kraj mora biti nakon početka. Oba slučaja moraju biti 1. siječnja 1970. ili poslije.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Kraj ne može biti u budućnosti.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Ustavite vremensku zonu IANA, kao što su Europe/Prague ili UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Koristite najviše 200 znakova.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Ova oznaka je uklonjena. Izaberite drugu oznaku ili bez oznake.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Ova sjednica je promjenjena ili prikupljeni podaci su izbrisani. Prepunu prije spašavanja.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Ova sjednica više nije dostupna.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Sesije su privremeno nedostupne. Pokušaj ponovno otvoriti Istoriju.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Nema sjednica u ovom razdoblju.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Neimenovana sjednica</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Bilježenje</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Vrijeme snimanja je neizvjesno. Potvrdi vrijeme prije promjene njegovog intervala.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Nastavlja se od ranijeg dana.</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Pokaži sve.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Završi sesiju ili je ukloni.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Sljedeće sjednice</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Neki oznaki sesije nisu prikazani. Izaberite dan za gledanje njegovih sjednica.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Dan %1$d, ima sjednice</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Dan %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Pokušaj ponovno</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Pretražite snimke</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Vratimo se na sjednice.</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Sjednica za izvoz</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Nisam mogao sačuvati datoteku. Pokušaj još jednom.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Izvezena sjednica</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Sesija izvozana s kompletnim snimkama koji se protežu izvan svojih datuma.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Nisam mogao završiti. Pokušaj još jednom.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Izbrišite ovu snimku?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Njegove čitanje će biti trajno izbrisane.</string>
     <string name="stats_recorded_partial_value">%1$s · djelomično</string>
     <string name="history_activity_started">Početak: %1$s</string>
     <string name="history_activity_ended">Završetak: %1$s</string>

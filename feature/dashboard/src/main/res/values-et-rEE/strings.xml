@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Seansi lõpetamine…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · osaline</string>
     <string name="dashboard_title">Ülevaade</string>
     <string name="dashboard_tracking_title">Jälgimine</string>
     <string name="dashboard_recording">Salvestamine</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Jada: %1$d päeva. Puudutage jada üksikasjade vaatamiseks</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Alustage jada. Puudutage jada üksikasjade vaatamiseks</string>
-    <string name="dashboard_cd_stop_tracking">Peata jälgimine</string>
     <string name="dashboard_action_enable_location">Luba asukohale juurdepääs</string>
     <string name="dashboard_action_view_details">Kuva üksikasjad</string>
     <string name="dashboard_action_view_map">Kuva kaart</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Püsivalt salvestatud sammude ajaloo ettevalmistamine…</string>
     <string name="dashboard_live_steps_missing">Sobiva sammude vaatluse ootamine</string>
     <string name="dashboard_live_steps_unavailable">Püsivalt salvestatud sammude ajalugu pole saadaval</string>
+    <string name="dashboard_metric_pressure">Rõhk</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Vahemik %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Muutus %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Salvestatud ajavöönd: %1$s</string>
     <string name="dashboard_milestone_distance">km saavutatud!</string>
     <string name="dashboard_milestone_steps">sammu saavutatud!</string>
     <string name="dashboard_milestone_time">min jälgitud!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Viimane seanss</string>
     <string name="dashboard_last_session_duration">Kestus</string>
     <string name="dashboard_last_session_distance">Vahemaa</string>
-    <string name="dashboard_last_session_steps">Sammud</string>
     <string name="dashboard_last_session_view_map">Kuva kaart</string>
     <string name="dashboard_recent_trips_title">Hiljutine jälgimine</string>
     <string name="dashboard_recent_trips_empty">Hiljutisi jälgimisseansse pole. Nende siin nägemiseks alustage jälgimist.</string>
     <string name="dashboard_recent_history_loading">Hiljutise jälgimise laadimine…</string>
     <string name="dashboard_recent_history_unavailable">Hiljutine jälgimine pole saadaval</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s ajalugu ei ole kättesaadav</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Allikate hiljutiste andmete autoriteet ei ole saadaval</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Kust tõendid ei ole kättesaadavad</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Piiratud allikad ei saanud turvaliselt lõpetada.</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Surnuhistori säilitamine ebaõnnestunud terviklikkuse kontrollimine</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Füüsikalise ajalugu ei saanud kontrollida</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Asukoht</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Mobiilivõrk</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Tegevus</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Sammud</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Õhurõhk</string>
     <string name="dashboard_recent_steps_title">Sammude seanss</string>
     <string name="dashboard_recent_steps_available">Sammude ajalugu on saadaval</string>
     <string name="dashboard_recent_steps_materializing">Sammude ajaloo ettevalmistamine…</string>
     <string name="dashboard_recent_steps_partial">Osaline sammude ajalugu</string>
+    <string name="dashboard_recent_pressure_title">Rõhuseanss</string>
+    <string name="dashboard_recent_pressure_available">Rõhuajalugu on saadaval</string>
+    <string name="dashboard_recent_pressure_materializing">Rõhuajalugu ettevalmistamine…</string>
+    <string name="dashboard_recent_pressure_partial">Osaline rõhuajalugu</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Pressiooni ajalugu kustutatud</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Pressi ajalugu ei saanud kontrollida.</string>
+    <string name="dashboard_recent_pressure_unavailable">Rõhuajalugu pole saadaval</string>
+    <string name="dashboard_recent_pressure_failed">Rõhuajalugu ei saanud ette valmistada</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · vahemik %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Muutus %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Salvestatud katvus puudub</string>
+    <string name="dashboard_pressure_coverage_complete">Täielik katvus</string>
+    <string name="dashboard_pressure_coverage_partial">Osaline katvus</string>
+    <string name="dashboard_pressure_coverage_unknown">Katvus pole saadaval</string>
+    <string name="dashboard_recent_activity_title">Tegevusseanss</string>
+    <string name="dashboard_recent_activity_ready">Tegevusajalugu on saadaval</string>
+    <string name="dashboard_recent_activity_materializing">Tegevusajalugu ettevalmistamine…</string>
+    <string name="dashboard_recent_activity_partial">Osaline tegevusajalugu</string>
+    <string name="dashboard_recent_activity_unavailable">Tegevusajalugu pole saadaval</string>
+    <string name="dashboard_recent_activity_failed">Tegevusajalugu ei saanud kontrollida</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktiivne aeg %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi istung</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Selle istung</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Vangistatud Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Võtetud mobiilraadio</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Käesolevas istungis esitatud allikad</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Asukoht ei ole selles istungis salvestatud. Tee, kaugus, kiirus ja kõrgus ei ole kättesaadavad.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Kontrollitav %1$s ajalugu ei ole saadaval.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Selle seadmega kinni võetud</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Importitud säilitatud tõendid</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Valmistades säilitatud raadio ajalugu...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Osaliselt säilitatud raadio ajalugu</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Raadio ajalugu, mis on kättesaadav</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Raadio ajalugu ei ole kättesaadav</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Raadiosagedus ei ole</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Säilitud raadioajakirja kustutatud</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Raadio ajalugu ei saanud kontrollida</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Raadio ajalugu terviklikkuse kontrollimine ebaõnnestunud</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Kontrollitud katvus puudub</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Osaliselt tõestatud katmine</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Täielik tõestatud katmine</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Katvus pole saadaval</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Ootades säilitatud raadiovärgiseid</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Raadioobservatsioonid ei ole kättesaadavad</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Säilitud allikatsed kustutati.</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">säilitatud tõendeid ei saa esitada ohutult</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Asukoht, marsruut, kaugus, kiirus ja kõrgus ei ole osa sellest allikast.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d säilitatud skanningutõend</item>
+        <item quantity="other">%1$d säilitatud skanningute tulemused</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d säilitatud raadiorekord</item>
+        <item quantity="other">%1$d säilitatud raadiorekordid</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d kinnipidatud tarnimine</item>
+        <item quantity="other">%1$d säilitatud tarnimised</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d toimetamine on osalise tulemusega</item>
+        <item quantity="other">%1$d - toimingud on osaliselt tulemused</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Salvestatud tegevus</string>
+    <string name="dashboard_live_activity_movement">Viimane salvestatud liikumine</string>
+    <string name="dashboard_live_activity_active_time">Aktiivne aeg</string>
+    <string name="dashboard_live_activity_gaps">Teadaolevad lüngad: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Kontrollitud katvus puudub</string>
+    <string name="dashboard_activity_coverage_partial">Osaline katvus</string>
+    <string name="dashboard_activity_coverage_complete">Täielik katvus</string>
+    <string name="dashboard_activity_still">Paigal</string>
+    <string name="dashboard_activity_walking">Kõndimine</string>
+    <string name="dashboard_activity_running">Jooksmine</string>
+    <string name="dashboard_activity_cycling">Jalgrattasõit</string>
+    <string name="dashboard_activity_vehicle">Sõidukis</string>
+    <string name="dashboard_activity_on_foot">Jalgsi</string>
+    <string name="dashboard_activity_tilting">Kallutamine</string>
+    <string name="dashboard_activity_unknown">Tundmatu tegevus</string>
     <string name="dashboard_exploration_title">Avastamine</string>
     <string name="dashboard_exploration_new_today">Täna uus</string>
     <string name="dashboard_exploration_total_cells">Rakke kokku</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Alusta jälgimist</string>
     <string name="dashboard_ring_enable_location">Luba asukoht</string>
     <string name="dashboard_pill_start">Alusta</string>
-    <string name="dashboard_pill_stop">Peata</string>
     <string name="dashboard_pill_enable_location">Luba asukoht</string>
     <string name="dashboard_insights_title">Seansi ülevaated</string>
     <string name="dashboard_cd_insight_item">Ülevaade: %1$s</string>
     <string name="widget_latest_achievement">Viimane saavutus</string>
     <string name="dashboard_latest_achievement_title">Viimane saavutus</string>
     <string name="dashboard_latest_achievement_empty">Jätkake jälgimist, et avada oma esimene saavutus</string>
-    <string name="dashboard_metric_pressure">Rõhk</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Vahemik %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Muutus %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Salvestatud ajavöönd: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Rõhuseanss</string>
-    <string name="dashboard_recent_pressure_available">Rõhuajalugu on saadaval</string>
-    <string name="dashboard_recent_pressure_materializing">Rõhuajalugu ettevalmistamine…</string>
-    <string name="dashboard_recent_pressure_partial">Osaline rõhuajalugu</string>
-    <string name="dashboard_recent_pressure_unavailable">Rõhuajalugu pole saadaval</string>
-    <string name="dashboard_recent_pressure_failed">Rõhuajalugu ei saanud ette valmistada</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · vahemik %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Muutus %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Salvestatud katvus puudub</string>
-    <string name="dashboard_pressure_coverage_complete">Täielik katvus</string>
-    <string name="dashboard_pressure_coverage_partial">Osaline katvus</string>
-    <string name="dashboard_pressure_coverage_unknown">Katvus pole saadaval</string>
-    <string name="dashboard_recent_activity_title">Tegevusseanss</string>
-    <string name="dashboard_recent_activity_ready">Tegevusajalugu on saadaval</string>
-    <string name="dashboard_recent_activity_materializing">Tegevusajalugu ettevalmistamine…</string>
-    <string name="dashboard_recent_activity_partial">Osaline tegevusajalugu</string>
-    <string name="dashboard_recent_activity_unavailable">Tegevusajalugu pole saadaval</string>
-    <string name="dashboard_recent_activity_failed">Tegevusajalugu ei saanud kontrollida</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktiivne aeg %2$s</string>
-    <string name="dashboard_live_activity_title">Salvestatud tegevus</string>
-    <string name="dashboard_live_activity_movement">Viimane salvestatud liikumine</string>
-    <string name="dashboard_live_activity_active_time">Aktiivne aeg</string>
-    <string name="dashboard_live_activity_gaps">Teadaolevad lüngad: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Kontrollitud katvus puudub</string>
-    <string name="dashboard_activity_coverage_partial">Osaline katvus</string>
-    <string name="dashboard_activity_coverage_complete">Täielik katvus</string>
-    <string name="dashboard_activity_still">Paigal</string>
-    <string name="dashboard_activity_walking">Kõndimine</string>
-    <string name="dashboard_activity_running">Jooksmine</string>
-    <string name="dashboard_activity_cycling">Jalgrattasõit</string>
-    <string name="dashboard_activity_vehicle">Sõidukis</string>
-    <string name="dashboard_activity_on_foot">Jalgsi</string>
-    <string name="dashboard_activity_tilting">Kallutamine</string>
-    <string name="dashboard_activity_unknown">Tundmatu tegevus</string>
-    <string name="dashboard_finishing_session">Seansi lõpetamine…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Importitud sammud</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Näita %1$d salvestus</item>
+        <item quantity="other">Näita %1$d salvestusi</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Piira salvestus %1$d</item>
+        <item quantity="other">Varjata %1$d salvestusi</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Piiramine %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s sammud</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Vähemalt %1$s sammu</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Keerad ei ole kättesaadavad</string>
 </resources>

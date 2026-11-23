@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Zaključevanje seje…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · delno</string>
     <string name="dashboard_title">Nadzorna plošča</string>
     <string name="dashboard_tracking_title">Sledenje</string>
     <string name="dashboard_recording">Beleženje</string>
@@ -22,7 +24,6 @@
         <item quantity="other">Niz: %1$d dni. Tapnite za podrobnosti niza.</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Začnite niz. Tapnite za podrobnosti niza.</string>
-    <string name="dashboard_cd_stop_tracking">Ustavi sledenje</string>
     <string name="dashboard_action_enable_location">Omogoči dostop do lokacije</string>
     <string name="dashboard_action_view_details">Prikaži podrobnosti</string>
     <string name="dashboard_action_view_map">Prikaži zemljevid</string>
@@ -44,6 +45,11 @@
     <string name="dashboard_live_steps_materializing">Pripravljanje trajno shranjene zgodovine korakov…</string>
     <string name="dashboard_live_steps_missing">Čakanje na veljavno opazovanje korakov</string>
     <string name="dashboard_live_steps_unavailable">Trajno shranjena zgodovina korakov ni na voljo</string>
+    <string name="dashboard_metric_pressure">Tlak</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Razpon %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Sprememba %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Shranjeni časovni pas: %1$s</string>
     <string name="dashboard_milestone_distance">doseženih km!</string>
     <string name="dashboard_milestone_steps">doseženih korakov!</string>
     <string name="dashboard_milestone_time">sledenih min!</string>
@@ -65,16 +71,106 @@
     <string name="dashboard_last_session_title">Zadnja seja</string>
     <string name="dashboard_last_session_duration">Trajanje</string>
     <string name="dashboard_last_session_distance">Razdalja</string>
-    <string name="dashboard_last_session_steps">Koraki</string>
     <string name="dashboard_last_session_view_map">Prikaži zemljevid</string>
     <string name="dashboard_recent_trips_title">Nedavno sledenje</string>
     <string name="dashboard_recent_trips_empty">Ni nedavnih sej sledenja. Začnite sledenje, da jih vidite tukaj.</string>
     <string name="dashboard_recent_history_loading">Nalaganje nedavnega sledenja…</string>
     <string name="dashboard_recent_history_unavailable">Nedavno sledenje ni na voljo</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s zgodovina ni na voljo</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Izvorno nedavno dovoljenje ni na voljo</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Zadržen posnetek dokazov iz vira ni na voljo.</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Čitanje omejene zgodovine izvira ni bilo varno.</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Neuspešna preverjanja celovitosti ohranjene zgodovine vira</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Članstvo v fizični zgodovini ni bilo mogoče preveriti.</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Lokacija</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Mobilno omrežje</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Dejavnost</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Koraki</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Zračni tlak</string>
     <string name="dashboard_recent_steps_title">Seja korakov</string>
     <string name="dashboard_recent_steps_available">Zgodovina korakov je na voljo</string>
     <string name="dashboard_recent_steps_materializing">Pripravljanje zgodovine korakov…</string>
     <string name="dashboard_recent_steps_partial">Delna zgodovina korakov</string>
+    <string name="dashboard_recent_pressure_title">Seja tlaka</string>
+    <string name="dashboard_recent_pressure_available">Zgodovina tlaka je na voljo</string>
+    <string name="dashboard_recent_pressure_materializing">Priprava: zgodovina tlaka…</string>
+    <string name="dashboard_recent_pressure_partial">Delna zgodovina tlaka</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Izbrišeno zgodovino pritiska</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Ni bilo mogoče preveriti zgodovine pritiska.</string>
+    <string name="dashboard_recent_pressure_unavailable">Zgodovina tlaka ni na voljo</string>
+    <string name="dashboard_recent_pressure_failed">Zgodovine tlaka ni bilo mogoče pripraviti</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · razpon %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Sprememba %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Ni ohranjene pokritosti</string>
+    <string name="dashboard_pressure_coverage_complete">Popolna pokritost</string>
+    <string name="dashboard_pressure_coverage_partial">Delna pokritost</string>
+    <string name="dashboard_pressure_coverage_unknown">Pokritost ni na voljo</string>
+    <string name="dashboard_recent_activity_title">Seja dejavnosti</string>
+    <string name="dashboard_recent_activity_ready">Zgodovina dejavnosti je na voljo</string>
+    <string name="dashboard_recent_activity_materializing">Priprava: zgodovina dejavnosti…</string>
+    <string name="dashboard_recent_activity_partial">Delna zgodovina dejavnosti</string>
+    <string name="dashboard_recent_activity_unavailable">Zgodovina dejavnosti ni na voljo</string>
+    <string name="dashboard_recent_activity_failed">Zgodovine dejavnosti ni bilo mogoče preveriti</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktivni čas %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi zasedanje</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Celjska seance</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Ujeti Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Ujeti mobilni radio</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Izvori v tej seji</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Lokacija ni zabeležena. Pot, razdalja, hitrost in višina niso na voljo.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Preverjena zgodovina %1$s ni na voljo.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Zgrajena na tej napravi.</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Dovoženi zadržani dokazi</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Pripravljam zgodovino radija...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Delno ohranjena radijska zgodovina</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Na voljo je ohranjena radijska zgodovina</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Ne dostopna radijska zgodovina</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Brez ustreznih zadržanih radijskih dokazov</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Izbrišena zapisana radijska zgodovina</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Zgodovino radija ni bilo mogoče preveriti</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Preverjanje integritete zgodovine radija ni uspelo.</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Ni preverjene pokritosti</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Delno preverjeno pokritost</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Popolni preverjeni pokritost</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Pokritost ni na voljo</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Čakajo na zadrževanje radijskih opazovanj</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Brez zadržanih radijskih opazov</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Izvorni dokazi so bili izbrisani</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Ohranili dokazi ni mogoče zagotoviti varno</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Lokacija, pot, razdalja, hitrost in nadmorska višina niso del te zgodovine.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d zadrževal rezultat skeniranja</item>
+        <item quantity="other">%1$d ohranjeni rezultati skeniranja</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d ohranjeni radijski zapis</item>
+        <item quantity="other">%1$d zadrževanje radijskih zapisov</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d zadrževanje dostave</item>
+        <item quantity="other">%1$d zadržane dostave</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d dostavitev ima delne rezultate</item>
+        <item quantity="other">%1$d dostave imajo delne rezultate</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Zabeležena dejavnost</string>
+    <string name="dashboard_live_activity_movement">Zadnje zabeleženo gibanje</string>
+    <string name="dashboard_live_activity_active_time">Aktivni čas</string>
+    <string name="dashboard_live_activity_gaps">Znane vrzeli: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Ni preverjene pokritosti</string>
+    <string name="dashboard_activity_coverage_partial">Delna pokritost</string>
+    <string name="dashboard_activity_coverage_complete">Popolna pokritost</string>
+    <string name="dashboard_activity_still">Mirovanje</string>
+    <string name="dashboard_activity_walking">Hoja</string>
+    <string name="dashboard_activity_running">Tek</string>
+    <string name="dashboard_activity_cycling">Kolesarjenje</string>
+    <string name="dashboard_activity_vehicle">V vozilu</string>
+    <string name="dashboard_activity_on_foot">Peš</string>
+    <string name="dashboard_activity_tilting">Nagibanje</string>
+    <string name="dashboard_activity_unknown">Neznana dejavnost</string>
     <string name="dashboard_exploration_title">Raziskovanje</string>
     <string name="dashboard_exploration_new_today">Novo danes</string>
     <string name="dashboard_exploration_total_cells">Skupaj celic</string>
@@ -152,51 +248,23 @@
     <string name="dashboard_ring_start_tracking">Začni sledenje</string>
     <string name="dashboard_ring_enable_location">Omogoči lokacijo</string>
     <string name="dashboard_pill_start">Začni</string>
-    <string name="dashboard_pill_stop">Ustavi</string>
     <string name="dashboard_pill_enable_location">Omogoči lokacijo</string>
     <string name="dashboard_insights_title">Vpogledi v sejo</string>
     <string name="dashboard_cd_insight_item">Vpogled: %1$s</string>
     <string name="widget_latest_achievement">Najnovejši dosežek</string>
     <string name="dashboard_latest_achievement_title">Najnovejši dosežek</string>
     <string name="dashboard_latest_achievement_empty">Nadaljujte s sledenjem, da odklenete prvi dosežek</string>
-    <string name="dashboard_metric_pressure">Tlak</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Razpon %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Sprememba %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Shranjeni časovni pas: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Seja tlaka</string>
-    <string name="dashboard_recent_pressure_available">Zgodovina tlaka je na voljo</string>
-    <string name="dashboard_recent_pressure_materializing">Priprava: zgodovina tlaka…</string>
-    <string name="dashboard_recent_pressure_partial">Delna zgodovina tlaka</string>
-    <string name="dashboard_recent_pressure_unavailable">Zgodovina tlaka ni na voljo</string>
-    <string name="dashboard_recent_pressure_failed">Zgodovine tlaka ni bilo mogoče pripraviti</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · razpon %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Sprememba %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Ni ohranjene pokritosti</string>
-    <string name="dashboard_pressure_coverage_complete">Popolna pokritost</string>
-    <string name="dashboard_pressure_coverage_partial">Delna pokritost</string>
-    <string name="dashboard_pressure_coverage_unknown">Pokritost ni na voljo</string>
-    <string name="dashboard_recent_activity_title">Seja dejavnosti</string>
-    <string name="dashboard_recent_activity_ready">Zgodovina dejavnosti je na voljo</string>
-    <string name="dashboard_recent_activity_materializing">Priprava: zgodovina dejavnosti…</string>
-    <string name="dashboard_recent_activity_partial">Delna zgodovina dejavnosti</string>
-    <string name="dashboard_recent_activity_unavailable">Zgodovina dejavnosti ni na voljo</string>
-    <string name="dashboard_recent_activity_failed">Zgodovine dejavnosti ni bilo mogoče preveriti</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktivni čas %2$s</string>
-    <string name="dashboard_live_activity_title">Zabeležena dejavnost</string>
-    <string name="dashboard_live_activity_movement">Zadnje zabeleženo gibanje</string>
-    <string name="dashboard_live_activity_active_time">Aktivni čas</string>
-    <string name="dashboard_live_activity_gaps">Znane vrzeli: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Ni preverjene pokritosti</string>
-    <string name="dashboard_activity_coverage_partial">Delna pokritost</string>
-    <string name="dashboard_activity_coverage_complete">Popolna pokritost</string>
-    <string name="dashboard_activity_still">Mirovanje</string>
-    <string name="dashboard_activity_walking">Hoja</string>
-    <string name="dashboard_activity_running">Tek</string>
-    <string name="dashboard_activity_cycling">Kolesarjenje</string>
-    <string name="dashboard_activity_vehicle">V vozilu</string>
-    <string name="dashboard_activity_on_foot">Peš</string>
-    <string name="dashboard_activity_tilting">Nagibanje</string>
-    <string name="dashboard_activity_unknown">Neznana dejavnost</string>
-    <string name="dashboard_finishing_session">Zaključevanje seje…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Vneseni koraki</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Pokaži zapis %1$d</item>
+        <item quantity="other">Pokažite posnetke %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Skrijte zapis %1$d</item>
+        <item quantity="other">Skrijte posnetke %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Posnetek %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s koraki</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Najmanj %1$s korakov</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Koraki niso na voljo</string>
 </resources>

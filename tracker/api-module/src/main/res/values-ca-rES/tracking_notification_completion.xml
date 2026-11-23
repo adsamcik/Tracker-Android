@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">Ubicació durant tot el dia</string>
-    <string name="notification_background_location_text">La recollida adaptativa d’ubicació està activada. Obriu Tracker per gestionar-la.</string>
     <string name="settings_notification_unsaved_exit">Torneu-ho a provar per desar els canvis, o sortiu sense desar.</string>
     <string name="settings_notification_leave_without_saving">Surt sense desar</string>
     <string name="notification_background_collection_title">Seguiment en segon pla</string>

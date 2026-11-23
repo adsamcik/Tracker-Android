@@ -14,7 +14,6 @@
     <string name="coordinates_title">Súradnice</string>
     <string name="description_settings">Tlačidlo Nastavenia</string>
     <string name="description_tracking_start">Tlačidlo Spustiť sledovanie</string>
-    <string name="description_tracking_stop">Tlačidlo Zastaviť sledovanie</string>
     <string name="description_tracking_start_no_permission">Spustiť sledovanie — vyžaduje sa povolenie</string>
     <string name="description_points_today">Dnes získané body: %s</string>
     <string name="description_copy">Kopírovať hodnotu</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Trvanie relácie</string>
     <string name="duration_value">trvanie %s</string>
     <string name="error_nothing_to_track">Zapnite aspoň jednu možnosť sledovania (polohu, kroky alebo aktivitu)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Vypnite služby lokalizácie, aby ste mohli použiť povolený zdroj sledovania.</string>
     <string name="hint_customize_notification_show_in_content">Zobraziť v obsahu oznámenia</string>
     <string name="hint_customize_notification_show_in_title">Zobraziť v názve oznámenia</string>
     <string name="horizontal_accuracy_title">Horizontálna presnosť</string>
@@ -49,16 +49,17 @@
     </plurals>
     <string name="notification_starting">Tracker sa spúšťa — poloha sa používa</string>
     <string name="notification_starting_without_location">Tracker sa spúšťa</string>
-    <string name="notification_stop">Zastaviť</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Zastaviť na %d minút</string>
     <string name="notification_stop_til_recharge">Zastaviť do nabitia</string>
-    <string name="stop_tracking_dialog_title">Zastaviť sledovanie?</string>
     <string name="stop_tracking_dialog_message">Automatické sledovanie je zapnuté a ak ho iba zastavíte, môže čoskoro znova spustiť novú reláciu.</string>
     <string name="notification_tracker_active_ticker">Zaznamenáva sa vaša trasa — poloha sa používa</string>
     <string name="notification_tracker_active_without_location">Sledovanie bez polohy</string>
     <string name="notification_tracking_active">Sledovanie</string>
     <string name="notification_tracking_start_failed_title">Sledovanie sa nepodarilo spustiť</string>
     <string name="notification_tracking_start_failed_text">Otvorte aplikáciu, skontrolujte povolenia a obnovte sledovanie.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Príprava sledovania</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Žiadne údaje sa nezhromažďujú, kým sa obnovenie neskončí.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Príprava sledovania</string>
     <string name="settings_activity_enabled_title">Aktivita</string>
     <string name="settings_cell_enabled_title">Bunka</string>
     <string name="settings_disabled_recharge_summary">Automatické sledovanie je vypnuté, kým telefón nepripojíte k nabíjačke</string>
@@ -66,6 +67,11 @@
     <string name="settings_location_enabled_title">Poloha</string>
     <string name="settings_notification_customize_summary">Zmeňte, čo a v akom poradí sa má zobrazovať v oznámení sledovania.</string>
     <string name="settings_notification_customize_title">Prispôsobiť oznámenie</string>
+    <string name="settings_notification_move_up">Posunúť nahor</string>
+    <string name="settings_notification_move_down">Posunúť nadol</string>
+    <string name="settings_notification_load_failed">Nastavenia oznámení sa nepodarilo načítať.</string>
+    <string name="settings_notification_save_failed">Zmeny sa nepodarilo uložiť.</string>
+    <string name="settings_notification_retry">Skúsiť znova</string>
     <string name="settings_notification_styled_summary">Použiť farbu štýlu aplikácie pre oznámenia.</string>
     <string name="settings_notification_styled_title">Farebné oznámenia</string>
     <string name="ski_notification_title">Lyžiarske štatistiky</string>
@@ -75,14 +81,17 @@
     <string name="settings_steps_enabled_title">Počet krokov</string>
     <string name="settings_tracking_min_distance_title">Minimálna vzdialenosť medzi aktualizáciami</string>
     <string name="settings_tracking_min_time_title">Minimálne oneskorenie medzi aktualizáciami</string>
-    <string name="settings_tracking_notice_summary">Zmeny sa prejavia po reštartovaní sledovania</string>
     <string name="settings_tracking_required_accuracy_title">Požadovaná presnosť polohy</string>
     <string name="settings_tracking_title">Sledovanie</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Spustiť sledovanie</string>
     <string name="shortcut_start_tracking_long">Spustiť sledovanie polohy</string>
-    <string name="shortcut_stop_tracking">Zastaviť sledovanie</string>
-    <string name="shortcut_stop_tracking_long">Zastaviť sledovanie polohy</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Ukončiť reláciu</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Ukončiť aktuálnu reláciu</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Vypnúť sledovanie</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Zastaviť všetko sledovanie a automatické spúšťanie</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Akcie sledovania</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Zastaviť automatické spustenie</string>
     <string name="speed_title">Rýchlosť</string>
     <string name="speed_value">rýchlosť %s</string>
     <string name="battery_title">Batéria</string>
@@ -114,7 +123,6 @@
         <item quantity="many">%1$d minút sledovania</item>
         <item quantity="other">%1$d minút sledovania</item>
     </plurals>
-    <string name="insight_exploration_title">Prieskumník!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Objavili ste %1$d novú oblasť</item>
         <item quantity="few">Objavili ste %1$d nové oblasti</item>
@@ -183,7 +191,5 @@
     <string name="action_navigate_back">Späť</string>
     <string name="insight_distance_title">Prekonaná vzdialenosť</string>
     <string name="insight_distance_desc">V tejto relácii ste prekonali %1$s.</string>
-    <string name="insight_steps_title">Zaznamenané kroky</string>
-    <string name="insight_steps_desc">%1$s krokov v tejto relácii — len tak ďalej!</string>
     <string name="tracker_measurement_partial">Čiastočné</string>
 </resources>

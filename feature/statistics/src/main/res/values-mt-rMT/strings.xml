@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistika</string>
     <string name="stats_cell_count">Għadd taċ-ċelloli</string>
     <string name="stats_collections">Għadd ta’ aġġornamenti</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Ċellola %1$s · %2$s kampjuni</string>
     <string name="stats_cell_signal_carrier">Operatur %1$s‑%2$s</string>
     <string name="trip_detail_title">Dettalji tal-vjaġġ</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Storja tas-sors</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Il- storja tas- sors mhux disponibbli</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Dan is-selezzjoni privata ma kinitx miżmuma wara li l-proċess tal-app ġie rikreat. Terġa\' lura għall-istorja reċenti u tagħżelha mill-ġdid.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">L-entrata tas-sors miżmuma magħżula m\'għadhiex disponibbli.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">L- istorja tal- sors limitata li qrajt ma setgħetx tispiċċa b\'mod sikur.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">L-entrata tal-fonti miżmuma magħżula ma rnexxielhiex tiċċekkja l-integrità.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">L-istampi tal-evidenza tas-sors meħtieġa biex tiġi ppreżentata din is-selezzjoni mhumiex disponibbli.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">L-għażla maħruġa mis-sors m\'għadhiex tidentifika l-entrata attwali miżmuma.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">L-istorja tas-sors tal-qari fallit. Ipprova mill-ġdid biex tiffreskaha.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Il-vjaġġ ma nstabx</string>
     <string name="trip_detail_not_found_subtitle">Dan il-vjaġġ seta’ tħassar</string>
     <string name="trip_detail_error_title">Ma setax jitgħabba l-vjaġġ</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Distanza</string>
     <string name="trip_detail_date">Data</string>
     <string name="trip_detail_steps">Passi</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Kopertura sħiħa</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Għallinqas dawn il-għadd · kopertura parzjali</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Storja parzjali · ebda għadd affidabbli disponibbli</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Mhux ivverifikat: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Valur tal-wirt · it-tlestija mhux ivverifikata</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">L-aġġornament tal-istorja...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Mhux ikkapturat għal din is-sessjoni</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Diżattivat għal din is-sessjoni</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Mhux appoġġat</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Kien meħtieġ permess</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Limitat b\'Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Mhux disponibbli</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">L-ebda osservazzjoni kwalifikattiva</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Ħassar</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Istorja mhux disponibbli</string>
     <string name="trip_detail_samples">Kampjuni</string>
     <string name="trip_detail_source">Sors</string>
     <string name="trip_detail_avg_speed">Veloċità medja</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Ħassar</string>
     <string name="trip_detail_cancel">Ikkanċella</string>
     <string name="trip_detail_more_options">Aktar għażliet</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Azzjonijiet mhux disponibbli għal din is-sors ikkapturat</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Awtorità tas-sors</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Oriġini</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">L-iskop miżmum</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">L- attakk eżatt tal- sessjoni biss mis- sors</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Sħubija f\'Source Portable</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">L-istorja tal-qabda awtentikata immutabilha tiddikjara dan bħala l-unika sors ikkapturat.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Il-format importat jipprova l-membrizza miżmuma tas-sors, mhux li dan il-mezz irreġistra l-evidenza.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi sessjoni</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Sessjoni taċ-ċelloli</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Sommarju tar-radju miżmum</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Statut</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Il-kopertura</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">It-tħejjija tal-istorja tar-radju miżmuma</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Storja parzjali miżmuma tar-radju</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Storja tar-radju miżmuma disponibbli</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">L-istorja tar-radju mhux disponibbli</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">L-ebda evidenza tal-radju miżmuma kwalifikata</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Storja tar-radju miżmuma mħassra</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">L-istorja tar-radju ma setgħetx tiġi vverifikata</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Il-verifika tal-integrità tal-istorja tar-radju fallit</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Ebda kopertura vverifikata</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Kopertura verifikata parzjali</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Kopertura sħiħa vverifikata</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Kopertura mhux disponibbli</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Nistennew osservazzjonijiet mir-radju miżmuma.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">M\'hemm l-ebda osservazzjoni tar-radju miżmuma disponibbli.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">L-evidenza miżmuma minn sorsi ġiet mħassra.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">L-evidenza miżmuma ma tistax tiġi ppreżentata b\'mod sikur.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Il-konsenja miżmuma</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Il-kunsinna b\'riżultati parzjali</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">L-evidenza miżmuma Wi‑Fi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Ir-riżultati tal-istħarriġ miżmuma</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Mħallta tar-riżultati tal-frekwenza-banda</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Spanju ta\' sinjal miżmum</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d sa %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Band ieħor</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Provi taċ-ċelloli miżmuma</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Rekords tal-radju miżmuma</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Rekords tal-istatus irreġistrat</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Mix tal-rekords ta\' teknoloġija tar-radju</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">L-ebda netwerk, torri, abbonat, rotta, distanza, veloċità, altitudni, jew l-identità tal-Pjazzament ma jiġu esposti minn dan id-dettall.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Sessjoni tal-passi</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">L-evidenza tal-passi miżmuma</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Il-kopertura</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">L-ebda intervall kopert</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Intervall kopert sħiħ</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Intervall kopert parzjalment</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Kopertura mhux disponibbli</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">L- evidenza tal- Steps miżmuma biss hi murija. Il-lokalizzazzjoni ma ġietx ikkapturata, għalhekk il-linja u l-metriċi derivati mill-lokalizzazzjoni mhumiex disponibbli.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Sessjoni tal-attività</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Il-firxa ta\' attività, it-tul ta\' żmien, u l-konfidenza huma sommarji approssimattivi tal-evidenza miżmuma fuq l-apparat.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Sommarju tal-attività</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Statut</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Il-kopertura</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Oriġini</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Ħin attiv magħruf</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Ħin inattiv magħruf</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Ħin mhux ikklassifikat</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Il-ħin tal-interval magħruf</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Bands ta\' attività miżmuma u brejkijiet</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Durata approssimattiva</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Kunfidenza</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Sinjal ta\' tranżizzjoni ta\' attività</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Madwar %1$d ⁇ %2$d%% minn %3$d osservazzjoni miżmuma</item>
+        <item quantity="other">Madwar %1$d ⁇ %2$d%% minn %3$d osservazzjonijiet miżmuma</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Tip ta\' evidenza</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Tranżizzjoni raffinata</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Skart magħruf</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Raġuni</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Durata approssimattiva</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">It-tħejjija tal- istorja tal- Azzjoni</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Storja tal-attività parzjali</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Storja tal-attività disponibbli</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Storja tal-attività mhux disponibbli</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Ma setgħetx tiġi vverifikata storja tal-attività</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">L-istorja tal-attività miżmuma għadha qed tiġi ppreparata; għadu ma hemm l-ebda żmien li jiġi inferit.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Parti biss tas-sessjoni żammet evidenza ta\' attività.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Ma hemm l-ebda Duration ta\' Attività miżmuma disponibbli.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">L- ebda riżultat ta \' l- attività fiddibbli miżmum mhuwiex disponibbli.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Il-provi tal-attività żbaljati verifiki ta\' integrità.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Ebda kopertura vverifikata</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Kopertura parzjali</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Kopertura sħiħa</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Imqabda fuq dan il-mezz</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">L-evidenza miżmuma importata</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Wieqaf</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Mixi</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Ġiri</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Ċikliżmu</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">F’vettura</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Bil-mixi</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Inklinat</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Attività mhux magħrufa</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">It-tranżizzjoni</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Raffinament fil-kampjun</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Klassifikazzjoni fil-kampjun</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">L-ebda evidenza kwalifikata miżmuma</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Interruzzjoni tal-fornitur ta\' attività</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Il-permess mibdul</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Il-proċess jew it-tagħmir jerġa\' jibda</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">L-evidenza ma kwalifikax</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Sessjoni miksuba</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Il-post ma ġiex ikkapturat</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Sorsi miksuba</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Id-dettalji magħżula għadhom mhumiex disponibbli għal din il-kombinazzjoni eżatta tas-sors. It-triq, GPX, id-distanza, il-veloċità, l-għoli, u azzjonijiet oħra derivati mill-Lokazzjoni jibqgħu mhux disponibbli.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Post</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Ċellola</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Attività</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Passi</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Pressjoni</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Sorsi ta\' kaptura mhux verifikati</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Din is-sessjoni l-qodma ta\' qabel verifikabbli storja tal-qabda. Id-dettalji tal-vjaġġ miżmuma huma murija u jistgħu jkunu mhux kompleti.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Sessjoni tal-pressjoni</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Il-pressjoni tal-arja</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Statut</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">L-aħħar</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Ir-raġġ miżmum</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">L-ewwel għal l-aħħar bidla</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Il-kopertura</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Żona maħżuna</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">L-aġġornament ta \'pressjoni miżmuma...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Prensjoni parzjali miżmuma</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Prensjoni miżmuma disponibbli</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Prensjoni miżmuma mħarsa</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Il-pressjoni miżmuma ma setgħetx tiġi vverifikata</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Pressjoni mhux disponibbli</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Il-istorja tal-pressjoni fallit</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Istorja mhux disponibbli</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Ippruvaw mill-ġdid biex taġġorna l-istorja tal-fonti kkapturati għal din it- tijaġġar.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">L-istampi tal-evidenza tas-sors miżmuma mhumiex disponibbli. Ipprova mill-ġdid biex tiffreskaha.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">L- istorja tal- sors limitata li qrajt ma setgħetx tispiċċa b\'mod sikur. Ipprova mill-ġdid biex tiffreskaha.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">L-istorja tas-sors imħassra fallit kontrolli tal-integrità. Ipprova mill- ġdid wara li s- sors ikun disponibbli.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Il- membri tal- storja fiżika ma setgħux jiġu vverifikati b\'mod sigur.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Ebda kopertura miżmuma</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Kopertura sħiħa miżmuma</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Kopertura parzjali miżmuma</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Kopertura mhux disponibbli</string>
     <string name="ski_detail_header">Sessjoni tal-iskijjar</string>
     <string name="ski_detail_runs">Ġirjiet</string>
     <string name="ski_detail_vertical">Vertikali</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Deher l-aħħar</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Kronoloġija</string>
-    <string name="history_tab_trips">Vjaġġi</string>
     <string name="history_tab_calendar">Kalendarju</string>
     <string name="history_screen_title">Storja</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Ix-xahar li jmiss</string>
     <string name="history_calendar_distance">Distanza</string>
     <string name="history_calendar_steps">Passi</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">L-aġġornament ...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Mhux ikkapturat</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Mhux kompluta</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Mhux disponibbli</string>
     <string name="history_calendar_trips">Vjaġġi</string>
     <string name="history_exploration_title">Esplorazzjoni</string>
     <string name="history_exploration_cells">Ċelloli</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Storja</string>
     <string name="history_view_trip_on_map">Ara l-vjaġġ fuq il-mappa</string>
     <string name="stats_heatmap_title">Attività</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Il-passi importati</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Id-dejta dwar ir-rotta u d-dejta tas-sensuri oħra ma tkunx inkluża.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sessjonijiet</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Żid sessjoni</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Sessjoni ta \' editjar</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Isem (fakultattiv)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">It-tikketta tal-attività</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">L-ebda tikketta</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Bidu</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Tmiem</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Żona tal-ħin</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Applika żona taż-żmien</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Applika żona tal- ħin qabel ma tiffranka.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Sessjoni ta \' tagħbija mill-ġdid</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Id-dettalji ta\' reġistrazzjoni</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Tneħħi sessjoni</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Żomm</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Ikkanċella</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Tneħħi din is-sessjoni?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Id-dejta rreġistrata se tibqa\' fl-istorja.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Data</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Ħin</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Dan l- ħin lokali ma jeżistix għax l- orloġġi jimxu \'l quddiem. Agħżel ħin ieħor.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Dan iż- żmien jiġri darbtejn. Agħżel l- offset UTC tiegħu.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">L-aħħar għandu jkun wara l-bidu. Iż-żewġ żminijiet għandhom ikunu fl-1 ta\' Jannar 1970 jew wara.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Il- tmiem ma jistax ikun fil- futur.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Iddaħħal żona tal-ħin tal-IANA, bħal Ewropa/Praga jew UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Uża massimu ta\' 200 karattri.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Din it- tikketta kienet tneħħita. Agħżel etiketta oħra jew ebda etiketta.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Din is- sessjoni bidlet jew id-dejta miġbura ġiet imħassra. Iċċarġja mill-ġdid qabel ma tiffranka.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Din is- sessjoni m\'għadx disponibbli.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Is- sesjonijiet huma temporanjament mhux disponibbli. Ipprova tiftaħ mill-ġdid l-Istorja.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">L- ebda sessjonijiet f\'dan il- perijodu.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Sessjoni bla isem</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Reġistrazzjoni</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Il-ħin tal-reġistrazzjoni huwa inċert. Ikkonferma l- ħin qabel ma tibdel l- intervall tiegħu.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Tkompli minn jum qabel</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Ippreżenta kollox</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Termina s- sessjoni biex teditja l- ħin tagħha jew tneħħih.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Ara s- sessjonijiet għal din il- ġurnata</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Xi markers tas- sessjoni ma jidhrux. Agħżel jum biex tara s- sessjonijiet tiegħu.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Jum %1$d, għandu sessjonijiet</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Jum %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Erġa’ pprova</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Ara r-reġistrazzjonijiet</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Terġa \' lura għas-sessjonijiet</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Sessjoni tal-esportazzjoni</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Ma setgħetx tiffranka l- fajl. Ipprova mill-ġdid.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Sessjoni esportata</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Sessjoni esportata b\'reġistrazzjonijiet kompleti li jtejbu lil hinn mid-dati tagħha.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Ma stajtx insemma. Ipprova mill-ġdid.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">tħassar dan ir-reġistrazzjoni?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Il-qari maħżuna tiegħu se jitħassar għal dejjem.</string>
     <string name="stats_recorded_partial_value">%1$s · parzjali</string>
     <string name="history_activity_started">Bidu: %1$s</string>
     <string name="history_activity_ended">Tmiem: %1$s</string>

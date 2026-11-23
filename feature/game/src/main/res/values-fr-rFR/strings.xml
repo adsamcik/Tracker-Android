@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Échappez à chaque rayon d’explosion virtuel avant l’expiration de sa mèche</string>
     <string name="minigame_switchback_name">Lacets</string>
     <string name="minigame_switchback_description">Enchaînez des virages serrés alternés pour créer un combo fluide</string>
-    <string name="minigame_locked">Se débloque au niveau %1$d</string>
     <string name="game_play_section_title">Jouer</string>
     <string name="game_progress_section_title">Progression</string>
     <string name="minigame_outrun_goal_line">Gardez 25 à 100 m d’avance sur le fantôme</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s ! Vous avez atteint votre objectif %2$s !</string>
     <string name="goals_daily_goal">quotidien</string>
     <string name="goals_weekly_goal">hebdomadaire</string>
-    <string name="goals_monthly_goal">mensuel</string>
     <string name="game_steps_goals_title">Objectifs de pas</string>
     <string name="game_step_sensor_unavailable">Capteur de pas indisponible</string>
     <string name="game_step_sensor_unavailable_detail">Cet appareil ne possède pas de capteur de comptage de pas. Les objectifs de pas ne peuvent pas être suivis.</string>

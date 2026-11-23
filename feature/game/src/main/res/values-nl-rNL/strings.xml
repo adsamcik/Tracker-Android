@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Ontsnap aan elke virtuele explosiestraal voordat de zekering afloopt</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Maak scherpe afwisselende bochten om een flow-combo op te bouwen</string>
-    <string name="minigame_locked">Ontgrendelt op niveau %1$d</string>
     <string name="game_play_section_title">Spelen</string>
     <string name="game_progress_section_title">Voortgang</string>
     <string name="minigame_outrun_goal_line">Blijf 25–100 m voor op de geest</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Je hebt je %2$s doel bereikt!</string>
     <string name="goals_daily_goal">dagelijkse</string>
     <string name="goals_weekly_goal">wekelijkse</string>
-    <string name="goals_monthly_goal">maandelijkse</string>
     <string name="game_steps_goals_title">Stappendoelen</string>
     <string name="game_step_sensor_unavailable">Stappensensor niet beschikbaar</string>
     <string name="game_step_sensor_unavailable_detail">Dit apparaat heeft geen stappentellersensor. Stappendoelen kunnen niet worden bijgehouden.</string>

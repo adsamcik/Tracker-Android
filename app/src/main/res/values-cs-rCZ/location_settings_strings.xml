@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Poloha po celý den</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Mezi sezeními.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Vytvořeno mezi setkáními. Dostupnost závisí na přístupu a hranicích pozadí Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptivní</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Pouze pasivní</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Přizpůsobuje sběr umístění na pohyb a vaše preference detailů, s neustálým oznámením.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Používá pozice poskytované jinými aplikacemi nebo systémem. Dlouhé mezery jsou možné.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker bude shromažďovat umístění mezi setkáními, upravit jeho úsilí na pohyb a zobrazit probíhající oznámení. To může použít více baterie než pasivní sběr. Váš výběr je uložen předtím, než Android požádá o přístup k poloze. Pokud chybí přístup, čeká; můžete ho vypnout kdykoliv.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Použijte adaptivní umístění</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Povolit přístup k poloze</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Vyberte adaptivní detaily polohy</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Poloha: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Síla umístění a detail</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Vyberte si úroveň, která se přizpůsobí umístění. Vyvážená je výchozí; živé sezení dávají přednost více detailům. Android a váš přístup může omezit výsledek.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Většina energie.</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Slouží moc.</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Vyvážený</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Vzdělte si detaily</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Nejprve detail.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Pomoc při podání návrhů</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Vyběrně použije pohybové náznaky pro nastavení polohy. Tento záznam nezaznamenává historii aktivity a nemůže zahájit sezení. Poloha stále funguje, pokud odmítnete.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Uveďte náznaky pohybu</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Změnu se nepodařilo použít. Zkuste to znovu.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptivní sbírka ještě nefunguje.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Používá adaptivní úroveň polohy.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptivní umístění je dostupné.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Žádost o umístění upravená zařízení.</string>
+</resources>

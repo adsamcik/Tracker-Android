@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Asukoht kogu päeva jooksul</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Istungite vahel.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Istungide vaheline võimeline. Kasutatavus sõltub juurdepääsu ja Android tausta piirangutest.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adapteeritav</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Ainult passiivne</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Seadib asukoha kogumist liikumisele ja teie detailidele, teavitades pidevalt.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Kasutab teiste rakenduste või süsteemi esitatud positsioone. Pikkad vaheajad on võimalikud.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker kogub istungide vahelist asukohta, reguleerib oma jõupingutusi liikumisele ja näitab pidevat teavitust. See võib kasutada rohkem akust kui passiivset kogumist. Teie valik salvestatakse enne, kui Android küsib asukoha juurdepääsu. Kui juurdepääs puudub, siis see ootab; saate seda igal ajal välja lülitada.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Kasuta adaptiivset asukohta</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Luba juurdepääs asukohale</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Vali adaptiivsed asukoht detailid</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Asukoht: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Asukohtvõimsus ja üksikasjad</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Valige adaptiivse asukoha vastuvõtmiseks tasand. Tasakaalustatud on standard; elus istungid eelistavad rohkem üksikasju. Android ja teie juurdepääs võib piirata tulemust.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Võimsus kõigepealt</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Ega võim</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Tasakaalustatud</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Soovitav üksikasjalik</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Esmalt detailid</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Eelnõu abi</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Võimaliselt kasutatakse liikumise näiteid asukoha reguleerimiseks. See ei salvestaks aktiivsuse ajalugu ja ei saa istungit alustada. Asukoht töötab veel, kui sa keeldud.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Lase liikumisnähted</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Ma ei suutnud seda muutust rakendada. Proovi uuesti.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptiivne kogumine ei käi veel.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Kasutab adaptiivset asukoha üksikasjalikku taset.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptive Location on saadaval.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Seadme poolt reguleeritud asukoha taotlus.</string>
+</resources>

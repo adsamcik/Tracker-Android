@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistik</string>
     <string name="stats_cell_count">Antal celler</string>
     <string name="stats_collections">Antal uppdateringar</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Cell %1$s · %2$s prover</string>
     <string name="stats_cell_signal_carrier">Operatör %1$s‑%2$s</string>
     <string name="trip_detail_title">Resedetaljer</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Källahistorik</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Källahistorik inte tillgänglig</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Detta privata urval behållits inte efter att appprocessen gjordes om. Återgå till den senaste historien och välj den igen.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Den valda bevarade källan är inte längre tillgänglig.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Den begränsade källhistorien kunde inte avslutas på ett säkert sätt.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Den valda behållna källanalysen misslyckades med integritetskontrollen.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Den källa-bevis snapshot som behövs för att presentera detta urval är inte tillgänglig.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Det val som utfärdats från källan identifierar inte längre den aktuella inmatningen som behållits.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Källahistorien misslyckades. Försök att uppfriska den igen.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Resan hittades inte</string>
     <string name="trip_detail_not_found_subtitle">Den här resan kan ha raderats</string>
     <string name="trip_detail_error_title">Kunde inte läsa in resan</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Avstånd</string>
     <string name="trip_detail_date">Datum</string>
     <string name="trip_detail_steps">Steg</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Fullständig täckning</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Åtminstone denna del av täckningen</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Delvis historia · ingen trovärdig räkning tillgänglig</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Overifierad: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Arvvärde · fullständighet inte kontrollerad</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Uppdatera historien...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Inte fångat för denna session.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Inaktiverad för denna session</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Stöd inte</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Tillstånd krävs</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Begränsad med Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Ej tillgängligt</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Ingen kvalificerande observation</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Deleted</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Historik inte tillgänglig</string>
     <string name="trip_detail_samples">Prover</string>
     <string name="trip_detail_source">Källa</string>
     <string name="trip_detail_avg_speed">Genomsnittlig hastighet</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Radera</string>
     <string name="trip_detail_cancel">Avbryt</string>
     <string name="trip_detail_more_options">Fler alternativ</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Aktioner som inte är tillgängliga för denna upptagna källa</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Källan</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Ursprung</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Förbehållna ändamål</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Exakt upptagning av sessioner endast från källor</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Medlemskap för bärbara källor</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Det här är den enda upptagna källan.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Det importerade formatet bevisar behållit källamedlemskap, inte att denna enhet registrerade beviset.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi sammanträde</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Cell session</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Sammanfattning av radioanläggningar</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Täckning</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Förberedelse av radiohistoria</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Delvis bevarad radiohistoria</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Redovisad radiohistorik tillgänglig</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Radiohistorik inte tillgänglig</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Inga kvalificerade radiobevarade bevis</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Lagrat radiohistorik raderas</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Radiohistoria kunde inte verifieras</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Funkhistorisk integritetskontroll misslyckades</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Ingen verifierad täckning</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Delvis kontrollerad täckning</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Fullständig verifierad täckning</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Täckning inte tillgänglig</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Väntar på radioobservationer.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Inga radioobservationer finns kvar.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">De bevarade källbevisen raderades.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Förvarade bevis kan inte presenteras på ett säkert sätt.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Förbehållna leveranser</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Leveranser med delvis resultat</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Behållna bevis Wi‑Fi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Spärrade skanningsresultat</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Frekvensbandsresultat blandning</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Inneslutet signalområde</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d till %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Andra band</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Inbevarade celler</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Säkerställda radiorekorder</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Registrerade statusuppgifter</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radio-teknologisk rekord blandning</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Inget nätverk, torn, abonnent, rutt, avstånd, hastighet, höjd eller platsidentitet avslöjas av denna detalj.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Stegsession</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Bevis för behållna steg</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Täckning</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Inga täckta intervaller</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Fullständig täckt interval</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Delvis täckt intervall</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Täckning inte tillgänglig</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Endast behållna Steps-bevis visas. Plats inte fångats, så rutten och plats-deriverade metriker är inte tillgängliga.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Aktivitetssession</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Aktivitetsband, varaktighet och förtroende är ungefärliga sammanfattningar av bevis som lagras på enheten.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Sammanfattning av verksamheten</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Täckning</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Ursprung</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Bekant aktiv tid</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Bekant inaktiv tid</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Oklassifierad tid</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Kända mellanrum</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Hållna aktivitetsband och klyftor</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Omfattande varaktighet</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Säkerhet</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktivitetsövergångssignal</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Omkring %1$d ⁇ %2$d%% från %3$d bevarade observationer</item>
+        <item quantity="other">Omkring %1$d ⁇ %2$d%% från %3$d bevarade observationer</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Typ av bevis</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Förbättrad övergång</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Kända klyftan</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Anledningen</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Omfattande varaktighet</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Förberedelse av verksamhetsförteckningen</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Ofullständig aktivitetshistorik</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Aktivitetshistorik tillgänglig</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Aktivitetshistorik inte tillgänglig</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Aktivitetshistorik kunde inte verifieras</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Hållbar aktivitetshistorik är fortfarande under utarbetande, men varaktigheten av verksamheten har ännu inte fastställts.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Endast en del av sessionen har bevarat bevis på aktivitet.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Ingen behållits aktivitet varaktighet finns tillgänglig.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Det finns inga pålitliga behållna aktivitetsresultat tillgängliga.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Hållna Aktivitetsbevis misslyckades med integritetskontroll.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Ingen verifierad täckning</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Delvis täckning</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Fullständig täckning</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Fångat på denna enhet.</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Importerade bevarade bevis</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Stilla</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Gång</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Löpning</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Cykling</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">I fordon</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Till fots</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Lutande</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Okänd aktivitet</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Övergång</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Förädling i urval</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Klassificering i urval</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Inga kvalificerande bevarade bevis</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Avbrytning av verksamhetsleverantören</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Tillstånd ändrats</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Återstart av process eller anordning</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Bevis inte kvalificerade</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Upptagna sessioner</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Lokation har inte tagits.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Upptagna källor</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Det finns inte några detaljer för denna exakta källkombination än. Ruten, GPX, avstånd, hastighet, höjning och andra lokationsderiverade åtgärder är fortfarande otillgängliga.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Plats</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Mobilnät</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Aktivitet</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Steg</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Tryck</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Upptagningskällor som inte verifierats</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Den här sessionen är äldre än den verifierbara upptagningshistorien. Detaljer om resan visas och kan vara ofullständiga.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Trycksession</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Lufttryck</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Den senaste</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Inneslutet</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Första till sista ändringen</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Täckning</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Lagrat område</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Uppdatera behållit tryck...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Delvis behållit tryck</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Inneslutningstryck</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Inneslutet tryck raderat</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Inneslutet tryck kunde inte kontrolleras</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Tryck inte tillgänglig</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Presshistoria misslyckades</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Historik inte tillgänglig</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Försök att uppdatera den här resan.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Den bevarade källan på bevis är inte tillgänglig. Försök att uppfriska den igen.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Den begränsade källhistorien kunde inte avslutas på ett säkert sätt. Försök att uppfriska den igen.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Hållna källhistoria misslyckades med integritetskontrollen. Försök igen efter att källan är tillgänglig.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Det fysiska historiskt medlemskapet kunde inte verifieras säkert.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Ingen sparad täckning</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Fullständig återhållsam täckning</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Delvis kvarvarande täckning</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Täckning inte tillgänglig</string>
     <string name="ski_detail_header">Skidsession</string>
     <string name="ski_detail_runs">Åk</string>
     <string name="ski_detail_vertical">Höjdmeter</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Senast sedd</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Tidslinje</string>
-    <string name="history_tab_trips">Resor</string>
     <string name="history_tab_calendar">Kalender</string>
     <string name="history_screen_title">Historik</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Nästa månad</string>
     <string name="history_calendar_distance">Avstånd</string>
     <string name="history_calendar_steps">Steg</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Uppdatera...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Inte fångat</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Inkomplett</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Ej tillgängligt</string>
     <string name="history_calendar_trips">Resor</string>
     <string name="history_exploration_title">Utforskning</string>
     <string name="history_exploration_cells">Celler</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Historik</string>
     <string name="history_view_trip_on_map">Visa resan på karta</string>
     <string name="stats_heatmap_title">Aktivitet</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Inporterade steg</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Ruten och andra sensordata ingår inte.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sessioner</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Lägg till session</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Redigera session</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Namn (valfri)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Aktivitetsetikett</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Inga etiketter</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Start</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Slut</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Tidszon</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Använd tidszon</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Använd tidszonen innan du sparar.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Återlastning</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Upptagningsanmärkning</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Ta bort session</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Spara</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Avbryt</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Ta bort den här sessionen?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Upptagna uppgifter kommer att förbli i historien.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Datum</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Tid</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Den här lokala tiden existerar inte eftersom klockan rör sig framåt. Välj en annan tid.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Den här gången händer det två gånger. Välj UTC-offset.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Slutet måste vara efter början. Båda tiderna måste vara den 1 januari 1970 eller senare.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Slutet kan inte vara i framtiden.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Ange en IANA-tidszon, till exempel Europa/Prague eller UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Använd högst 200 tecken.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Den här etiketten har tagits bort. Välj en annan etikett eller ingen.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Den här sessionen ändrades eller insamlade data raderades. Överlast innan du sparar.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Den här sessionen är inte längre tillgänglig.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Sessions är tillfälligt inte tillgänglig. Försök att öppna History igen.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Inga sessioner under denna period.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Onamnämnd session</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Registrerar</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Upptagningstiden är osäker. Bekräfta tiden innan du ändrar mellanrummet.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Fortsatt från en tidigare dag</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Visa allt.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Avsluta sessionen för att redigera tid eller ta bort den.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Se sessioner för denna dag</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Vissa sessionsmarker visas inte. Välj en dag för att titta på den.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Dag %1$d, har sessioner</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Dag %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Försök igen</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Bläddra upptagningar</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Tillbaka till sessionerna.</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Exportmöte</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Jag kunde inte spara filen. Försök igen.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Sässion som exporterats</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Session som exporteras med fullständiga inspelningar som sträcker sig utöver dess datum.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Jag kunde inte sluta. Försök igen.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Ta bort den här inspelningen?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Den sparas utgåvor kommer att raderas permanent.</string>
     <string name="stats_recorded_partial_value">%1$s · delvis</string>
     <string name="history_activity_started">Start: %1$s</string>
     <string name="history_activity_ended">Slut: %1$s</string>

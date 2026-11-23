@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Perkeliami foniniai žingsniai</string>
+    <string name="export_error_no_portable_ambient_steps">Nėra patvirtintos foninių žingsnių istorijos, kurią būtų galima eksportuoti.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Foninių žingsnių istorija yra nepilna arba jos negalima patvirtinti eksportavimui.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Foninių žingsnių eksportavimas laikinai nepasiekiamas. Bandykite dar kartą.</string>
+    <string name="export_error_portable_ambient_steps_scope">Šio foninių žingsnių pasirinkimo negalima pateikti perkeliamu failo formatu.</string>
+    <string name="export_error_portable_ambient_steps_write">Nepavyko sukurti perkeliamų foninių žingsnių failo.</string>
+    <string name="export_ambient_steps_sensitivity_title">Eksportuoti foninių žingsnių istoriją?</string>
+    <string name="export_ambient_steps_sensitivity_message">Šiame faile yra žingsnių skaičiai, aktyvumo laiko intervalai, datos, įrašymo spragos ir išsaugota laiko juostos informacija, kuri gali atskleisti kasdienio aktyvumo įpročius. Jame nėra maršrutų koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
+</resources>

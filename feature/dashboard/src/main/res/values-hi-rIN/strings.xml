@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">सत्र पूरा हो रहा है…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · आंशिक</string>
     <string name="dashboard_title">डैशबोर्ड</string>
     <string name="dashboard_tracking_title">ट्रैकिंग</string>
     <string name="dashboard_recording">रिकॉर्ड हो रहा है</string>
@@ -20,7 +22,6 @@
         <item quantity="other">स्ट्रीक: %1$d दिन। स्ट्रीक विवरण देखने के लिए टैप करें</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">स्ट्रीक शुरू करें। स्ट्रीक विवरण देखने के लिए टैप करें</string>
-    <string name="dashboard_cd_stop_tracking">ट्रैकिंग बंद करें</string>
     <string name="dashboard_action_enable_location">स्थान अनुमति सक्षम करें</string>
     <string name="dashboard_action_view_details">विवरण देखें</string>
     <string name="dashboard_action_view_map">मानचित्र देखें</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">स्थायी रूप से सहेजा गया कदमों का इतिहास तैयार किया जा रहा है…</string>
     <string name="dashboard_live_steps_missing">मान्य कदम रिकॉर्ड की प्रतीक्षा है</string>
     <string name="dashboard_live_steps_unavailable">स्थायी रूप से सहेजा गया कदमों का इतिहास उपलब्ध नहीं है</string>
+    <string name="dashboard_metric_pressure">दबाव</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">सीमा %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">बदलाव %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">सहेजा गया समय क्षेत्र: %1$s</string>
     <string name="dashboard_milestone_distance">किमी पूरे!</string>
     <string name="dashboard_milestone_steps">कदम पूरे!</string>
     <string name="dashboard_milestone_time">मिनट ट्रैक हुए!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">पिछला सत्र</string>
     <string name="dashboard_last_session_duration">अवधि</string>
     <string name="dashboard_last_session_distance">दूरी</string>
-    <string name="dashboard_last_session_steps">कदम</string>
     <string name="dashboard_last_session_view_map">मानचित्र देखें</string>
     <string name="dashboard_recent_trips_title">हाल की ट्रैकिंग</string>
     <string name="dashboard_recent_trips_empty">हाल का कोई ट्रैकिंग सत्र नहीं। उन्हें यहाँ देखने के लिए ट्रैकिंग शुरू करें।</string>
     <string name="dashboard_recent_history_loading">हाल की ट्रैकिंग लोड हो रही है…</string>
     <string name="dashboard_recent_history_unavailable">हाल की ट्रैकिंग उपलब्ध नहीं है</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s इतिहास अनुपलब्ध है</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">स्रोत अद्यतन प्राधिकरण अनुपलब्ध है</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">संग्रहीत स्रोत-सबूत स्नैपशॉट अनुपलब्ध है</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">सीमित स्रोत इतिहास पढ़ने सुरक्षित रूप से समाप्त नहीं किया जा सकता</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">संग्रहीत स्रोत इतिहास अखंडता जांच विफल</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">भौतिक इतिहास सदस्यता सत्यापित नहीं किया जा सका</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">स्थान</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">सेल</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">गतिविधि</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">कदम</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">दबाव</string>
     <string name="dashboard_recent_steps_title">कदम सत्र</string>
     <string name="dashboard_recent_steps_available">कदमों का इतिहास उपलब्ध है</string>
     <string name="dashboard_recent_steps_materializing">कदमों का इतिहास तैयार हो रहा है…</string>
     <string name="dashboard_recent_steps_partial">कदमों का आंशिक इतिहास</string>
+    <string name="dashboard_recent_pressure_title">दबाव सत्र</string>
+    <string name="dashboard_recent_pressure_available">दबाव का इतिहास उपलब्ध है</string>
+    <string name="dashboard_recent_pressure_materializing">दबाव का इतिहास तैयार हो रहा है…</string>
+    <string name="dashboard_recent_pressure_partial">दबाव का इतिहास अधूरा है</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">दबाव इतिहास हटाया गया</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">दबाव का इतिहास सत्यापित नहीं किया जा सका</string>
+    <string name="dashboard_recent_pressure_unavailable">दबाव का इतिहास उपलब्ध नहीं है</string>
+    <string name="dashboard_recent_pressure_failed">दबाव का इतिहास तैयार नहीं किया जा सका</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · सीमा %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">बदलाव %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">कोई सहेजा गया कवरेज नहीं</string>
+    <string name="dashboard_pressure_coverage_complete">पूरा कवरेज</string>
+    <string name="dashboard_pressure_coverage_partial">आंशिक कवरेज</string>
+    <string name="dashboard_pressure_coverage_unknown">कवरेज उपलब्ध नहीं है</string>
+    <string name="dashboard_recent_activity_title">गतिविधि सत्र</string>
+    <string name="dashboard_recent_activity_ready">गतिविधि का इतिहास उपलब्ध है</string>
+    <string name="dashboard_recent_activity_materializing">गतिविधि का इतिहास तैयार हो रहा है…</string>
+    <string name="dashboard_recent_activity_partial">गतिविधि का इतिहास अधूरा है</string>
+    <string name="dashboard_recent_activity_unavailable">गतिविधि का इतिहास उपलब्ध नहीं है</string>
+    <string name="dashboard_recent_activity_failed">गतिविधि के इतिहास की पुष्टि नहीं की जा सकी</string>
+    <string name="dashboard_recent_activity_summary">%1$s · सक्रिय समय %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">वाई-फाई सत्र</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">सेल सत्र</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">कैप्चर किया गया वाई-फाई</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">कैप्चर किया गया सेल रेडियो</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">इस सत्र में स्रोत</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">इस सत्र में स्थान कैप्चर नहीं किया गया है। मार्ग, दूरी, गति और ऊंचाई उपलब्ध नहीं है।</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">सत्यापित %1$s इतिहास अनुपलब्ध है।</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">इस डिवाइस पर कैप्चर</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">आयातित संग्रहीत साक्ष्य</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">रेडियो इतिहास को बनाए रखने की तैयारी...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">आंशिक रूप से संरक्षित रेडियो इतिहास</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">उपलब्ध रेडियो इतिहास संग्रहीत</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">रेडियो इतिहास अनुपलब्ध</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">कोई योग्य रेडियो साक्ष्य नहीं</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">संग्रहीत रेडियो इतिहास हटाया गया</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">रेडियो इतिहास सत्यापित नहीं किया जा सका</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">रेडियो इतिहास अखंडता जांच विफल</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">कोई सत्यापित कवरेज नहीं</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">आंशिक सत्यापित कवरेज</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">पूर्ण सत्यापित कवरेज</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">कवरेज उपलब्ध नहीं है</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">रेडियो अवलोकनों के लिए प्रतीक्षा</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">कोई रेडियो अवलोकन उपलब्ध नहीं है</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">संग्रहीत स्रोत साक्ष्य को हटा दिया गया</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">संग्रहीत साक्ष्य सुरक्षित रूप से प्रस्तुत नहीं किया जा सकता है</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">स्थान, मार्ग, दूरी, गति और ऊंचाई इस स्रोत इतिहास का हिस्सा नहीं हैं।</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d स्कैन परिणाम बरकरार रखा गया</item>
+        <item quantity="other">%1$d स्कैन के परिणाम बनाए रखे गए</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d रेडियो रिकॉर्ड बनाए रखा</item>
+        <item quantity="other">%1$d रेडियो रिकॉर्ड बनाए रखा</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d डिलीवरी</item>
+        <item quantity="other">%1$d डिलीवरी</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d वितरण के आंशिक परिणाम</item>
+        <item quantity="other">%1$d प्रसव के आंशिक परिणाम</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">रिकॉर्ड की गई गतिविधि</string>
+    <string name="dashboard_live_activity_movement">सबसे हाल में रिकॉर्ड की गई गति</string>
+    <string name="dashboard_live_activity_active_time">सक्रिय समय</string>
+    <string name="dashboard_live_activity_gaps">ज्ञात अंतराल: %1$d</string>
+    <string name="dashboard_activity_coverage_none">कोई सत्यापित कवरेज नहीं</string>
+    <string name="dashboard_activity_coverage_partial">आंशिक कवरेज</string>
+    <string name="dashboard_activity_coverage_complete">पूरा कवरेज</string>
+    <string name="dashboard_activity_still">स्थिर</string>
+    <string name="dashboard_activity_walking">चलना</string>
+    <string name="dashboard_activity_running">दौड़ना</string>
+    <string name="dashboard_activity_cycling">साइकिल चलाना</string>
+    <string name="dashboard_activity_vehicle">वाहन में</string>
+    <string name="dashboard_activity_on_foot">पैदल</string>
+    <string name="dashboard_activity_tilting">झुकना</string>
+    <string name="dashboard_activity_unknown">अज्ञात गतिविधि</string>
     <string name="dashboard_exploration_title">खोज</string>
     <string name="dashboard_exploration_new_today">आज नया</string>
     <string name="dashboard_exploration_total_cells">कुल सेल</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">ट्रैकिंग शुरू करें</string>
     <string name="dashboard_ring_enable_location">स्थान सक्षम करें</string>
     <string name="dashboard_pill_start">शुरू करें</string>
-    <string name="dashboard_pill_stop">रोकें</string>
     <string name="dashboard_pill_enable_location">स्थान सक्षम करें</string>
     <string name="dashboard_insights_title">सत्र अंतर्दृष्टि</string>
     <string name="dashboard_cd_insight_item">जानकारी: %1$s</string>
     <string name="widget_latest_achievement">नवीनतम उपलब्धि</string>
     <string name="dashboard_latest_achievement_title">नवीनतम उपलब्धि</string>
     <string name="dashboard_latest_achievement_empty">अपनी पहली उपलब्धि अनलॉक करने के लिए ट्रैकिंग जारी रखें</string>
-    <string name="dashboard_metric_pressure">दबाव</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">सीमा %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">बदलाव %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">सहेजा गया समय क्षेत्र: %1$s</string>
-    <string name="dashboard_recent_pressure_title">दबाव सत्र</string>
-    <string name="dashboard_recent_pressure_available">दबाव का इतिहास उपलब्ध है</string>
-    <string name="dashboard_recent_pressure_materializing">दबाव का इतिहास तैयार हो रहा है…</string>
-    <string name="dashboard_recent_pressure_partial">दबाव का इतिहास अधूरा है</string>
-    <string name="dashboard_recent_pressure_unavailable">दबाव का इतिहास उपलब्ध नहीं है</string>
-    <string name="dashboard_recent_pressure_failed">दबाव का इतिहास तैयार नहीं किया जा सका</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · सीमा %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">बदलाव %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">कोई सहेजा गया कवरेज नहीं</string>
-    <string name="dashboard_pressure_coverage_complete">पूरा कवरेज</string>
-    <string name="dashboard_pressure_coverage_partial">आंशिक कवरेज</string>
-    <string name="dashboard_pressure_coverage_unknown">कवरेज उपलब्ध नहीं है</string>
-    <string name="dashboard_recent_activity_title">गतिविधि सत्र</string>
-    <string name="dashboard_recent_activity_ready">गतिविधि का इतिहास उपलब्ध है</string>
-    <string name="dashboard_recent_activity_materializing">गतिविधि का इतिहास तैयार हो रहा है…</string>
-    <string name="dashboard_recent_activity_partial">गतिविधि का इतिहास अधूरा है</string>
-    <string name="dashboard_recent_activity_unavailable">गतिविधि का इतिहास उपलब्ध नहीं है</string>
-    <string name="dashboard_recent_activity_failed">गतिविधि के इतिहास की पुष्टि नहीं की जा सकी</string>
-    <string name="dashboard_recent_activity_summary">%1$s · सक्रिय समय %2$s</string>
-    <string name="dashboard_live_activity_title">रिकॉर्ड की गई गतिविधि</string>
-    <string name="dashboard_live_activity_movement">सबसे हाल में रिकॉर्ड की गई गति</string>
-    <string name="dashboard_live_activity_active_time">सक्रिय समय</string>
-    <string name="dashboard_live_activity_gaps">ज्ञात अंतराल: %1$d</string>
-    <string name="dashboard_activity_coverage_none">कोई सत्यापित कवरेज नहीं</string>
-    <string name="dashboard_activity_coverage_partial">आंशिक कवरेज</string>
-    <string name="dashboard_activity_coverage_complete">पूरा कवरेज</string>
-    <string name="dashboard_activity_still">स्थिर</string>
-    <string name="dashboard_activity_walking">चलना</string>
-    <string name="dashboard_activity_running">दौड़ना</string>
-    <string name="dashboard_activity_cycling">साइकिल चलाना</string>
-    <string name="dashboard_activity_vehicle">वाहन में</string>
-    <string name="dashboard_activity_on_foot">पैदल</string>
-    <string name="dashboard_activity_tilting">झुकना</string>
-    <string name="dashboard_activity_unknown">अज्ञात गतिविधि</string>
-    <string name="dashboard_finishing_session">सत्र पूरा हो रहा है…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">आयातित कदम</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">रिकॉर्डिंग %1$d दिखाएँ</item>
+        <item quantity="other">रिकॉर्डिंग %1$d दिखाएँ</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">रिकॉर्डिंग %1$d छिपाएँ</item>
+        <item quantity="other">रिकॉर्डिंग %1$d छिपाएं</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">रिकॉर्डिंग %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s कदम</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">कम से कम %1$s कदम</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">चरण अनुपलब्ध</string>
 </resources>

@@ -517,7 +517,7 @@ Customize activity type labels for your sessions:
 | **GPX 1.1** | Universal GPS standard | Tracks, waypoints, routes |
 | **KML** | Google Earth visualization | Stylized paths, placemarks |
 | **JSON** | Custom analysis/scripts | Raw database export (all fields) |
-| **SQLite** | Full backup | Entire database file |
+| **Database backup ZIP** | Restore saved data | Tracker and points databases, without settings |
 
 ### 8.2 Import Support
 
@@ -528,7 +528,7 @@ Customize activity type labels for your sessions:
 | **GPX** | Full track/segment parsing | Automatically creates sessions from track segments, extracts activity type, calculates distance |
 | **KML** | Via GPS importer | Parses LineString coordinates |
 | **ZIP** | Archive extractor | Auto-detects and processes GPX/KML files inside, batch import |
-| **SQLite (.db)** | Direct database merge | Topological sort of foreign keys, schema-aware column matching |
+| **SQLite (.db)** | Merge standalone activity definitions | Recorded and derived Tracker data requires a tracking export or a database backup ZIP |
 
 #### GPX Import Details
 - **Track Segments**: Each GPX track segment becomes a separate session
@@ -537,16 +537,11 @@ Customize activity type labels for your sessions:
 - **Distance Calculation**: Automatically calculates session distance from waypoint sequence
 - **Time Range**: Derives session start/end from first/last waypoint timestamps
 
-#### Database Import Process
-1. **Schema Analysis**: Reads SQLite master table to discover structure
-2. **Topology Sorting**: Uses graph-based topological sort to order tables by foreign key dependencies
-   - Ensures referenced tables are imported before referencing tables
-   - Prevents constraint violations
-3. **Column Matching**: Imports only columns that exist in both source and destination databases
-4. **Constraint Handling**:
-   - **Activity table**: Silently skips duplicate entries (constraint violations expected)
-   - **Other tables**: Reports constraint violations for manual review
-5. **Transaction Safety**: Entire import wrapped in database transaction (all-or-nothing)
+#### Database Import and Restore
+
+A compatible SQLite file can add standalone activity definitions. A file containing Tracker
+recordings, derived data, or runtime state is rejected before activity definitions are copied.
+Use a tracking export to merge recordings and a Tracker database backup ZIP to restore saved data.
 
 #### ZIP Archive Support
 - **Extraction**: Temporary extraction to file system

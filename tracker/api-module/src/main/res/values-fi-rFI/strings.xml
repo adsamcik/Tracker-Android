@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordinaatit</string>
     <string name="description_settings">Asetuspainike</string>
     <string name="description_tracking_start">Aloita seuranta -painike</string>
-    <string name="description_tracking_stop">Lopeta seuranta -painike</string>
     <string name="description_tracking_start_no_permission">Aloita seuranta — käyttöoikeus vaaditaan</string>
     <string name="description_points_today">Tänään ansaitut pisteet: %s</string>
     <string name="description_copy">Kopioi arvo</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Istunnon kesto</string>
     <string name="duration_value">kesto %s</string>
     <string name="error_nothing_to_track">Ota käyttöön vähintään yksi seurantavaihtoehto (sijainti, askeleet tai aktiivisuus)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Aseta sijaintipalvelut päälle, jotta voit käyttää mahdollistettua seurantalähteää.</string>
     <string name="hint_customize_notification_show_in_content">Näytä ilmoituksen sisällössä</string>
     <string name="hint_customize_notification_show_in_title">Näytä ilmoituksen otsikossa</string>
     <string name="horizontal_accuracy_title">Vaakasuuntainen tarkkuus</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker käynnistyy — sijainti käytössä</string>
     <string name="notification_starting_without_location">Tracker käynnistyy</string>
-    <string name="notification_stop">Lopeta</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Lopeta %d minuutiksi</string>
     <string name="notification_stop_til_recharge">Lopeta lataukseen asti</string>
-    <string name="stop_tracking_dialog_title">Lopetetaanko seuranta?</string>
     <string name="stop_tracking_dialog_message">Automaattinen seuranta on käytössä ja voi aloittaa pian uuden istunnon uudelleen, jos vain lopetat.</string>
     <string name="notification_tracker_active_ticker">Tallennetaan reittiäsi — sijainti käytössä</string>
     <string name="notification_tracker_active_without_location">Seuranta ilman sijaintia</string>
     <string name="notification_tracking_active">Seuranta</string>
     <string name="notification_tracking_start_failed_title">Seurantaa ei voitu aloittaa</string>
     <string name="notification_tracking_start_failed_text">Avaa sovellus tarkistaaksesi käyttöoikeudet ja jatkaaksesi seurantaa.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Jäljittämisen valmistelu</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Tiedot ei kerätä ennen kuin palautus on valmis.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Jäljittämisen valmistelu</string>
     <string name="settings_activity_enabled_title">Aktiivisuus</string>
     <string name="settings_cell_enabled_title">Solu</string>
     <string name="settings_disabled_recharge_summary">Automaattinen seuranta on poistettu käytöstä, kunnes puhelin yhdistetään laturiin</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Sijainti</string>
     <string name="settings_notification_customize_summary">Muuta, mitä ja missä järjestyksessä seurantailmoituksessa näytetään.</string>
     <string name="settings_notification_customize_title">Mukauta ilmoitusta</string>
+    <string name="settings_notification_move_up">Siirrä ylös</string>
+    <string name="settings_notification_move_down">Siirrä alas</string>
+    <string name="settings_notification_load_failed">Ilmoitusasetuksia ei voitu ladata.</string>
+    <string name="settings_notification_save_failed">Muutoksia ei tallennettu.</string>
+    <string name="settings_notification_retry">Yritä uudelleen</string>
     <string name="settings_notification_styled_summary">Käytä sovelluksesi tyyliväriä ilmoituksissa.</string>
     <string name="settings_notification_styled_title">Värilliset ilmoitukset</string>
     <string name="ski_notification_title">Hiihtotilastot</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Askelmäärä</string>
     <string name="settings_tracking_min_distance_title">Pienin etäisyys päivitysten välillä</string>
     <string name="settings_tracking_min_time_title">Pienin viive päivitysten välillä</string>
-    <string name="settings_tracking_notice_summary">Muutokset tulevat voimaan, kun käynnistät seurannan uudelleen</string>
     <string name="settings_tracking_required_accuracy_title">Vaadittu sijaintitarkkuus</string>
     <string name="settings_tracking_title">Seuranta</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Aloita seuranta</string>
     <string name="shortcut_start_tracking_long">Aloita sijainninseuranta</string>
-    <string name="shortcut_stop_tracking">Lopeta seuranta</string>
-    <string name="shortcut_stop_tracking_long">Lopeta sijainninseuranta</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Lopeta istunto</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Lopeta nykyinen istunto</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Poista seuranta käytöstä</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Lopeta kaikki seuranta ja automaattiset aloitukset</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Seuraamistoimet</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pysäytä automaattinen käynnistys</string>
     <string name="speed_title">Nopeus</string>
     <string name="speed_value">nopeus %s</string>
     <string name="battery_title">Akku</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d minuutti seurantaa</item>
         <item quantity="other">%1$d minuuttia seurantaa</item>
     </plurals>
-    <string name="insight_exploration_title">Tutkija!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Löysit %1$d uuden alueen</item>
         <item quantity="other">Löysit %1$d uutta aluetta</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Siirry takaisin</string>
     <string name="insight_distance_title">Kuljettu matka</string>
     <string name="insight_distance_desc">Kuljit tällä istunnolla %1$s.</string>
-    <string name="insight_steps_title">Tallennetut askeleet</string>
-    <string name="insight_steps_desc">%1$s askelta tällä istunnolla — jatka samaan malliin!</string>
     <string name="tracker_measurement_partial">Osittainen</string>
 </resources>

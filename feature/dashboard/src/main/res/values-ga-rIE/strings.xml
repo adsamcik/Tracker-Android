@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">An seisiún á chríochnú…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · páirteach</string>
     <string name="dashboard_title">Painéal</string>
     <string name="dashboard_tracking_title">Rianú</string>
     <string name="dashboard_recording">Ag taifeadadh</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Sraith: %1$d lá. Sconna chun sonraí na sraithe a fheiceáil</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Cuir tús le sraith. Sconna chun sonraí na sraithe a fheiceáil</string>
-    <string name="dashboard_cd_stop_tracking">Stad rianú</string>
     <string name="dashboard_action_enable_location">Cumasaigh rochtain suímh</string>
     <string name="dashboard_action_view_details">Féach ar shonraí</string>
     <string name="dashboard_action_view_map">Féach ar léarscáil</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Stair chéimeanna atá sábháilte go buan á hullmhú…</string>
     <string name="dashboard_live_steps_missing">Ag fanacht le breathnóireacht bhailí ar chéimeanna</string>
     <string name="dashboard_live_steps_unavailable">Níl stair chéimeanna atá sábháilte go buan ar fáil</string>
+    <string name="dashboard_metric_pressure">Brú</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Raon %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Athrú %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Crios ama sábháilte: %1$s</string>
     <string name="dashboard_milestone_distance">km bainte amach!</string>
     <string name="dashboard_milestone_steps">céimeanna bainte amach!</string>
     <string name="dashboard_milestone_time">nóim rianaithe!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">An seisiún deireanach</string>
     <string name="dashboard_last_session_duration">Fad ama</string>
     <string name="dashboard_last_session_distance">Fad</string>
-    <string name="dashboard_last_session_steps">Céimeanna</string>
     <string name="dashboard_last_session_view_map">Féach ar léarscáil</string>
     <string name="dashboard_recent_trips_title">Rianú le déanaí</string>
     <string name="dashboard_recent_trips_empty">Níl aon seisiúin rianaithe le déanaí ann. Cuir tús le rianú chun iad a fheiceáil anseo.</string>
     <string name="dashboard_recent_history_loading">Rianú le déanaí á lódáil…</string>
     <string name="dashboard_recent_history_unavailable">Níl rianú le déanaí ar fáil</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s stair nach bhfuil ar fáil</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Níl údarás nua-aimseartha foinse ar fáil</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Ní féidir an grianghraf a chaithtear ar an fhianaise foinse a fháil</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Níorbh fhéidir leis an stair foinse teoranta a léamh a chríochnú go sábháilte</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Baineadh úsáid as próiseáil ar choinníoll go raibh an t-ábhar a chaithtear</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Ní fhéadfaí ballraíocht stair fisiciúil a fhíorú</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Suíomh</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Líonra soghluaiste</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Gníomhaíocht</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Céimeanna</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Brú an aeir</string>
     <string name="dashboard_recent_steps_title">Seisiún céimeanna</string>
     <string name="dashboard_recent_steps_available">Tá stair na gcéimeanna ar fáil</string>
     <string name="dashboard_recent_steps_materializing">Stair na gcéimeanna á hullmhú…</string>
     <string name="dashboard_recent_steps_partial">Stair pháirteach na gcéimeanna</string>
+    <string name="dashboard_recent_pressure_title">Seisiún brú</string>
+    <string name="dashboard_recent_pressure_available">Stair brú ar fáil</string>
+    <string name="dashboard_recent_pressure_materializing">Stair brú á hullmhú…</string>
+    <string name="dashboard_recent_pressure_partial">Stair brú pháirteach</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">An stair brú scriosadh</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Ní raibh sé in ann stair brú a fhíorú</string>
+    <string name="dashboard_recent_pressure_unavailable">Stair brú gan fáil</string>
+    <string name="dashboard_recent_pressure_failed">Níorbh fhéidir stair brú a ullmhú</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · raon %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Athrú %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Gan clúdach sábháilte</string>
+    <string name="dashboard_pressure_coverage_complete">Clúdach iomlán</string>
+    <string name="dashboard_pressure_coverage_partial">Clúdach páirteach</string>
+    <string name="dashboard_pressure_coverage_unknown">Clúdach gan fáil</string>
+    <string name="dashboard_recent_activity_title">Seisiún gníomhaíochta</string>
+    <string name="dashboard_recent_activity_ready">Stair gníomhaíochta ar fáil</string>
+    <string name="dashboard_recent_activity_materializing">Stair gníomhaíochta á hullmhú…</string>
+    <string name="dashboard_recent_activity_partial">Stair gníomhaíochta pháirteach</string>
+    <string name="dashboard_recent_activity_unavailable">Stair gníomhaíochta gan fáil</string>
+    <string name="dashboard_recent_activity_failed">Níorbh fhéidir stair gníomhaíochta a fhíorú</string>
+    <string name="dashboard_recent_activity_summary">%1$s · am gníomhach %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Seisiún Wi‑Fi</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Seisiún cealla</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Cailleadh Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Rádio cealla a ghabháil</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Foinsí sa seisiún seo</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Níl an suíomh a chaithtear sa seisiún seo. Ní féidir an bealach, an fad, an luas agus an airde a fháil.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Ní féidir tar éis %1$s a fhíorú.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Cailleadh ar an bhfeiste seo</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Taispeántas ionmhairithe a choimeádtar</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Ag ullmhú stair na rádh a chaomhnú...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Stairiúil ráideo a chaithtear go páirteach</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Stairiúil raidió atá ar fáil</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Taispeántas ar stair an raidió</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Ní bheidh aon fhianaise ráideacha incháilithe</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Rinneadh stair ráideo a chaomhnú a scriosadh</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Ní raibh sé in ann stair an raidió a fhíorú</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Níor éirigh le seiceáil sláintiúlacht stair na rádh</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Gan clúdach fíoraithe</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Clúdach áirithe arna fhíorú</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Clúdach iomlán arna fhíorú</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Clúdach gan fáil</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Ag fanacht le haghaidh faireacha ráideacha a chaomhnú</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Níl aon faireacháin ráideacha coimeádta ar fáil</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">An fianaise foinse a choimeádta a scriosadh</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Ní féidir fianaise coimeádta a chur ar fáil go sábháilte</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Ní cuid den stair foinse seo an áit, an bealach, an t-aise, an luas, agus an airde.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d toradh scánaithe a chaomhnú</item>
+        <item quantity="other">%1$d torthaí scánaithe a choimeádtar</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d taifid ráideacha coimeádta</item>
+        <item quantity="other">%1$d taifeadanna raidió a choimeádtar</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d seachadadh coimeádta</item>
+        <item quantity="other">%1$d seachadtaí coimeádta</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d tá torthaí páirteach ag an seachadadh</item>
+        <item quantity="other">Tá torthaí páirteach ag seachadta %1$d</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Gníomhaíocht taifeadta</string>
+    <string name="dashboard_live_activity_movement">An ghluaiseacht taifeadta is déanaí</string>
+    <string name="dashboard_live_activity_active_time">Am gníomhach</string>
+    <string name="dashboard_live_activity_gaps">Bearnaí aitheanta: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Gan clúdach fíoraithe</string>
+    <string name="dashboard_activity_coverage_partial">Clúdach páirteach</string>
+    <string name="dashboard_activity_coverage_complete">Clúdach iomlán</string>
+    <string name="dashboard_activity_still">Gan ghluaiseacht</string>
+    <string name="dashboard_activity_walking">Ag siúl</string>
+    <string name="dashboard_activity_running">Ag rith</string>
+    <string name="dashboard_activity_cycling">Rothaíocht</string>
+    <string name="dashboard_activity_vehicle">I bhfeithicil</string>
+    <string name="dashboard_activity_on_foot">Ar shiúl na gcos</string>
+    <string name="dashboard_activity_tilting">Ag claonadh</string>
+    <string name="dashboard_activity_unknown">Gníomhaíocht anaithnid</string>
     <string name="dashboard_exploration_title">Taiscéalaíocht</string>
     <string name="dashboard_exploration_new_today">Nua inniu</string>
     <string name="dashboard_exploration_total_cells">Cealla iomlána</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Tosaigh rianú</string>
     <string name="dashboard_ring_enable_location">Cumasaigh suíomh</string>
     <string name="dashboard_pill_start">Tosaigh</string>
-    <string name="dashboard_pill_stop">Stad</string>
     <string name="dashboard_pill_enable_location">Cumasaigh suíomh</string>
     <string name="dashboard_insights_title">Léargais seisiúin</string>
     <string name="dashboard_cd_insight_item">Léargas: %1$s</string>
     <string name="widget_latest_achievement">An t-éacht is déanaí</string>
     <string name="dashboard_latest_achievement_title">An t-éacht is déanaí</string>
     <string name="dashboard_latest_achievement_empty">Lean den rianú chun do chéad éacht a dhíghlasáil</string>
-    <string name="dashboard_metric_pressure">Brú</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Raon %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Athrú %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Crios ama sábháilte: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Seisiún brú</string>
-    <string name="dashboard_recent_pressure_available">Stair brú ar fáil</string>
-    <string name="dashboard_recent_pressure_materializing">Stair brú á hullmhú…</string>
-    <string name="dashboard_recent_pressure_partial">Stair brú pháirteach</string>
-    <string name="dashboard_recent_pressure_unavailable">Stair brú gan fáil</string>
-    <string name="dashboard_recent_pressure_failed">Níorbh fhéidir stair brú a ullmhú</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · raon %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Athrú %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Gan clúdach sábháilte</string>
-    <string name="dashboard_pressure_coverage_complete">Clúdach iomlán</string>
-    <string name="dashboard_pressure_coverage_partial">Clúdach páirteach</string>
-    <string name="dashboard_pressure_coverage_unknown">Clúdach gan fáil</string>
-    <string name="dashboard_recent_activity_title">Seisiún gníomhaíochta</string>
-    <string name="dashboard_recent_activity_ready">Stair gníomhaíochta ar fáil</string>
-    <string name="dashboard_recent_activity_materializing">Stair gníomhaíochta á hullmhú…</string>
-    <string name="dashboard_recent_activity_partial">Stair gníomhaíochta pháirteach</string>
-    <string name="dashboard_recent_activity_unavailable">Stair gníomhaíochta gan fáil</string>
-    <string name="dashboard_recent_activity_failed">Níorbh fhéidir stair gníomhaíochta a fhíorú</string>
-    <string name="dashboard_recent_activity_summary">%1$s · am gníomhach %2$s</string>
-    <string name="dashboard_live_activity_title">Gníomhaíocht taifeadta</string>
-    <string name="dashboard_live_activity_movement">An ghluaiseacht taifeadta is déanaí</string>
-    <string name="dashboard_live_activity_active_time">Am gníomhach</string>
-    <string name="dashboard_live_activity_gaps">Bearnaí aitheanta: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Gan clúdach fíoraithe</string>
-    <string name="dashboard_activity_coverage_partial">Clúdach páirteach</string>
-    <string name="dashboard_activity_coverage_complete">Clúdach iomlán</string>
-    <string name="dashboard_activity_still">Gan ghluaiseacht</string>
-    <string name="dashboard_activity_walking">Ag siúl</string>
-    <string name="dashboard_activity_running">Ag rith</string>
-    <string name="dashboard_activity_cycling">Rothaíocht</string>
-    <string name="dashboard_activity_vehicle">I bhfeithicil</string>
-    <string name="dashboard_activity_on_foot">Ar shiúl na gcos</string>
-    <string name="dashboard_activity_tilting">Ag claonadh</string>
-    <string name="dashboard_activity_unknown">Gníomhaíocht anaithnid</string>
-    <string name="dashboard_finishing_session">An seisiún á chríochnú…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Céimeanna Áirítear</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Taispeánadh taifeadadh %1$d</item>
+        <item quantity="other">Taispeánadh taifeadadh %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Scríobhann %1$d taifid</item>
+        <item quantity="other">Scríobhann %1$d taifeadadh</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Ríomh %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s céimeanna</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Céimeanna ar a laghad %1$s</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Céimeanna nach bhfuil ar fáil</string>
 </resources>

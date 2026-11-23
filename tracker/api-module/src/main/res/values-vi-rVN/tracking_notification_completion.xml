@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">Vị trí cả ngày</string>
-    <string name="notification_background_location_text">Tính năng thu thập vị trí thích ứng đã bật. Mở Tracker để quản lý.</string>
     <string name="settings_notification_unsaved_exit">Thử lại để lưu thay đổi hoặc thoát mà không lưu.</string>
     <string name="settings_notification_leave_without_saving">Thoát mà không lưu</string>
     <string name="notification_background_collection_title">Theo dõi nền</string>

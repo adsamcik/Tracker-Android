@@ -1,10 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="notification_activity_watcher_info">Attività attuale %1$s (%2$d%%)</string>
-    <string name="notification_activity_watcher_ticker">Servizio Monitor attività attivo</string>
     <string name="settings_activity_snackbar_message">Rimosso %s</string>
     <string name="settings_activity_title">Attività</string>
-    <string name="settings_activity_watcher_title">Monitor attività</string>
     <string name="settings_ski_infrastructure_title">Dati degli impianti di risalita</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Caricati (tocca per rimuovere)</string>
     <string name="settings_ski_infrastructure_subtitle_none">Non caricati. Tocca per importare un file SQLite ski_infrastructure.db.</string>

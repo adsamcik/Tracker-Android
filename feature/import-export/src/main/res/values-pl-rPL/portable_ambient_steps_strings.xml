@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Kroki w tle w formacie przenośnym</string>
+    <string name="export_error_no_portable_ambient_steps">Brak zweryfikowanej historii kroków w tle dostępnej do eksportu.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Historia kroków w tle jest niekompletna lub nie można jej zweryfikować do eksportu.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Eksport kroków w tle jest chwilowo niedostępny. Spróbuj ponownie.</string>
+    <string name="export_error_portable_ambient_steps_scope">Tego wyboru kroków w tle nie można przedstawić w przenośnym formacie pliku.</string>
+    <string name="export_error_portable_ambient_steps_write">Nie udało się utworzyć pliku kroków w tle w formacie przenośnym.</string>
+    <string name="export_ambient_steps_sensitivity_title">Wyeksportować historię kroków w tle?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ten plik zawiera liczbę kroków, przedziały czasu aktywności, daty, luki w rejestracji i zapisane informacje o strefie czasowej, które mogą ujawnić wzorce codziennej aktywności. Nie zawiera współrzędnych trasy. Kontynuuj tylko wtedy, gdy ufasz miejscu docelowemu.</string>
+</resources>

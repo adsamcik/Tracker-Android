@@ -127,7 +127,6 @@
     <string name="settings_map_zoom_buttons_subtitle">Jelenítse meg a képernyőn a + és − gombokat a térkép nagyításához, amikor a csippentéses nagyítás nehezen használható.</string>
     <string name="tips_map_date_range_title">Dátumtartomány</string>
     <string name="tips_map_my_location_title">Saját helyzet</string>
-    <string name="tips_map_sheet_description">Erre a sávra koppintva vagy felhúzva további térképbeállítások nyílnak meg, köztük a rétegválasztás és a jelmagyarázat.</string>
     <string name="map_search_placeholder">Szél., hossz., pl. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Próbálja ezt: 48.8566, 2.3522 • 48.8566 2.3522 • É48.8566 K2.3522 • 48°51’24”É 2°21’08”K</string>
     <string name="map_search_clear">Keresés törlése</string>

@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">已驗證的步數歷史、記錄範圍及缺漏資料，不含路線座標</string>
+    <string name="export_format_portable_ambient_steps_desc">背景步數、活動時間、日期、記錄缺口及已儲存的時區資訊，不含路線座標</string>
+    <string name="export_format_portable_activity_desc">已記錄的運動區間、信賴程度及記錄範圍，不含路線座標</string>
+    <string name="export_format_portable_pressure_desc">以 hPa 為單位的直接氣壓測量、記錄範圍及缺漏資料，不含路線座標</string>
+    <string name="export_sensitivity_portable_title">匯出已記錄的歷史？</string>
+    <string name="export_sensitivity_portable_steps_message">此檔案包含步數、時間區間及記錄範圍資訊。 不含路線座標。僅在信任儲存位置時繼續。</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">此檔案包含背景步數、活動時間區間、日期、記錄缺口及已儲存的時區資訊。 不含路線座標。僅在信任儲存位置時繼續。</string>
+    <string name="export_sensitivity_portable_activity_message">此檔案包含已記錄的運動區間、時間區間及記錄範圍資訊。 不含路線座標。僅在信任儲存位置時繼續。</string>
+    <string name="export_sensitivity_portable_pressure_message">此檔案包含氣壓測量及時間區間，可能透露環境資訊。 不含路線座標或校準後的海拔。僅在信任儲存位置時繼續。</string>
+</resources>

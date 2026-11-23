@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">全天位置資訊</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">這次的會議中,</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">這項活動在會議之間啟動.提供可用性取決於可用性和Android背景限制.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">適應性</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">只有被動</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">調整位置收集與動作及您的細節偏好,</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">使用其他應用程式或系統提供的位置.很長時間的差距是可能的.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker 會收集會議之間的位置,調整其移動努力,並顯示正在進行通知.這樣的電池比被動的電池還要多.在 Android 要求地點接入之前,沒有接觸的情況下,</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">使用適應位置</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">允許存取位置資訊</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">選擇適應位置詳細</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">位置詳情: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">位置能力和細節</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">選取適應位置的水平.預設是平衡; 實時會議更喜歡更多細節.Android 您的接入可能會限制結果.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">首先是電源</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">支持權力</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">平衡</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">請提供詳細資訊</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">詳細一開始</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">提供支持</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">選擇使用動作提示來調整位置.這裡沒有活動史,無法啟動會議.如果您拒絕, 位置仍然有效.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">允許動作提示</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">這種改變無法應用.請再試一次.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">這項計畫仍未開始.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">請使用您的適應位置細節水平.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">提供適應位置.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">位置要求由裝置調整.</string>
+</resources>

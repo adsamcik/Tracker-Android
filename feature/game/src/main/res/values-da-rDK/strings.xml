@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Undslip hver virtuel eksplosionsradius, før luntens tid udløber</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Lav skarpe, skiftende sving for at opbygge en flydende kombination</string>
-    <string name="minigame_locked">Låses op på niveau %1$d</string>
     <string name="game_play_section_title">Spil</string>
     <string name="game_progress_section_title">Fremskridt</string>
     <string name="minigame_outrun_goal_line">Hold 25–100 m forspring på spøgelset</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Du nåede dit %2$s mål!</string>
     <string name="goals_daily_goal">daglige</string>
     <string name="goals_weekly_goal">ugentlige</string>
-    <string name="goals_monthly_goal">månedlige</string>
     <string name="game_steps_goals_title">Skridtmål</string>
     <string name="game_step_sensor_unavailable">Skridtsensor er ikke tilgængelig</string>
     <string name="game_step_sensor_unavailable_detail">Denne enhed har ikke en skridttællersensor. Skridtmål kan ikke spores.</string>

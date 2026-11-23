@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Poloha počas celého dňa</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Medzi zasadnutiami.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Vypúšťané medzi zasadnutiami. Dostupnosť závisí od prístupu a pozadí Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptácia</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Len pasívne</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Nastavuje zber lokality na pohyb a vaše preferencie detailov, s pokračujúcim oznámením.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Používa pozície poskytnuté inými aplikáciami alebo systémom. Dlhé medzery sú možné.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker bude zhromažďovať umiestnenie medzi zasadnutiami, prispôsobovať jeho úsilie pohybu a zobrazovať aktuálne oznámenie. Toto môže použiť viac batérie ako pasívna zber. Vaša voľba je uložená pred tým, ako Android požiada o prístup k polohe. Keďže chýba prístup, čaká, môžete ho kedykoľvek vypnúť.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Používajte adaptivné umiestnenie</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Povoliť prístup k polohe</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Vyberte adaptivné detaily polohy</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Podrobnosť polohy: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Síla umiestnenia a podrobnosti</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Vyberte úroveň, ktorá bude prispôsobená polohe. Zvyvažovaná je predvolená; živé stretnutia preferujú viac detailov. Android a váš prístup môže obmedziť výsledok.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Najprv sila</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Sláva priazeň</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Vyvážené</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Uprednostňujem detaily</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Najprv detail</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Pomoc pri podaní návrhov</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Voliteľne používa pohybové náznaky na nastavenie polohy. Tento záznam nezaznamenáva históriu aktivít a nesmie začať sekciu. Poloha stále funguje, ak odmietnete.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Nechajte podnety o pohybe</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Nemohla som uplatniť túto zmenu. Skúste to znova.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptivná zberná skupina ešte nefunguje.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Používa vašu prispôsobenú úroveň detailu polohy.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptivné umiestnenie je k dispozícii.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Žiadosť o umiestnenie nastavená zariadením.</string>
+</resources>

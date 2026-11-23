@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">統計</string>
     <string name="stats_cell_count">セル数</string>
     <string name="stats_collections">更新数</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">セル%1$s · サンプル%2$s</string>
     <string name="stats_cell_signal_carrier">通信事業者%1$s‑%2$s</string>
     <string name="trip_detail_title">移動の詳細</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">ソース履歴</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">ソース履歴は利用できません</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">アプリのプロセスが再作成された後,このプライベート選択は保持されなかった.最近の歴史に戻り,もう一度選択してください.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">選択された保存されたソースエントリはもはや利用できません.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">限られた情報源の歴史は 無事に終わらなかった.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">選択された保存されたソースエントリは完全性のチェックに失敗した.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">この選択を提示するために必要なソース証拠の瞬間の写真は利用できません.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">ソースで発行された選択は,現在の保持されたエントリを識別することはなくなりました.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">ソース履歴は失敗した再びリフレッシュしてみてください</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">移動が見つかりません</string>
     <string name="trip_detail_not_found_subtitle">この移動は削除された可能性があります</string>
     <string name="trip_detail_error_title">移動の読み込みに失敗しました</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">距離</string>
     <string name="trip_detail_date">日付</string>
     <string name="trip_detail_steps">歩数</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">全範囲を記録</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">少なくともこの数量 · 部分的なカバー</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">部分的な歴史 · 信頼性の高い数値はありません</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">検証されていない: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">遺産価値 · 完全性未確認</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">歴史を更新する...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">このセッションに収録されていない</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">このセッションで無効</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">サポートされていない</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">許可が必要だった</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Android に限られている</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">利用できません</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">資格のある観察がない</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">削除された</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">履歴不可</string>
     <string name="trip_detail_samples">サンプル</string>
     <string name="trip_detail_source">ソース</string>
     <string name="trip_detail_avg_speed">平均速度</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">削除</string>
     <string name="trip_detail_cancel">キャンセル</string>
     <string name="trip_detail_more_options">その他のオプション</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">捕獲された情報源に利用できないアクション</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">ソース権限</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">起源</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">保存された目的</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">正確なソースのみセッションキャプチャ</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">ポータブルソース会員</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">確認された不可変収録履歴は これだけが記録された情報源です</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">輸入されたフォーマットは,保持されたソース会員であることを証明する,このデバイスは証拠を記録していない.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi 会議</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">セルセッション</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">保存されたラジオ概要</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">状態</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">対象</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">保存されたラジオ履歴の作成</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">部分保存されたラジオ史</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">保存されているラジオ履歴</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">ラジオ履歴不可</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">資格のある無線証拠がない</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">保存されたラジオ履歴が削除された</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">ラジオ履歴は確認できませんでした</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">ラジオ履歴確認が失敗</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">確認済みの記録範囲がありません</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">部分的に検証されたカバー</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">完全な検証されたカバー</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">記録範囲を確認できません</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">ラジオ観測を待っています</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">保存されたラジオ観測は利用できません.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">保存された情報源の証拠は削除された.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">保存された証拠は安全に提示できない.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">残された配達</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">部分的な結果による配達</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">保存されたWi-Fi証拠</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">保存されたスキャン結果</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">周波数帯結果混合</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">保持された信号範囲</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d〜%2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">他のバンド</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">保存された細胞証拠</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">保存されたラジオ記録</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">登録された状態の記録</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">ラジオ技術記録ミックス</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">ネットワーク,タワー,サブスクライバー,ルート,距離,速度,高度,または場所のアイデンティティは この詳細によって暴露されていません.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">歩数セッション</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">保存されたステップの証拠</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">対象</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">覆われている間隔がない</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">完全カバーされた間隔</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">部分的にカバーされた間隔</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">記録範囲を確認できません</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">保存されたステップ証拠のみが示されています位置は記録されていないため,路線と位置によるメトリックは利用できません.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">アクティビティセッション</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">活動帯,期間,信頼性は,デバイス上で保存された証拠の概要である.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">活動概要</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">状態</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">対象</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">起源</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">已知アクティブ時間</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">既知の無効時間</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">未分類時間</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">既知のギャップ時間</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">保持された活動帯とギャップ</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">およそ期間</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">信頼度</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">活動移行信号</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">約%1$d ⁇ %2$d%% %3$d の観測から保持された</item>
+        <item quantity="other">約%1$d ⁇ %2$d%% の %3$d の観測から保持された</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">証拠の種類</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">調整された移行</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">知られたギャップ</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">理由</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">およそ期間</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">活動史 を 作成 する</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">アクティビティ履歴は一部のみです</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">アクティビティ履歴を利用できます</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">アクティビティ履歴を利用できません</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">アクティビティ履歴を確認できませんでした</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">保存された活動履歴はまだ作成中であり,その期間についてはまだ推測されていません.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">活動証拠はセッションの一部だけ保存された.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">活動期間は保持されていません.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">信頼性の高い活動結果が保持されていない.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">保存された 活動証拠 完全性の検査が失敗した</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">確認済みの記録範囲がありません</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">一部の範囲を記録</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">全範囲を記録</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">この装置で捕まった</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">輸入された保存された証拠</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">静止</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">歩行</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">ランニング</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">サイクリング</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">乗り物内</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">徒歩</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">傾き</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">不明なアクティビティ</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">移行</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">採取した精製</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">サンプル分類</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">資格のある証拠は保存されていない</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">活動提供者の中断</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">許可変更</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">プロセスまたは装置を再起動</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">証拠は合格しなかった</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">撮影されたセッション</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">位置は確認されていません</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">捕獲された情報源</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">この正確なソース組み合わせについては,まだ詳細が示されていない.路線 GPX 距離 速度 高さ その他の場所による操作は まだ利用できません</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">位置情報</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">セル</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">アクティビティ</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">歩数</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">気圧</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">捕獲源が検証されていない</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">この古いセッションは 検証可能なキャプチャ史より前のものです保存された旅行の詳細は表示され,不完全である可能性があります.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">気圧セッション</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">空気圧</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">状態</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">最新</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">保持範囲</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">最先の変更</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">対象</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">貯蔵区</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">圧力を更新する...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">部分的に保持された圧力</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">保持可能な圧力</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">保持圧は削除</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">維持圧力は確認できませんでした</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">圧力は利用できない</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">圧力の歴史は失敗</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">履歴不可</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">この旅の記録を更新してみてください</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">保存された情報源の証拠の瞬間写真は利用できません.再びリフレッシュしてみてください</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">限られた情報源の歴史は 無事に終わらなかった.再びリフレッシュしてみてください</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">保存されたソース履歴は,完整性のチェックに失敗した.ソースが利用可能になった後再試してください.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">物理的な歴史のメンバーは安全で確認できませんでした</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">保存された記録範囲がありません</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">完全な保持対象</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">部分的に保持されたカバー</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">記録範囲を確認できません</string>
     <string name="ski_detail_header">スキーセッション</string>
     <string name="ski_detail_runs">滑走</string>
     <string name="ski_detail_vertical">標高差</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">最終検出</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">タイムライン</string>
-    <string name="history_tab_trips">移動</string>
     <string name="history_tab_calendar">カレンダー</string>
     <string name="history_screen_title">履歴</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">次の月</string>
     <string name="history_calendar_distance">距離</string>
     <string name="history_calendar_steps">歩数</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">更新する...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">捕まえない</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">完全でない</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">利用できません</string>
     <string name="history_calendar_trips">移動</string>
     <string name="history_exploration_title">探索</string>
     <string name="history_exploration_cells">セル</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">履歴</string>
     <string name="history_view_trip_on_map">移動を地図で表示</string>
     <string name="stats_heatmap_title">アクティビティ</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">輸入する ステップ</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">経路および他のセンサーデータは含まれていません.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">セッション</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">セッションを追加する</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">編集セッション</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">名前 (オプション)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">活動ラベル</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">ラベルなし</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">開始</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">終了</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">タイムゾーン</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">時間帯を適用する</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">保存する前に時間帯を適用します.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">リロードセッション</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">記録詳細</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">削除セッション</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">保存する</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">キャンセル</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">このセッションを削除?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">記録されたデータは歴史に残る.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">日付</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">時間</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">この現地時間は 時計が前進しているため存在しない.別の時間を選んで</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">この時は2回目にしますUTCのオフセットを選択します.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">終わりは始まりのあとで両者とも1970年1月1日以降に</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">終わりは未来にはありえない.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">IANAのタイムゾーン,例えばヨーロッパ/プラグまたはUTCを入力する.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">最大200文字を使う.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">このラベルは削除されました別のラベルを選択するか,ラベルなしかを選択してください.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">このセッションで変更または収集されたデータはクリアされました.保存する前に再充電する</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">このセッションはもう利用できません</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">セッションは一時的に利用できません歴史を再開してみてください</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">この期間では 座席なし</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">名前なきセッション</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">記録中</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">記録時間は不明ですその間隔を変更する前に時間を確認してください.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">前の日から続く</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">すべてを見せろ</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">セッションを終了して時間編集するか削除する.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">この日のセッションをご覧下さい</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">セッションマーカーが表示されない.会議 を 見る 日 を 選ぶ.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">%1$d日,セッションがある</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">日 %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">再試行</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">記録を閲覧</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">セッションに戻る</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">輸出セッション</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">ファイル保存できないもう一度やってみろ</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">輸出されたセッション</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">その日付を超えた完全な録音で輸出されたセッション.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">終えなかったもう一度やってみろ</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">この録音を削除する?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">保存された読み方は永久に削除されます.</string>
     <string name="stats_recorded_partial_value">%1$s · 一部</string>
     <string name="history_activity_started">開始：%1$s</string>
     <string name="history_activity_ended">終了：%1$s</string>

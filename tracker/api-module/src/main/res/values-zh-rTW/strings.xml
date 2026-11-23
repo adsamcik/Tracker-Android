@@ -14,7 +14,6 @@
     <string name="coordinates_title">座標</string>
     <string name="description_settings">設定按鈕</string>
     <string name="description_tracking_start">開始追蹤按鈕</string>
-    <string name="description_tracking_stop">停止追蹤按鈕</string>
     <string name="description_tracking_start_no_permission">開始追蹤 — 需要權限</string>
     <string name="description_points_today">今日獲得點數：%s</string>
     <string name="description_copy">複製值</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">工作階段持續時間</string>
     <string name="duration_value">持續時間 %s</string>
     <string name="error_nothing_to_track">至少啟用一個追蹤選項（位置、步數或活動）</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">請啟動位置服務,</string>
     <string name="hint_customize_notification_show_in_content">顯示於通知內容</string>
     <string name="hint_customize_notification_show_in_title">顯示於通知標題</string>
     <string name="horizontal_accuracy_title">水平準確度</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker 正在啟動 — 正在使用位置</string>
     <string name="notification_starting_without_location">Tracker 正在啟動</string>
-    <string name="notification_stop">停止</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">停止 %d 分鐘</string>
     <string name="notification_stop_til_recharge">停止至充電為止</string>
-    <string name="stop_tracking_dialog_title">要停止追蹤嗎？</string>
     <string name="stop_tracking_dialog_message">自動追蹤已開啟；若只是停止，可能很快再次開始新的工作階段。</string>
     <string name="notification_tracker_active_ticker">正在記錄您的路線 — 正在使用位置</string>
     <string name="notification_tracker_active_without_location">不使用位置進行追蹤</string>
     <string name="notification_tracking_active">追蹤中</string>
     <string name="notification_tracking_start_failed_title">無法開始追蹤</string>
     <string name="notification_tracking_start_failed_text">開啟應用程式以檢查權限並繼續追蹤。</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">準備跟蹤</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">在恢復完成之前,</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">準備跟蹤</string>
     <string name="settings_activity_enabled_title">活動</string>
     <string name="settings_cell_enabled_title">基地台</string>
     <string name="settings_disabled_recharge_summary">在手機連接充電器前，自動追蹤已停用</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">位置</string>
     <string name="settings_notification_customize_summary">變更追蹤通知中顯示的內容及其順序。</string>
     <string name="settings_notification_customize_title">自訂通知</string>
+    <string name="settings_notification_move_up">上移</string>
+    <string name="settings_notification_move_down">下移</string>
+    <string name="settings_notification_load_failed">無法載入通知設定。</string>
+    <string name="settings_notification_save_failed">變更未儲存。</string>
+    <string name="settings_notification_retry">重試</string>
     <string name="settings_notification_styled_summary">使用您的應用程式樣式色彩作為通知顏色。</string>
     <string name="settings_notification_styled_title">彩色通知</string>
     <string name="ski_notification_title">滑雪統計資料</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">步數</string>
     <string name="settings_tracking_min_distance_title">更新之間的最小距離</string>
     <string name="settings_tracking_min_time_title">更新之間的最短延遲</string>
-    <string name="settings_tracking_notice_summary">重新開始追蹤後變更才會生效</string>
     <string name="settings_tracking_required_accuracy_title">所需位置準確度</string>
     <string name="settings_tracking_title">追蹤</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">開始追蹤</string>
     <string name="shortcut_start_tracking_long">開始位置追蹤</string>
-    <string name="shortcut_stop_tracking">停止追蹤</string>
-    <string name="shortcut_stop_tracking_long">停止位置追蹤</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">結束工作階段</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">結束目前的記錄</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">關閉追蹤</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">停止所有追蹤與自動啟動</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">追蹤行動</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">暫停自動啟動</string>
     <string name="speed_title">速度</string>
     <string name="speed_value">速度 %s</string>
     <string name="battery_title">電池</string>
@@ -108,7 +117,6 @@
         <item quantity="one">追蹤 %1$d 分鐘</item>
         <item quantity="other">追蹤 %1$d 分鐘</item>
     </plurals>
-    <string name="insight_exploration_title">探索者！</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">您發現 %1$d 個新區域</item>
         <item quantity="other">您發現 %1$d 個新區域</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">返回</string>
     <string name="insight_distance_title">已走距離</string>
     <string name="insight_distance_desc">您在此工作階段行進了 %1$s。</string>
-    <string name="insight_steps_title">已記錄步數</string>
-    <string name="insight_steps_desc">此工作階段 %1$s 步 — 繼續保持！</string>
     <string name="tracker_measurement_partial">部分</string>
 </resources>

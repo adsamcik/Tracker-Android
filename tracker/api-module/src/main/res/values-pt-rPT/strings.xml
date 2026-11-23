@@ -14,7 +14,6 @@
     <string name="coordinates_title">Coordenadas</string>
     <string name="description_settings">Botão de definições</string>
     <string name="description_tracking_start">Botão de iniciar monitorização</string>
-    <string name="description_tracking_stop">Botão de parar monitorização</string>
     <string name="description_tracking_start_no_permission">Iniciar monitorização — é necessária permissão</string>
     <string name="description_points_today">Pontos ganhos hoje: %s</string>
     <string name="description_copy">Copiar valor</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Duração da sessão</string>
     <string name="duration_value">duração %s</string>
     <string name="error_nothing_to_track">Ative pelo menos uma opção de monitorização (localização, passos ou atividade)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Ativar os Serviços de Localização para utilizar a fonte de rastreamento habilitada.</string>
     <string name="hint_customize_notification_show_in_content">Mostrar no conteúdo da notificação</string>
     <string name="hint_customize_notification_show_in_title">Mostrar no título da notificação</string>
     <string name="horizontal_accuracy_title">Precisão horizontal</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker a iniciar — localização em uso</string>
     <string name="notification_starting_without_location">Tracker a iniciar</string>
-    <string name="notification_stop">Parar</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Parar durante %d minutos</string>
     <string name="notification_stop_til_recharge">Parar até carregar</string>
-    <string name="stop_tracking_dialog_title">Parar monitorização?</string>
     <string name="stop_tracking_dialog_message">A monitorização automática está ativa e poderá iniciar em breve uma nova sessão se apenas parar agora.</string>
     <string name="notification_tracker_active_ticker">A registar o seu percurso — localização em uso</string>
     <string name="notification_tracker_active_without_location">Monitorização sem localização</string>
     <string name="notification_tracking_active">Monitorização</string>
     <string name="notification_tracking_start_failed_title">Não foi possível iniciar a monitorização</string>
     <string name="notification_tracking_start_failed_text">Abra a aplicação para rever as permissões e retomar a monitorização.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Preparação do rastreamento</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Não são recolhidos dados até que a recuperação seja concluída.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Preparação do rastreamento</string>
     <string name="settings_activity_enabled_title">Atividade</string>
     <string name="settings_cell_enabled_title">Celular</string>
     <string name="settings_disabled_recharge_summary">A monitorização automática está desativada até o telemóvel estar ligado a um carregador</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Localização</string>
     <string name="settings_notification_customize_summary">Altere o que deve aparecer e por que ordem na notificação de monitorização.</string>
     <string name="settings_notification_customize_title">Personalizar notificação</string>
+    <string name="settings_notification_move_up">Mover para cima</string>
+    <string name="settings_notification_move_down">Mover para baixo</string>
+    <string name="settings_notification_load_failed">Não foi possível carregar as definições de notificações.</string>
+    <string name="settings_notification_save_failed">As alterações não foram guardadas.</string>
+    <string name="settings_notification_retry">Tentar novamente</string>
     <string name="settings_notification_styled_summary">Use a cor do estilo da aplicação nas notificações.</string>
     <string name="settings_notification_styled_title">Notificações coloridas</string>
     <string name="ski_notification_title">Estatísticas de esqui</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Contagem de passos</string>
     <string name="settings_tracking_min_distance_title">Distância mínima entre atualizações</string>
     <string name="settings_tracking_min_time_title">Atraso mínimo entre atualizações</string>
-    <string name="settings_tracking_notice_summary">As alterações têm efeito ao reiniciar a monitorização</string>
     <string name="settings_tracking_required_accuracy_title">Precisão de localização necessária</string>
     <string name="settings_tracking_title">Monitorização</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Iniciar monitorização</string>
     <string name="shortcut_start_tracking_long">Iniciar monitorização de localização</string>
-    <string name="shortcut_stop_tracking">Parar monitorização</string>
-    <string name="shortcut_stop_tracking_long">Parar monitorização de localização</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Terminar sessão</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Terminar a sessão atual</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Desativar a monitorização</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Parar toda a monitorização e os arranques automáticos</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Ações de acompanhamento</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pausa de inicialização automática</string>
     <string name="speed_title">Velocidade</string>
     <string name="speed_value">velocidade %s</string>
     <string name="battery_title">Bateria</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d minuto de monitorização</item>
         <item quantity="other">%1$d minutos de monitorização</item>
     </plurals>
-    <string name="insight_exploration_title">Explorador!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Descobriu %1$d nova área</item>
         <item quantity="other">Descobriu %1$d novas áreas</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Navegar para trás</string>
     <string name="insight_distance_title">Distância percorrida</string>
     <string name="insight_distance_desc">Percorreu %1$s nesta sessão.</string>
-    <string name="insight_steps_title">Passos registados</string>
-    <string name="insight_steps_desc">%1$s passos nesta sessão — continue assim!</string>
     <string name="tracker_measurement_partial">Parcial</string>
 </resources>

@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Το αντίγραφο ασφαλείας πριν από την αναβάθμιση εξήχθη</string>
     <string name="settings_migration_backup_export_failure">Δεν ήταν δυνατή η εξαγωγή του αντιγράφου ασφαλείας πριν από την αναβάθμιση</string>
     <string name="settings_migration_backup_export_cleanup_required">Η εξαγωγή απέτυχε. Διαγράψτε το μερικώς εξαγμένο αντίγραφο ασφαλείας από την επιλεγμένη τοποθεσία.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Η εισαγωγή κληρονομικής βάσης δεδομένων απαιτεί προσοχή</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Η αρχική σας βάση δεδομένων είναι ακόμα σε αυτή τη συσκευή. Δοκιμάστε ξανά την εισαγωγή για να ανοίξετε το Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Μέγεθος της αρχαιολογικής βάσης δεδομένων: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Επαναπειρωτική εισαγωγή</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Πληροφοριακή βάση δεδομένων εξαγωγής</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Διαγράψτε την κληρονομική βάση δεδομένων και ξεκινήστε από την αρχή</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Εξαγωγές κληρονομικής βάσης δεδομένων</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Δεν μπόρεσε να εξάγει την αρχαία βάση δεδομένων</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Η εξαγωγή απέτυχε και ο ατελείωτος προορισμός δεν μπόρεσε να αφαιρεθεί. Σβήστε το χειροκίνητα.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Κωφιά αρχαιολογικής βάσης δεδομένων</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Επιστολή %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Πηγή έκδοση: %1$d\nSΣτοκατάστημα: %2$s\nΕισαγωγή: %3$s\nΕισαγωγή γραμμών: %4$d\nHΟΣ γραμμές που διατηρούνται μόνο στο θησαυροφυλάκιο: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Συμπληρωμένη εισαγωγή: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Εξαγωγές</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Εισαγωγή</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Εισαγωγή ολοκληρωμένη</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Απατυχήθηκε η εισαγωγή</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Να διαγράψεις την αρχαία βάση δεδομένων;</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Αυτό αφαιρεί μόνιμα το %1$s από αυτή τη συσκευή. Τα δεδομένα v27 δεν επηρεάζονται. Διατηρήστε το εξαγωγικό αντίγραφο αν χρειαστείτε αργότερα την αρχική βάση δεδομένων.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Διαγραφή αρχικής βάσης δεδομένων</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Δεν μπόρεσα να διαγράψω την αρχαία βάση δεδομένων</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Η αναζήτηση της αποκατάστασης απαιτεί προσοχή</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Η συλλογή παραμένει εκτός, ενώ το Tracker εναρμονίζει με ασφάλεια τα δεδομένα παρακολούθησης. Δοκιμάστε ξανά χωρίς να διαγράψετε το ιστορικό.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Επαναπειρώστε την ανάκτηση παρακολούθησης</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Η βάση δεδομένων ανάπτυξης χρειάζεται εγχειρησιακή υποστήριξη</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Το Tracker βρήκε μια μη εκδοθείσα βάση δεδομένων ανάπτυξης έκδοσης 28 που δεν ταιριάζει με αυτή την κατασκευή. Οι λειτουργίες παρακολούθησης και βάσης δεδομένων παραμένουν εκτός, και το αρχείο βάσης δεδομένων έχει παραμείνει αμετάβλητο. Κάντε αντίγραφο ασφαλείας των δεδομένων της εφαρμογής ή της βάσης δεδομένων πριν αντικαταστήσετε ή επισκευάσετε αυτή την εγκατάσταση ανάπτυξης.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Η βάση δεδομένων χρειάζεται προσοχή</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker δεν μπόρεσε να προσδιορίσει ή να επικυρώσει με ασφάλεια αυτή τη βάση δεδομένων. Οι λειτουργίες παρακολούθησης και βάσης δεδομένων παραμένουν εκτός, και το αρχείο βάσης δεδομένων έχει παραμείνει αμετάβλητο. Κάντε αντίγραφο ασφαλείας των δεδομένων της εφαρμογής ή της βάσης δεδομένων πριν από την προσπάθεια χειροκίνητης ανάκτησης.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Πληροφορική βάση δεδομένων είναι προσωρινά διαλειτουργική</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Τα χαρακτηριστικά παρακολούθησης και βάσης δεδομένων παραμένουν απενεργοποιημένα ενώ το Tracker επαναλαμβάνεται με ασφάλεια. Κανένα δεδομένο δεν διαγράφηκε. Δοκιμάστε ξανά τώρα για να ελέγξετε αν το πρόβλημα με την προσωρινή κλειδαριά ή την αποθήκευση έχει διαγραφεί.</string>
     <string name="settings_delete_data_success">Όλα τα συλλεγμένα δεδομένα διαγράφηκαν</string>
     <string name="settings_delete_data_failure">Δεν ήταν δυνατή η διαγραφή όλων των συλλεγμένων δεδομένων</string>
     <string name="settings_game_goals_title">Στόχοι</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Φόρτωση ρυθμίσεων παιχνιδιού…</string>
     <string name="settings_game_load_error">Δεν ήταν δυνατή η φόρτωση των ρυθμίσεων παιχνιδιού. Δοκιμάστε ξανά.</string>
     <string name="settings_map_info_hint">Αυτές οι ρυθμίσεις ελέγχουν την ποιότητα οπτικοποίησης και την απόδοση του χάρτη. Οι περισσότεροι χρήστες μπορούν να χρησιμοποιούν τις προεπιλεγμένες τιμές.</string>
+    <string name="settings_map_offline_data_section">Δεδομένα χάρτης εκτός σύνδεσης</string>
     <string name="settings_map_online_tiles_section_title">Διαδικτυακές ψηφίδες χάρτη</string>
     <string name="settings_map_online_tiles_enable_title">Χρήση διαδικτυακών ψηφίδων χάρτη</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Απενεργοποιημένο — χρησιμοποιείται μόνο ο ενσωματωμένος βασικός χάρτης εκτός σύνδεσης. Χωρίς αιτήματα δικτύου.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Προσαρμοσμένη</string>
     <string name="tracking_preset_custom_description">Ρυθμίστε χειροκίνητα κάθε παράμετρο καταγραφής</string>
     <string name="tracking_preset_selector_subtitle">Επιλέξτε ένα προφίλ ως αφετηρία και έπειτα ρυθμίστε λεπτομερώς οποιαδήποτε ρύθμιση παρακάτω.</string>
+    <string name="tracking_preset_change">Συγκρίνετε τις επιλογές</string>
+    <string name="tracking_preset_done">Δείξτε μόνο επιλεγμένα</string>
     <string name="tracking_preset_customized_summary">Έχετε ρυθμίσει λεπτομερώς την καταγραφή. Επιλέξτε μια προεπιλογή παραπάνω για επαναφορά.</string>
+    <string name="settings_tracking_section_start_stop">Αυτοματοποιημένη παρακολούθηση</string>
+    <string name="settings_tracking_section_battery_detail">Ποιότητα παρακολούθησης</string>
+    <string name="settings_tracking_section_data_collected">Συλλέγοντα δεδομένα</string>
     <string name="settings_tracking_section_detail">Συλλογή τοποθεσίας</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Εξωτερικά ταξίδια (προαιρετικά)</string>
     <string name="settings_tracking_section_notifications">Ειδοποιήσεις</string>
+    <string name="settings_transition_detection_friendly_title">Ανίχνευση κίνησης με αποδοτική χρήση μπαταρίας</string>
+    <string name="settings_transition_detection_friendly_summary">Χρησιμοποιεί τις αλλαγές δραστηριότητας Android για να αποφευχθεί η συχνή επαλήθευση ιστορικών. Η αυτόματη εκκίνηση μπορεί να αντιδράσει λίγο πιο αργά.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Δεν υπάρχει αυτόματη παρακολούθηση</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Η επιλογή της αυτόματης λειτουργίας σας έχει αποθηκευτεί. Η άδεια αναγνώρισης δραστηριότητας απαιτείται πριν από την λειτουργία της αυτόματης εκκίνησης.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Επιλέξτε τι να καταγράψετε ανάμεσα στα ταξίδια.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi εξωτερικά ταξίδια</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Ταξίδια εκτός κυττάρων</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Μεταξύ ταξιδιών.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Αποθηκεύτηκε όπως είναι. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Η κάλυψη εκτός ταξιδιού είναι οπορτουνιστική και μπορεί να περιέχει κενά άδειας, πάροχου, διαδικασίας, επανεκκίνησης ή λειτουργικού συστήματος. Το Tracker δεν απαιτεί τη συλλογή συνεχούς λειτουργίας ούτε επινοεί τη διάρκεια διατήρησης.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Η είσπραξη παραμένει εκτός, διότι η πολιτική διατήρησης του προϊόντος δεν είναι ακόμη διαθέσιμη.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Ελέγξτε συλλογή...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Η συλλογή περιέχεται με ασφάλεια από την τρέχουσα εκτόξευση.</string>
+    <string name="settings_ambient_user_turned_off">Η καταγραφή είναι απενεργοποιημένη. Οι επιλογές και τα αποθηκευμένα δεδομένα σας διατηρούνται.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Επιτρέψτε την πρόσβαση στον αριθμό βημάτων στο Health Connect για να συμπληρώνονται τα κενά στο ιστορικό όταν το Tracker είναι κλειστό.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Επιτρέψτε την πρόσβαση σε αριθμούς βημάτων στο Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Δεν μπόρεσα να ελέγξω την πρόσβαση Health Connect. Δοκίμασε ξανά.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Ο αριθμός βημάτων μπορεί να εισαχθεί όσο εκτελείται το Tracker. Η πρόσβαση στο παρασκήνιο μπορεί να περιορίσει τα κενά στο ιστορικό.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Δεν υπάρχει υποστηριζόμενος πάροχος βήματος όλης της ημέρας.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Ενημερώστε το Health Connect ώστε το Tracker να μπορεί να διαβάσει τα βήματα.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Δεν μπόρεσα να ελέγξω τον προμηθευτή των βημάτων. Δοκιμάστε ξανά αργότερα.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Δώστε την άδεια της σωματικής δραστηριότητας να μετρήσει τα βήματα σε αυτή τη συσκευή.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Η καταγραφή βημάτων δεν είναι διαθέσιμη σε αυτή τη συσκευή.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Το Health Connect είναι έτοιμο. Μερικές περιόδους μπορεί να έχουν ακόμα κενά.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Η εγγραφή των βημάτων είναι έτοιμη. Μερικές περιόδους μπορεί να έχουν ακόμα κενά.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Για τη συλλογή δεδομένων τοποθεσίας μεταξύ συνεδριών απαιτείται πρόσβαση στην τοποθεσία στο παρασκήνιο. Η ρύθμιση καταγραφής κατά τη διάρκεια των συνεδριών δεν αλλάζει.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Δεν πληρούνται οι απαιτήσεις άδειας σαρώσεως Android ⁇ s Wi-Fi. Η χορήγηση τους δεν επιτρέπει την κατάληψη τοποθεσίας.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Δεν πληρούνται οι απαιτήσεις άδειας επανακλήσεων κυττάρων. Η χορήγηση τους δεν επιτρέπει την κατάληψη τοποθεσίας.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Η Παθητική Τοποθεσία είναι έτοιμη για συμφιλίωση πηγή-υπόληπτη. Παρέχει ευκαιριακά σημεία, όχι συνέχεια διαδρομής.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Η επιστροφή κλήσεων από το αποτέλεσμα της σάρωσης είναι έτοιμη για συμφιλίωση με τον ιδιοκτήτη της πηγής. Δεν υποσχέθηκε κανενός σάκους ή κλιματισμού.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Οι κλήσεις επιστροφής αλλαγής κυττάρων είναι έτοιμες για συμφιλίωση πηγής-υπόληπτη. Δεν υπόσχεται καμία αναγκαστική αναζωογόνηση.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Η απαιτούμενη πλατφόρμα ή ο πάροχος δεν είναι διαθέσιμος, οπότε η συλλογή παραμένει εκτός.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Αποθηκευμένο· κατάσταση λειτουργίας αναμενόμενη</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Αποθηκεύεται· αναφέρθηκε η λειτουργική διαθεσιμότητα</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Αποθηκευμένο; μη λειτουργικό</string>
+    <string name="settings_location_source_summary">Καταγράψτε τη διαδρομή σας, την απόσταση και την ταχύτητα. Συνήθως το μεγαλύτερο κόστος μπαταρίας.</string>
+    <string name="settings_activity_source_summary">Καταγράφει περπάτημα, ποδηλασία, οδήγηση και ακινησία όλη την ημέρα.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Ακολουθεί τα βήματα όλη μέρα. Τα ταξίδια οργανώνουν την ίδια ιστορία βήματος.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Έλεγχος συλλογής βήματος.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Απενεργοποίηση παρακολούθησης</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Ακλείεται...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Σταματήστε τις συνεδρίες, ηχογραφήση όλης της ημέρας και αυτόματη εκκίνηση. Οι επιλογές σας και τα αποθηκευμένα δεδομένα παραμένουν.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Η καταγραφή είναι απενεργοποιημένη. Οι επιλογές και τα αποθηκευμένα δεδομένα σας διατηρούνται.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Δεν μπορούσα να απενεργοποιήσω την παρακολούθηση. Δοκίμασε ξανά.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Καταγράφει την πίεση του αέρα κατά τη διάρκεια της ημέρας με ειδοποίηση παρακολούθησης.</string>
+    <string name="settings_ambient_activity_ready">Έτοιμο για καταγραφή δραστηριότητας.</string>
+    <string name="settings_ambient_pressure_ready">Έτοιμο για καταγραφή ατμοσφαιρικής πίεσης.</string>
+    <string name="settings_pressure_host_unavailable">Δεν ήταν δυνατή η έναρξη καταγραφής ατμοσφαιρικής πίεσης στο παρασκήνιο.</string>
+    <string name="settings_wifi_source_summary">Καταγράφει κοντά Wi-Fi δίκτυα για να προσθέσει τοπικό πλαίσιο. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="settings_cell_source_summary">Καταγράφει κοντινούς πύργους κινητών για να προσθέσει τοποθεσιακό πλαίσιο. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="settings_location_source_compact">Ο δρόμος, η απόσταση και η ταχύτητα</string>
+    <string name="settings_activity_source_compact">Τύπος κινήσεων και ηρεμία</string>
+    <string name="settings_steps_source_compact">Βήματα όλη μέρα</string>
+    <string name="settings_barometer_source_compact">Υψόμετρο και ύψος</string>
+    <string name="settings_wifi_source_compact">Συγκεκριμένα, το περιεχόμενο του δικτύου</string>
+    <string name="settings_cell_source_compact">Συγκεκριμένο κείμενο</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Τεχνική κατάσταση</string>
+    <string name="settings_technical_status_summary">Εκτίμηση μπαταρίας, άδειες και κατάσταση συλλογής.</string>
+    <string name="settings_technical_status_attention">Μερικές πηγές συλλογής χρειάζονται προσοχή. Ανοίξτε για λεπτομέρειες.</string>
+    <string name="settings_simple_source_controls_title">Χρησιμοποιήστε απλό έλεγχο</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Αυτόματη καταγραφή περπατήματος και τρεξίματος.</string>
     <string name="setup_auto_tracking_in_motion">Σε κίνηση</string>
     <string name="setup_auto_tracking_in_motion_desc">Αυτόματη καταγραφή κάθε κίνησης, συμπεριλαμβανομένης της οδήγησης και της ποδηλασίας.</string>
-    <string name="setup_preset_title">Λεπτομέρεια καταγραφής</string>
+    <string name="settings_auto_tracking_mode_summary">Επιλέξτε ποια κίνηση πρέπει να ξεκινήσει και να σταματήσει αυτόματα τα ταξίδια.</string>
     <string name="setup_recommended">Προτείνεται</string>
     <string name="setup_what_to_collect_title">Τι θα συλλέγεται</string>
     <string name="setup_what_to_collect_subtitle">Περισσότερες επιλογές παρακάτω. Ξεκινήστε την εξερεύνηση χωρίς άδειες ή παραχωρήστε τες αργότερα. Τα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Δραστηριότητα</string>
     <string name="setup_source_activity_desc">Ανίχνευση αν περπατάτε, τρέχετε, κάνετε ποδήλατο ή οδηγείτε.</string>
     <string name="setup_source_steps">Βήματα</string>
-    <string name="setup_source_steps_desc">Μετρήστε τα βήματά σας με το βηματόμετρο της συσκευής.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Ακολουθήστε τα βήματα όλη μέρα. Τα ταξίδια οργανώνουν την ίδια ιστορία.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Χωρίς άμεσο αισθητήρα βήματος. Το Tracker θα ελέγξει αν υπάρχει πηγή βήματος στην συσκευή.</string>
+    <string name="setup_perm_steps_why">Επιτρέψτε πρόσβαση στην κίνηση για μέτρηση βημάτων σε αυτή τη συσκευή όλη την ημέρα.</string>
+    <string name="setup_perm_grant_steps_content_description">Επιτρέψτε πρόσβαση στην κίνηση για τα Βήματα</string>
+    <string name="setup_steps_health_connect_why">Επιτρέψτε τα Βήματα στο Health Connect για να συμπληρώνονται κενά όταν το Tracker είναι κλειστό.</string>
+    <string name="setup_steps_provider_ready">Μια πηγή βημάτων στη συσκευή είναι έτοιμη. Κάποιες περίοδοι μπορεί να έχουν ακόμη κενά.</string>
+    <string name="setup_steps_provider_checking">Έλεγχος διαθέσιμων πηγών βημάτων…</string>
     <string name="setup_source_wifi">Δίκτυα Wi‑Fi</string>
-    <string name="setup_source_wifi_desc">Καταγράψτε κοντινά δίκτυα Wi‑Fi για βελτίωση της ακρίβειας τοποθεσίας.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Καταγραφή των κοντινών δικτύων Wi-Fi, με ή χωρίς εντοπισμό τοποθεσίας.</string>
     <string name="setup_source_cell">Πύργοι κινητής</string>
-    <string name="setup_source_cell_desc">Καταγράψτε πληροφορίες πύργων κινητής για το πλαίσιο τοποθεσίας.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Καταγράψτε τους κοντινούς κινητούς πύργους, με ή χωρίς εντοπισμό τοποθεσίας.</string>
     <string name="setup_perm_location_why">Απαιτείται για καταγραφή των διαδρομών σας και εμφάνισή τους στον χάρτη. Η τοποθεσία παραμένει σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή.</string>
     <string name="setup_perm_location_bg_why">Για να συνεχίσει να καταγράφει τη διαδρομή σας όταν αλλάζετε εφαρμογή ή κλείνει η οθόνη, το Tracker χρειάζεται πρόσβαση στην τοποθεσία σας στο παρασκήνιο. Η καταγεγραμμένη τοποθεσία παραμένει σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή. Στο επόμενο μήνυμα του συστήματος επιλέξτε «Να επιτρέπεται πάντα» για ενεργοποίηση της αυτόματης καταγραφής· η επιλογή «Κατά τη χρήση της εφαρμογής» επιτρέπει στο Tracker να λειτουργεί μόνο όταν η οθόνη του είναι ανοιχτή.</string>
     <string name="setup_perm_activity_why">Επιτρέπει στο Tracker να ανιχνεύει τι κάνετε (περπάτημα, ποδήλατο, οδήγηση, ακινησία), ώστε η αυτόματη καταγραφή να μπορεί να διακόπτεται όταν δεν κινείστε και να εξοικονομεί μπαταρία. Τα δεδομένα δραστηριότητας παραμένουν σε αυτή τη συσκευή — δεν αποστέλλεται τίποτα σε διακομιστή.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Παραχώρηση άδειας ραδιοεπικοινωνίας κινητής</string>
     <string name="setup_perm_granted">Παραχωρήθηκε ✓</string>
     <string name="permission_grant_in_settings">Να επιτρέπεται στις Ρυθμίσεις →</string>
-    <string name="permission_disabled_due_to_denial">Το %1$s απενεργοποιήθηκε επειδή απορρίφθηκε η άδεια. Παραχωρήστε την στις Ρυθμίσεις για ενεργοποίηση.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">Το %1$s έχει επιλεγεί, αλλά δεν μπορεί να εισπράξει μέχρι να χορηγηθεί άδεια.</string>
     <string name="settings_wifi_permission_required">Απαιτείται άδεια Wi‑Fi/τοποθεσίας. Ενεργοποιήστε το για παραχώρηση — δεν καταγράφονται δεδομένα Wi‑Fi έως τότε και τα καταγεγραμμένα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Η πρόσβαση είναι ακόμα απαραίτητη. Οι επιλογές σου κρατούνται.</string>
     <string name="settings_cell_permission_required">Απαιτείται άδεια κατάστασης τηλεφώνου και ακριβούς τοποθεσίας. Ενεργοποιήστε το για παραχώρηση — δεν καταγράφονται δεδομένα κινητής έως τότε και τα καταγεγραμμένα δεδομένα παραμένουν σε αυτή τη συσκευή.</string>
     <string name="settings_barometer_unavailable">Ο αισθητήρας πίεσης δεν είναι διαθέσιμος σε αυτή τη συσκευή.</string>
     <string name="settings_activity_permission_required">Απαιτείται άδεια αναγνώρισης δραστηριότητας. Ενεργοποιήστε το για παραχώρηση.</string>
-    <string name="settings_steps_unavailable">Ο αισθητήρας μετρητή βημάτων δεν είναι διαθέσιμος σε αυτή τη συσκευή.</string>
     <string name="setup_start_exploring">Έναρξη εξερεύνησης</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Τελειώνοντας την εγκατάσταση...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Δοκιμή ξανά</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Δεν μπόρεσα να σώσω την εγκατάσταση. Οι επιλογές σου είναι ακόμα εδώ.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Δεν κατάφερα να προετοιμάσω τα αποθηκευμένα δεδομένα. Οι επιλογές σου είναι ακόμα εδώ.</string>
     <string name="setup_continue">Συνέχεια</string>
     <string name="setup_step_indicator">Βήμα %1$d από %2$d</string>
     <string name="setup_online_tiles_title">Διαδικτυακές ψηφίδες χάρτη;</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Όταν είναι ενεργό, ο πάροχος μπορεί να δει τη διεύθυνση IP σας και ποιες ψηφίδες φορτώνετε — κατά προσέγγιση ποια περιοχή του χάρτη κοιτάζετε. Το Tracker δεν στέλνει ποτέ λογαριασμό, αναγνωριστικό ή ιστορικό τοποθεσίας.</string>
     <string name="setup_online_tiles_change_later">Μπορείτε να το αλλάξετε οποιαδήποτε στιγμή στις Ρυθμίσεις → Χάρτης → Διαδικτυακές ψηφίδες χάρτη.</string>
     <string name="setup_background_access_optional">Προαιρετικό, αλλά συνιστάται. Μπορείτε να το αλλάξετε οποιαδήποτε στιγμή στις Ρυθμίσεις → Καταγραφή.</string>
-    <string name="background_reliability_status_exempt">Επιτρέπεται η δραστηριότητα στο παρασκήνιο</string>
-    <string name="background_reliability_status_optimized">Η βελτιστοποίηση μπαταρίας είναι ενεργή</string>
-    <string name="background_reliability_allow_action">Να επιτρέπεται η δραστηριότητα στο παρασκήνιο</string>
-    <string name="background_reliability_samsung_hint">Οι συσκευές Samsung μπορεί επίσης να τοποθετούν εφαρμογές στις «Εφαρμογές σε αδράνεια». Ανοίξτε τις ρυθμίσεις μπαταρίας, αφαιρέστε το Tracker από τις εφαρμογές σε αδράνεια και ρυθμίστε το να μην τίθεται σε αναστολή.</string>
-    <string name="background_reliability_samsung_action">Άνοιγμα ρυθμίσεων μπαταρίας συσκευής</string>
-    <string name="settings_tracebox_title">Διαγνωστικά σφαλμάτων</string>
-    <string name="settings_tracebox_root_summary">Τοπικά διαγνωστικά σφαλμάτων, ANR και δομής</string>
     <string name="setup_background_location_title">Να επιτρέπεται η τοποθεσία στο παρασκήνιο για αυτόματη καταγραφή</string>
     <string name="setup_background_location_disclosure">Η αυτόματη καταγραφή ξεκινά ενώ το Tracker βρίσκεται στο παρασκήνιο και καταγράφει τη διαδρομή σας ακόμη και όταν η οθόνη του δεν είναι ανοιχτή. Η τοποθεσία παραμένει σε αυτήν τη συσκευή. Στις ρυθμίσεις τοποθεσίας της εφαρμογής, επιλέξτε «%1$s».</string>
     <string name="setup_background_location_open_settings">Άνοιγμα ρυθμίσεων τοποθεσίας</string>
     <string name="setup_background_location_decline">Όχι τώρα</string>
     <string name="setup_background_location_manual_only">Η μη αυτόματη καταγραφή στο προσκήνιο παραμένει διαθέσιμη. Η αυτόματη καταγραφή τοποθεσίας θα παραμείνει απενεργοποιημένη μέχρι να επιτραπεί η τοποθεσία στο παρασκήνιο.</string>
-    <string name="settings_ambient_user_turned_off">Η καταγραφή είναι απενεργοποιημένη. Οι επιλογές και τα αποθηκευμένα δεδομένα σας διατηρούνται.</string>
-    <string name="setup_perm_steps_why">Επιτρέψτε πρόσβαση στην κίνηση για μέτρηση βημάτων σε αυτή τη συσκευή όλη την ημέρα.</string>
-    <string name="setup_perm_grant_steps_content_description">Επιτρέψτε πρόσβαση στην κίνηση για τα Βήματα</string>
-    <string name="setup_steps_health_connect_why">Επιτρέψτε τα Βήματα στο Health Connect για να συμπληρώνονται κενά όταν το Tracker είναι κλειστό.</string>
-    <string name="setup_steps_provider_ready">Μια πηγή βημάτων στη συσκευή είναι έτοιμη. Κάποιες περίοδοι μπορεί να έχουν ακόμη κενά.</string>
-    <string name="setup_steps_provider_checking">Έλεγχος διαθέσιμων πηγών βημάτων…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Ρυθμίσεις παρακολούθησης υπόβαθρου</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android και η πολιτική συσκευής μπορεί να σταματήσει ή να σταματήσει την εργασία του υπόβαθρου. Το Tracker μπορεί να αναφέρει τους περιορισμούς που εκθέτει το Android, αλλά δεν μπορεί να παρακάμψει την κατάσταση Περιορισμένων ή αναγκαστικής στάσης.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Ανακάλυψη περιορισμού υπόβαθρου</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Ανιχνεύεται βελτιστοποίηση μπαταρίας</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Δεν διαπιστώθηκε περιορισμός</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Η κατάσταση περιορισμού δεν είναι διαθέσιμη</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android αναφέρει ότι η δραστηριότητα υπόβαθρου περιορίζεται. Η παρακολούθηση μπορεί να σταματήσει όταν το Tracker δεν είναι ορατό· η εφαρμογή δεν μπορεί να αναιρέσει αυτή την πολιτική.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Το Android αναφέρει ότι το Tracker δεν είναι στη λίστα επιτρεπόμενων μπαταριών. Η διαχείριση της ισχύος μπορεί να καθυστερήσει τις εργασίες υπόβαθρου· η καταχώριση επιτρεπτικών στοιχείων μειώνει τους περιορισμούς, αλλά δεν εγγυάται συνεχή παρακολούθηση.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Το Android δεν αναφέρει κανένα φόντο περιορισμού και το Tracker είναι στην λίστα επιτρεπόμενων μπαταριών. Το σύστημα μπορεί ακόμα να σταματήσει την εφαρμογή, και η βία-stop δεν μπορεί να αναστραφεί.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Το Tracker δεν μπορούσε να διαβάσει κάθε σχετικό σήμα περιορισμού Android. Δεν μπορεί να επιβεβαιωθεί αιτία ή θεραπεία που να είναι ειδική στο προϊόν.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Άνοιξε τις ρυθμίσεις μπαταρίας της εφαρμογής</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Άνοιξε ρυθμίσεις βελτιστοποίησης μπαταρίας</string>
+    <string name="settings_tracebox_title">Διαγνωστικά σφαλμάτων</string>
+    <string name="settings_tracebox_root_summary">Τοπικά διαγνωστικά σφαλμάτων, ANR και δομής</string>
     <string name="settings_tracking_changes_apply_live">Οι αλλαγές ενημερώνουν την τρέχουσα καταγραφή</string>
     <string name="settings_balance_title">Ενέργεια και λεπτομέρεια</string>
     <string name="settings_balance_custom">Προσαρμοσμένες ρυθμίσεις · Επιλογή ισορροπίας</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Λεπτομέρειες · Γενική ισορροπία: %1$s</string>
     <string name="settings_balance_inherit">Χρήση γενικής ισορροπίας</string>
     <string name="settings_balance_summary">Επιλέξτε τη συνήθη ποιότητα για τις επιλεγμένες πηγές. Οι ενεργές συνεδρίες προτιμούν λεπτομέρεια για τις συμμετέχουσες πηγές. Η επιλογή ισορροπίας αντικαθιστά τους παλαιούς ρυθμούς συλλογής· οι επιλογές πηγών, η συγκατάθεση συλλογής στο παρασκήνιο και τα φίλτρα ακρίβειας διατηρούνται.</string>
-    <string name="export_format_portable_steps_desc">Επαληθευμένο ιστορικό βημάτων, κάλυψη και κενά χωρίς συντεταγμένες διαδρομής</string>
-    <string name="export_format_portable_ambient_steps_desc">Βήματα παρασκηνίου, χρόνος δραστηριότητας, ημερομηνίες, κενά κάλυψης και αποθηκευμένη ζώνη ώρας χωρίς συντεταγμένες διαδρομής</string>
-    <string name="export_format_portable_activity_desc">Καταγεγραμμένα διαστήματα κίνησης, βεβαιότητα και κάλυψη χωρίς συντεταγμένες διαδρομής</string>
-    <string name="export_format_portable_pressure_desc">Άμεσες μετρήσεις πίεσης σε hPa, κάλυψη και κενά χωρίς συντεταγμένες διαδρομής</string>
-    <string name="export_sensitivity_portable_title">Εξαγωγή καταγεγραμμένου ιστορικού;</string>
-    <string name="export_sensitivity_portable_steps_message">Αυτό το αρχείο περιέχει αριθμό βημάτων, χρονικά διαστήματα και πληροφορίες κάλυψης. Δεν περιέχει συντεταγμένες διαδρομής. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Αυτό το αρχείο περιέχει βήματα παρασκηνίου, διαστήματα δραστηριότητας, ημερομηνίες, κενά κάλυψης και αποθηκευμένη ζώνη ώρας. Δεν περιέχει συντεταγμένες διαδρομής. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
-    <string name="export_sensitivity_portable_activity_message">Αυτό το αρχείο περιέχει καταγεγραμμένα διαστήματα κίνησης, χρονικά διαστήματα και πληροφορίες κάλυψης. Δεν περιέχει συντεταγμένες διαδρομής. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
-    <string name="export_sensitivity_portable_pressure_message">Αυτό το αρχείο περιέχει μετρήσεις πίεσης και χρονικά διαστήματα που μπορεί να αποκαλύψουν στοιχεία για το περιβάλλον. Δεν περιέχει συντεταγμένες διαδρομής ή βαθμονομημένο υψόμετρο. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
-    <string name="settings_activity_source_summary">Καταγράφει περπάτημα, ποδηλασία, οδήγηση και ακινησία όλη την ημέρα.</string>
-    <string name="settings_ambient_activity_ready">Έτοιμο για καταγραφή δραστηριότητας.</string>
-    <string name="settings_ambient_pressure_ready">Έτοιμο για καταγραφή ατμοσφαιρικής πίεσης.</string>
-    <string name="settings_pressure_host_unavailable">Δεν ήταν δυνατή η έναρξη καταγραφής ατμοσφαιρικής πίεσης στο παρασκήνιο.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Συνέχιση παρακολούθησης</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Δεν μπόρεσα να συνεχίσω την παρακολούθηση. Δοκίμασε ξανά.</string>
 </resources>

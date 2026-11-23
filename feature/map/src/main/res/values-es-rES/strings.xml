@@ -127,7 +127,6 @@
     <string name="settings_map_zoom_buttons_subtitle">Muestra botones + y − en pantalla para ampliar o reducir el mapa cuando el gesto de pellizco es difícil de usar.</string>
     <string name="tips_map_date_range_title">Intervalo de fechas</string>
     <string name="tips_map_my_location_title">Mi ubicación</string>
-    <string name="tips_map_sheet_description">Al tocar o deslizar hacia arriba esta barra se abrirán más opciones para el mapa, incluida la selección de capas y la leyenda.</string>
     <string name="map_search_placeholder">Lat., long., p. ej. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Prueba 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24\"N 2°21\'08\"E</string>
     <string name="map_search_clear">Borrar búsqueda</string>

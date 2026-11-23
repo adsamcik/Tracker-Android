@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordinaadid</string>
     <string name="description_settings">Seadete nupp</string>
     <string name="description_tracking_start">Jälgimise alustamise nupp</string>
-    <string name="description_tracking_stop">Jälgimise peatamise nupp</string>
     <string name="description_tracking_start_no_permission">Jälgimise alustamine — luba on vajalik</string>
     <string name="description_points_today">Täna teenitud punktid: %s</string>
     <string name="description_copy">Kopeeri väärtus</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Seansi kestus</string>
     <string name="duration_value">kestus %s</string>
     <string name="error_nothing_to_track">Lubage vähemalt üks jälgimisvalik (asukoht, sammud või tegevus)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Lülita asukoha teenused sisse, et kasutada aktiveeritud jälgimisallika.</string>
     <string name="hint_customize_notification_show_in_content">Kuva märguande sisus</string>
     <string name="hint_customize_notification_show_in_title">Kuva märguande pealkirjas</string>
     <string name="horizontal_accuracy_title">Horisontaalne täpsus</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker käivitub — asukoht kasutusel</string>
     <string name="notification_starting_without_location">Tracker käivitub</string>
-    <string name="notification_stop">Peata</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Peata %d minutiks</string>
     <string name="notification_stop_til_recharge">Peata kuni laadimiseni</string>
-    <string name="stop_tracking_dialog_title">Kas peatada jälgimine?</string>
     <string name="stop_tracking_dialog_message">Automaatne jälgimine on sisse lülitatud ja võib varsti uue seansi uuesti käivitada, kui te selle lihtsalt peatate.</string>
     <string name="notification_tracker_active_ticker">Teie marsruuti salvestatakse — asukoht kasutusel</string>
     <string name="notification_tracker_active_without_location">Jälgimine ilma asukohata</string>
     <string name="notification_tracking_active">Jälgimine</string>
     <string name="notification_tracking_start_failed_title">Jälgimist ei saanud alustada</string>
     <string name="notification_tracking_start_failed_text">Avage rakendus, et vaadata üle load ja jätkata jälgimist.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Jälgimise ettevalmistamine</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Enne taastamise lõppu ei koguta andmeid.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Jälgimise ettevalmistamine</string>
     <string name="settings_activity_enabled_title">Tegevus</string>
     <string name="settings_cell_enabled_title">Mobiilirakk</string>
     <string name="settings_disabled_recharge_summary">Automaatne jälgimine on keelatud, kuni telefon on ühendatud laadijaga</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Asukoht</string>
     <string name="settings_notification_customize_summary">Muutke, mida ja millises järjekorras jälgimismärguandes kuvatakse.</string>
     <string name="settings_notification_customize_title">Kohanda märguannet</string>
+    <string name="settings_notification_move_up">Liiguta üles</string>
+    <string name="settings_notification_move_down">Liiguta alla</string>
+    <string name="settings_notification_load_failed">Teavituste seadeid ei saanud laadida.</string>
+    <string name="settings_notification_save_failed">Muudatusi ei salvestatud.</string>
+    <string name="settings_notification_retry">Proovi uuesti</string>
     <string name="settings_notification_styled_summary">Kasuta märguannete jaoks oma rakenduse stiilivärvi.</string>
     <string name="settings_notification_styled_title">Värvilised märguanded</string>
     <string name="ski_notification_title">Suusastatistika</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Sammude arv</string>
     <string name="settings_tracking_min_distance_title">Minimaalne vahemaa uuenduste vahel</string>
     <string name="settings_tracking_min_time_title">Minimaalne viivitus uuenduste vahel</string>
-    <string name="settings_tracking_notice_summary">Muudatused jõustuvad, kui taaskäivitate jälgimise</string>
     <string name="settings_tracking_required_accuracy_title">Nõutav asukoha täpsus</string>
     <string name="settings_tracking_title">Jälgimine</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Alusta jälgimist</string>
     <string name="shortcut_start_tracking_long">Alusta asukoha jälgimist</string>
-    <string name="shortcut_stop_tracking">Peata jälgimine</string>
-    <string name="shortcut_stop_tracking_long">Peata asukoha jälgimine</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Lõpeta seanss</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Lõpeta praegune seanss</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Lülita jälgimine välja</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Peata kogu jälgimine ja automaatne käivitamine</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Jälgimismeetmed</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pause automaatne algus</string>
     <string name="speed_title">Kiirus</string>
     <string name="speed_value">kiirus %s</string>
     <string name="battery_title">Aku</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d minut jälgimist</item>
         <item quantity="other">%1$d minutit jälgimist</item>
     </plurals>
-    <string name="insight_exploration_title">Avastaja!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Avastasite %1$d uue ala</item>
         <item quantity="other">Avastasite %1$d uut ala</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Liigu tagasi</string>
     <string name="insight_distance_title">Läbitud vahemaa</string>
     <string name="insight_distance_desc">Läbisite selle seansi jooksul %1$s.</string>
-    <string name="insight_steps_title">Salvestatud sammud</string>
-    <string name="insight_steps_desc">%1$s sammu selle seansi jooksul — jätkake samas vaimus!</string>
     <string name="tracker_measurement_partial">Osaline</string>
 </resources>

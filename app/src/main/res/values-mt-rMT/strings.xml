@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Kopja ta’ riżerva ta’ qabel l-aġġornament esportata</string>
     <string name="settings_migration_backup_export_failure">Ma setgħetx tiġi esportata l-kopja ta’ riżerva ta’ qabel l-aġġornament</string>
     <string name="settings_migration_backup_export_cleanup_required">L-esportazzjoni falliet. Ħassar il-kopja ta’ riżerva parzjalment esportata mill-post magħżul.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">L-importazzjoni ta \' database tal-legacy teħtieġ attenzjoni</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Id-database oriġinali tiegħek għadha fuq din id-disinn. Ipprova mill-ġdid l-importazzjoni biex tiftaħ Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Id-daqs tal-bażi tad-dejta tal-legacy: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Importazzjoni mill-ġdid</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Database tal-egitament tal-esportazzjoni</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Ħassar il-bażi tad-dejta li għadda u tibda mill- ġdid</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Database tal-legacy esportata</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Ma setgħetx tesporta d-database tal-legacy</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">L-esportazzjoni fallet u d-destinazzjoni mhux kompluta ma setgħetx titneħħa. Ħassarha manwalment.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Il-baża tal-bażi tad-dejta tal-legacy</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Verżjoni %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Verżjoni sorsi: %1$d\nImħażen: %2$s\nImportazzjoni: %3$s\nImportazzjoni r-rixxi: %4$d\nRrixxi miżmuma biss fil-kaft: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Importazzjoni kompluta: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Mhux importat</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Importar</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">L-importazzjoni kompluta</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Importazzjoni fallit</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">tħassar il-bażi tad-dejta tal-legacy?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Dan jneħħi b\'mod permanenti %1$s minn dan il- apparat. Id-dejta tal- v27 tiegħek mhix affettwata. Żomm il-kopja esportata jekk aktar tard ikollok bżonn id-database oriġinali.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Database tal-legacy mħassra</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Ma setgħetx tħassar il-bażi tad-dejta tal-legacy</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">It-traċċar tar-ritorn jeħtieġ attenzjoni</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Il-ġbir jibqa\' barra filwaqt li Tracker jikkonċilja b\'mod sikur id-dejta tat-traċċar tiegħu. Ipprova mill- ġdid mingħajr ma tħassar l- istorja.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Ipprova mill-ġdid ir-rieżistenza tat-traċċar</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Database ta \' żvilupp jeħtieġ backup manwali</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker sabu database ta\' żvilupp ta\' verżjoni 28 mhux mibgħuta li ma taqbilx ma\' din il-bini. Il-karatteristiċi tat-traċċar u d-database jibqgħu off, u l-fajl tad-database ġie mħallat bla bidla. Iġib backup tad-dejta tal- app jew il- database qabel ma tissostitwixxi jew tiswija din l- installazzjoni ta \' żvilupp.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Id-database teħtieġ attenzjoni</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker ma setgħetx tidentifika jew tivvalida b\'mod sikur din id-database. Il-karatteristiċi tat-traċċar u d-database jibqgħu off, u l-fajl tad-database ġie mħallat bla bidla. Ikklikkja fuq il- back up tad- data tal- app jew il- database qabel ma tipprova tirkupra manwalment.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Il-bażi tad-data hija temporanjament mhux disponibbli</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Il-karatteristiċi tat-traċċar u tad-database jibqgħu off waqt li Tracker jerġa\' jitħaddem b\'mod sikur. L- ebda dejta ma ġiet mħassra. Ipprova mill-ġdid issa biex tiċċekkja jekk il- problema tal- qtugħ temporanju jew il- ħażna ma tkunx ġietx.</string>
     <string name="settings_delete_data_success">Id-dejta miġbura kollha tħassret</string>
     <string name="settings_delete_data_failure">Ma setgħetx titħassar id-dejta miġbura kollha</string>
     <string name="settings_game_goals_title">Miri</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Qed jitgħabba l-issettjar tal-logħba…</string>
     <string name="settings_game_load_error">L-issettjar tal-logħba ma setax jitgħabba. Erġa’ pprova.</string>
     <string name="settings_map_info_hint">Dan l-issettjar jikkontrolla l-kwalità tal-viżwalizzazzjoni u l-prestazzjoni tal-mappa. Ħafna utenti jistgħu jużaw il-valuri awtomatiċi.</string>
+    <string name="settings_map_offline_data_section">Data tal-mappa offline</string>
     <string name="settings_map_online_tiles_section_title">Madum tal-mappa fuq l-internet</string>
     <string name="settings_map_online_tiles_enable_title">Uża madum tal-mappa fuq l-internet</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Mitfi — tintuża biss il-mappa bażi integrata mingħajr konnessjoni. Ebda talbiet tan-netwerk.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Personalizzat</string>
     <string name="tracking_preset_custom_description">Aġġusta manwalment kull parametru tat-traċċar</string>
     <string name="tracking_preset_selector_subtitle">Agħżel profil minn fejn tibda, imbagħad irfina kwalunkwe issettjar hawn taħt.</string>
+    <string name="tracking_preset_change">Ikompara l-għażliet</string>
+    <string name="tracking_preset_done">Ara biss magħżula</string>
     <string name="tracking_preset_customized_summary">Irfinajt it-traċċar. Agħżel profil hawn fuq biex tirrisettja.</string>
+    <string name="settings_tracking_section_start_stop">Traċċar awtomatiku</string>
+    <string name="settings_tracking_section_battery_detail">Il-kwalità tat-traċċar</string>
+    <string name="settings_tracking_section_data_collected">Id-data miġbura</string>
     <string name="settings_tracking_section_detail">Ġbir tal-post</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Vjaġġi barra (fakultattivi)</string>
     <string name="settings_tracking_section_notifications">Notifiki</string>
+    <string name="settings_transition_detection_friendly_title">Tfittxija tal-moviment effiċjenti tal-batterija</string>
+    <string name="settings_transition_detection_friendly_summary">Uża t-tibdiliet ta\' attività Android biex tevita kontrolli ta\' sfond frekwenti. Il- bidu awtomatiku jista\' jirreaġixxi ftit aktar bil- mod.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">It-traċċar awtomatiku ma jkunx disponibbli</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">L- għażla tal- mod awtomatiku tiegħek hija msejsa. Il-permess għar-rikonoxximent tal-attività huwa meħtieġ qabel ma l-bidu awtomatiku jista\' jopera.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Agħżel x\'għandek tirrekordja bejn il- vjaġġi.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi vjaġġi barra</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Vjaġġi barra taċ-ċellola</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Bejn l- vjaġġi.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Salvata bħala fuq. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Il-kopertura tal-vjaġġ barra hija opportunistika u tista\' tinkludi permisjonijiet, fornitur, proċess, reboot, jew ħruġ tal-OS. Tracker ma jitlobx li l-ġbir jibqa\' dejjem għaddej jew ma jinvintax perjodu ta\' żamma.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Il-ġbir jibqa\' barra minħabba li l-politika ta\' żamma tal-prodott għad mhix disponibbli.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Iċċekkja l-ġbir...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Il-ġbir huwa f\'saħħtu mit-tħaddim attwali.</string>
+    <string name="settings_ambient_user_turned_off">It-traċċar huwa mitfi. L-għażliet u d-data salvata tiegħek jinżammu.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Ħalli aċċess għall-għadd tal-passi f’Health Connect biex timla l-lakuni fl-istorja tal-passi meta Tracker ikun magħluq.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Agħmel aċċess għall-għadd tal-passi f\'Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Ma setgħetx tiċċekkja l-aċċess Health Connect. Ipprova mill-ġdid.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">L-għadd tal-passi jista’ jiġi importat waqt li Tracker ikun qed jaħdem. L-aċċess fl-isfond jista’ jnaqqas il-lakuni fl-istorja tal-passi.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">M\' hemm l- ebda fornitur ta \' pass ta \' kuljum appoġġjat disponibbli.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Aġġorna Health Connect sabiex Tracker jista \'jaqa\' l-għadd tal-passi.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Ma setgħetx tiċċekkja l-fornitur tal-passi. Ipprova mill-ġdid aktar tard.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Agħti l- permess tal- attività fiżika biex tiċċekkja passi fuq dan l- apparat.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Ir- reġistrazzjoni tal- passi mhix disponibbli fuq dan il- apparat.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect huwa lest. Xi perjodi jistgħu jkunu għadhom b\'vaċċini.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Ir-reġistrazzjoni tal-passi hi lesta. Xi perjodi jistgħu jkunu għadhom b\'vaċċini.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Jeħtieġ aċċess għall-post fl-isfond biex jinġabar il-post bejn is-sessjonijiet. Is-setting tar-reġistrazzjoni waqt is-sessjonijiet jibqa’ l-istess.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Il-ħtiġijiet ta\' permess ta\' skanning Android ⁇ s Wi-Fi ma jkunux sodisfatti. L-għoti tagħhom ma jippermettix il-qbid tal-Lokazzjoni.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Ir-rekwiżiti tal- permess ta \' callback taċ- ċelluli mhumiex issodisfati. L-għoti tagħhom ma jippermettix il-qbid tal-Lokazzjoni.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Il-Posizzjoni Passiva hi lesta għall-konciliazzjoni bejn is-sors u s-sid. Dan jipprovdi punti opportunistiċi, mhux kontinwità tat-triq.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Callbacks tar-riżultat tal-iskanazzjoni huma lesti għall-konciliazzjoni tas-sors-sid. L- ebda skanning jew kadenza ta \' waqfien hija promessa.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Il- callbacks tal- bidla taċ- ċelloli kkwalifikati b\' timestamp tal- ħin huma lesti għall- rikonċiljazzjoni bejn is- sors u s- sid. L- ebda kadenza ta\' rinfurzar obbligata ma hi promessa.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Il-pjattaforma jew il-fornitur meħtieġ mhumiex disponibbli, u għalhekk il-ġbir jibqa\' barra.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Imħassra barra; status operattiv pendenti</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Imħares fuq; Disponibbiltà operattiva rrappurtata</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Imħażen fuq; mhux operattiv</string>
+    <string name="settings_location_source_summary">Irreġistra l- rotta tiegħek, id- distanza, u l- veloċità. Normalment l-akbar spiża tal-batterija.</string>
+    <string name="settings_activity_source_summary">Jirreġistra l-mixi, iċ-ċikliżmu, is-sewqan u n-nuqqas ta’ moviment matul il-ġurnata.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Jissorvelja passi matul il-jum. Il- vjaġġi jorganizzaw l- istess storja tal- passi.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Iċċekkja l-ġbir tal-passi.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Itfi t-traċċar</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Nixfu...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Sessioni stop, reġistrazzjoni ta \'kuljum u tibda awtomatikament. L-għażliet tiegħek u d-data msejsa jibqgħu.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">It-traċċar huwa mitfi. L-għażliet u d-data salvata tiegħek jinżammu.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Ma stajtx nagħlaq it-traċċar. Ipprova mill-ġdid.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Irreġistra l-pressjoni tal-arja matul il-jum b\'avviż ta\' segwitu.</string>
+    <string name="settings_ambient_activity_ready">Ir-reġistrazzjoni tal-attività hija lesta.</string>
+    <string name="settings_ambient_pressure_ready">Ir-reġistrazzjoni tal-pressjoni tal-arja hija lesta.</string>
+    <string name="settings_pressure_host_unavailable">Ir-reġistrazzjoni tal-pressjoni tal-arja fl-isfond ma setgħetx tibda.</string>
+    <string name="settings_wifi_source_summary">Rekords fil- viċin Wi-Fi netwerks biex iżidu l-kuntest lokali. Id-dejta tibqa\' fuq dan il- apparat.</string>
+    <string name="settings_cell_source_summary">Irreġistra t- torrijiet ċellulari viċin biex iżżid il- kuntest tal- post. Id-dejta tibqa\' fuq dan il- apparat.</string>
+    <string name="settings_location_source_compact">It-triq, id-distanza u l-veloċità</string>
+    <string name="settings_activity_source_compact">It-tip ta\' moviment u l-istanti</string>
+    <string name="settings_steps_source_compact">Pass matul il-jum</string>
+    <string name="settings_barometer_source_compact">Altitudni u elevazzjoni</string>
+    <string name="settings_wifi_source_compact">Il-kuntest tan-netwerk viċin</string>
+    <string name="settings_cell_source_compact">Kontext tal-torri qrib</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Stat tekniku</string>
+    <string name="settings_technical_status_summary">L-istima tal-batterija, il-permessi, u l-istatus tal-ġbir.</string>
+    <string name="settings_technical_status_attention">Xi sorsi taʼ ġbir jeħtieġu attenzjoni. Ħu miftuħ għal dettalji.</string>
+    <string name="settings_simple_source_controls_title">Uża kontrolli sempliċi</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Traċċa awtomatikament il-mixi u l-ġiri.</string>
     <string name="setup_auto_tracking_in_motion">Waqt il-moviment</string>
     <string name="setup_auto_tracking_in_motion_desc">Traċċa awtomatikament il-moviment kollu inkluż is-sewqan u ċ-ċikliżmu.</string>
-    <string name="setup_preset_title">Dettall tat-traċċar</string>
+    <string name="settings_auto_tracking_mode_summary">Agħżel liema moviment għandu jibda u jwaqqaf il- vjaġġi awtomatikament.</string>
     <string name="setup_recommended">Rakkomandat</string>
     <string name="setup_what_to_collect_title">X’għandek tiġbor</string>
     <string name="setup_what_to_collect_subtitle">Aktar għażliet hawn taħt. Ibda tesplora mingħajr permessi jew agħtihom aktar tard. Id-dejta tibqa’ fuq dan it-tagħmir.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Attività</string>
     <string name="setup_source_activity_desc">Induna jekk tkunx miexi, tiġri, tirkeb rota jew issuq.</string>
     <string name="setup_source_steps">Passi</string>
-    <string name="setup_source_steps_desc">Għodd il-passi tiegħek bl-użu tal-pedometer tat-tagħmir.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Issegwi l- passi matul il- jum. Il- vjaġġi jorganizzaw l- istess storja.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">L-ebda sensur tal-passi diretti. Tracker se jivverifika għal sors ta\' pass fuq il-mezz.</string>
+    <string name="setup_perm_steps_why">Ħalli l-aċċess għall-moviment biex jingħaddu l-passi fuq dan l-apparat matul il-jum.</string>
+    <string name="setup_perm_grant_steps_content_description">Ħalli l-aċċess għall-moviment għall-Passi</string>
+    <string name="setup_steps_health_connect_why">Ħalli l-Passi f\'Health Connect biex jimtlew il-lakuni meta Tracker ikun magħluq.</string>
+    <string name="setup_steps_provider_ready">Sors ta\' passi fuq l-apparat huwa lest. Xi perjodi xorta jista\' jkollhom lakuni.</string>
+    <string name="setup_steps_provider_checking">Qed jiġu ċċekkjati s-sorsi tal-passi disponibbli…</string>
     <string name="setup_source_wifi">Netwerks WiFi</string>
-    <string name="setup_source_wifi_desc">Irreġistra netwerks WiFi fil-qrib biex ittejjeb il-preċiżjoni tal-post.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Irreġistra n-netwerks Wi-Fi viċin, b\'traċċar tal-pożizzjoni jew mingħajrha.</string>
     <string name="setup_source_cell">Torrijiet taċ-ċelloli</string>
-    <string name="setup_source_cell_desc">Irreġistra informazzjoni tat-torri ċellulari għall-kuntest tal-post.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Irreġistra t-torri ċellulari viċin, b\'traċċar tal-post jew mingħajrha.</string>
     <string name="setup_perm_location_why">Meħtieġ biex tirreġistra r-rotot tiegħek u turihom fuq il-mappa. Il-post jibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server.</string>
     <string name="setup_perm_location_bg_why">Biex tkompli tirreġistra r-rotta tiegħek meta tibdel l-applikazzjonijiet jew jintefa l-iskrin, Tracker jeħtieġ jaċċessa l-post tiegħek fl-isfond. Il-post irreġistrat jibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server. Fit-talba tas-sistema li jmiss agħżel “Ħalli l-ħin kollu” biex tattiva t-traċċar awtomatiku; “Waqt li tuża l-applikazzjoni” iżomm lil Tracker jaħdem biss meta l-iskrin tiegħu jkun miftuħ.</string>
     <string name="setup_perm_activity_why">Jħalli lil Tracker jinduna x’qed tagħmel (mixi, ċikliżmu, sewqan, wieqaf) sabiex it-traċċar awtomatiku jkun jista’ jieqaf meta ma tkunx miexi u jiffranka l-batterija. Id-dejta tal-attività tibqa’ fuq dan it-tagħmir — xejn ma jintbagħat lil server.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Agħti l-permess għar-radju ċellulari</string>
     <string name="setup_perm_granted">Mogħti ✓</string>
     <string name="permission_grant_in_settings">Ħalli fl-issettjar →</string>
-    <string name="permission_disabled_due_to_denial">%1$s diżattivat minħabba li l-permess ġie miċħud. Agħtih fl-issettjar biex tattiva.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s huwa magħżul iżda ma jistax jiġbor sakemm tingħata l-awtorizzazzjoni.</string>
     <string name="settings_wifi_permission_required">Jeħtieġ il-permess Wi-Fi/post. Aqleb għal mixgħul biex tagħtih — ebda dejta Wi-Fi ma tiġi rreġistrata qabel, u d-dejta rreġistrata tibqa’ fuq dan it-tagħmir.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">L-aċċess għadu meħtieġ. L- għażliet tiegħek huma miżmuma.</string>
     <string name="settings_cell_permission_required">Jeħtieġ il-permess tal-istat tat-telefon u tal-post preċiż. Aqleb għal mixgħul biex tagħtih — ebda dejta ċellulari ma tiġi rreġistrata qabel, u d-dejta rreġistrata tibqa’ fuq dan it-tagħmir.</string>
     <string name="settings_barometer_unavailable">Is-sensur tal-pressjoni mhuwiex disponibbli fuq dan it-tagħmir.</string>
     <string name="settings_activity_permission_required">Jeħtieġ il-permess għar-rikonoxximent tal-attività. Aqleb għal mixgħul biex tagħtih.</string>
-    <string name="settings_steps_unavailable">Is-sensur tal-għadd tal-passi mhuwiex disponibbli fuq dan it-tagħmir.</string>
     <string name="setup_start_exploring">Ibda tesplora</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">It-tlestija tal-istruttura...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Erġa’ pprova</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Ma setgħetx tiffranka s-settjar. L-għażliet tiegħek għadhom hawn.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Ma setgħetx tipprepara d-dejta msejsa. L-għażliet tiegħek għadhom hawn.</string>
     <string name="setup_continue">Kompli</string>
     <string name="setup_step_indicator">Pass %1$d minn %2$d</string>
     <string name="setup_online_tiles_title">Madum tal-mappa online?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Meta jkun attivat, il-fornitur jista’ jara l-indirizz IP tiegħek u liema madum tgħabbi — bejn wieħed u ieħor liema żona tal-mappa qed tara. Tracker qatt ma jibgħat kont, identifikatur jew l-istorja tal-post tiegħek.</string>
     <string name="setup_online_tiles_change_later">Tista’ tibdel dan fi kwalunkwe ħin fl-Issettjar → Mappa → Madum tal-mappa online.</string>
     <string name="setup_background_access_optional">Fakultattiv, iżda rakkomandat. Tista’ tibdel dan fi kwalunkwe ħin fl-Issettjar → Traċċar.</string>
-    <string name="background_reliability_status_exempt">Attività fl-isfond permessa</string>
-    <string name="background_reliability_status_optimized">L-ottimizzazzjoni tal-batterija mixgħula</string>
-    <string name="background_reliability_allow_action">Ħalli attività fl-isfond</string>
-    <string name="background_reliability_samsung_hint">Apparat Samsung jista’ wkoll ipoġġi apps f’“Apps rieqda”. Iftaħ l-issettjar tal-batterija, imbagħad neħħi Tracker minn Apps rieqda u issettjah biex ma jorqodx.</string>
-    <string name="background_reliability_samsung_action">Iftaħ l-issettjar tal-batterija tat-tagħmir</string>
-    <string name="settings_tracebox_title">Dijanjostiċi tal-waqgħat</string>
-    <string name="settings_tracebox_root_summary">Dijanjostiċi lokali tal-waqgħat, ANR u struttura</string>
     <string name="setup_background_location_title">Ħalli l-post fl-isfond għat-traċċar awtomatiku</string>
     <string name="setup_background_location_disclosure">It-traċċar awtomatiku jibda waqt li Tracker ikun fl-isfond u jirreġistra r-rotta tiegħek anki meta l-iskrin tal-app ma jkunx miftuħ. Id-data tal-post tibqa’ fuq dan l-apparat. Fis-settings tal-post tal-app, agħżel “%1$s”.</string>
     <string name="setup_background_location_open_settings">Iftaħ is-settings tal-post</string>
     <string name="setup_background_location_decline">Mhux issa</string>
     <string name="setup_background_location_manual_only">It-traċċar manwali fit-tagħrif ta’ quddiem jibqa’ disponibbli. It-traċċar awtomatiku tal-post jibqa’ mitfi sakemm il-post fl-isfond jiġi permess.</string>
-    <string name="settings_ambient_user_turned_off">It-traċċar huwa mitfi. L-għażliet u d-data salvata tiegħek jinżammu.</string>
-    <string name="setup_perm_steps_why">Ħalli l-aċċess għall-moviment biex jingħaddu l-passi fuq dan l-apparat matul il-jum.</string>
-    <string name="setup_perm_grant_steps_content_description">Ħalli l-aċċess għall-moviment għall-Passi</string>
-    <string name="setup_steps_health_connect_why">Ħalli l-Passi f\'Health Connect biex jimtlew il-lakuni meta Tracker ikun magħluq.</string>
-    <string name="setup_steps_provider_ready">Sors ta\' passi fuq l-apparat huwa lest. Xi perjodi xorta jista\' jkollhom lakuni.</string>
-    <string name="setup_steps_provider_checking">Qed jiġu ċċekkjati s-sorsi tal-passi disponibbli…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Settings ta\' traċċar ta\' sfond</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android u l-politika tad-disposizzjoni tista \' twaqqaf jew twaqqaf ix-xogħol ta\' sfond. Tracker jista\' jirrapporta r-restrizzjonijiet li Android espone, iżda ma jistax jirrevoka l-istat Restricted jew Force-Stop.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Ristrikzzjoni ta\' sfond detettata</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Ottimizzazzjoni tal-batterija detettata</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">L-ebda restrizzjoni ma ġiet iddetekwata</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Stat ta\' restrizzjoni mhux disponibbli</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android jirrapporta li l-attività ta\' sfond hija Restritta. It-traċċar jista\' jitwaqqaf meta Tracker ma jkunx viżibbli; l-app ma tistax tirrevedi din il-politika.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android jirrapporta li Tracker mhuwiex fuq il- lista tal- batteriji. Il-ġestjoni tal-enerġija tista\' tdewwem ix-xogħol ta\' sfond; il-lista ta\' permess tnaqqas ir-restrizzjonijiet iżda ma tiggarantixxix traċċar kontinwu.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ma jirrapporta l- ebda restrizzjoni ta \' l- isfond u Tracker huwa fuq il- lista ta \' permess tal- batterja. Is- sistema xorta tista\' twaqqaf l- app, u l- forza stop ma tistax tiġi overridden.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker ma setax jaqra kull sinjal rilevanti ta\' restrizzjoni ta\' Android. L- ebda kawża jew rimedju speċifiku għall- apparat ma jista \' jiġi kkonfermat.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Setting tal-batterija tal-app miftuħa</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Settings ta \' ottimizzazzjoni tal-batterija miftuħa</string>
+    <string name="settings_tracebox_title">Dijanjostiċi tal-waqgħat</string>
+    <string name="settings_tracebox_root_summary">Dijanjostiċi lokali tal-waqgħat, ANR u struttura</string>
     <string name="settings_tracking_changes_apply_live">Il-bidliet jaġġornaw it-traċċar kurrenti</string>
     <string name="settings_balance_title">Enerġija u dettall</string>
     <string name="settings_balance_custom">Settings personalizzati · Agħżel bilanċ</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Dettalji · Bilanċ ġenerali: %1$s</string>
     <string name="settings_balance_inherit">Uża l-bilanċ ġenerali</string>
     <string name="settings_balance_summary">Agħżel il-kwalità tas-soltu għas-sorsi magħżula. Is-sessjonijiet attivi jippreferu d-dettall għas-sorsi li jieħdu sehem. L-għażla ta\' bilanċ tissostitwixxi r-rati ta\' ġbir antiki; l-għażliet tas-sorsi, il-kunsens għall-ġbir fl-isfond u l-filtri tal-preċiżjoni jinżammu.</string>
-    <string name="export_format_portable_steps_desc">Storja tal-passi vverifikata, kopertura u lakuni mingħajr koordinati tar-rotta</string>
-    <string name="export_format_portable_ambient_steps_desc">Passi fl-isfond, ħin ta\' attività, dati, lakuni fil-kopertura u żona tal-ħin salvata mingħajr koordinati tar-rotta</string>
-    <string name="export_format_portable_activity_desc">Intervalli ta\' moviment irreġistrati, kunfidenza u kopertura mingħajr koordinati tar-rotta</string>
-    <string name="export_format_portable_pressure_desc">Kejl dirett tal-pressjoni f\'hPa, kopertura u lakuni mingħajr koordinati tar-rotta</string>
-    <string name="export_sensitivity_portable_title">Tesporta l-istorja rreġistrata?</string>
-    <string name="export_sensitivity_portable_steps_message">Dan il-fajl fih għadd ta\' passi, intervalli ta\' ħin u informazzjoni dwar il-kopertura. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Dan il-fajl fih passi fl-isfond, intervalli ta\' attività, dati, lakuni fil-kopertura u żona tal-ħin salvata. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
-    <string name="export_sensitivity_portable_activity_message">Dan il-fajl fih intervalli ta\' moviment irreġistrati, intervalli ta\' ħin u informazzjoni dwar il-kopertura. Ma fihx koordinati tar-rotta. Kompli biss jekk tafda d-destinazzjoni.</string>
-    <string name="export_sensitivity_portable_pressure_message">Dan il-fajl fih kejl tal-pressjoni u intervalli ta\' ħin li jistgħu jiżvelaw informazzjoni dwar l-ambjent. Ma fihx koordinati tar-rotta jew altitudni kkalibrata. Kompli biss jekk tafda d-destinazzjoni.</string>
-    <string name="settings_activity_source_summary">Jirreġistra l-mixi, iċ-ċikliżmu, is-sewqan u n-nuqqas ta’ moviment matul il-ġurnata.</string>
-    <string name="settings_ambient_activity_ready">Ir-reġistrazzjoni tal-attività hija lesta.</string>
-    <string name="settings_ambient_pressure_ready">Ir-reġistrazzjoni tal-pressjoni tal-arja hija lesta.</string>
-    <string name="settings_pressure_host_unavailable">Ir-reġistrazzjoni tal-pressjoni tal-arja fl-isfond ma setgħetx tibda.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Kompli t-traċċar</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Ma setgħux jerġgħu jsegwu. Ipprova mill-ġdid.</string>
 </resources>

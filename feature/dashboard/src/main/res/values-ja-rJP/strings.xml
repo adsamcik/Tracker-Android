@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">セッションを終了しています…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · 一部</string>
     <string name="dashboard_title">ダッシュボード</string>
     <string name="dashboard_tracking_title">トラッキング</string>
     <string name="dashboard_recording">記録中</string>
@@ -20,7 +22,6 @@
         <item quantity="other">連続記録: %1$d日。タップして連続記録の詳細を表示</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">連続記録を始めましょう。タップして連続記録の詳細を表示</string>
-    <string name="dashboard_cd_stop_tracking">トラッキングを停止</string>
     <string name="dashboard_action_enable_location">位置情報へのアクセスを有効化</string>
     <string name="dashboard_action_view_details">詳細を表示</string>
     <string name="dashboard_action_view_map">地図を表示</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">永続保存された歩数履歴を準備しています…</string>
     <string name="dashboard_live_steps_missing">有効な歩数の観測を待っています</string>
     <string name="dashboard_live_steps_unavailable">永続保存された歩数履歴を利用できません</string>
+    <string name="dashboard_metric_pressure">気圧</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">範囲 %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">変化 %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">保存されたタイムゾーン: %1$s</string>
     <string name="dashboard_milestone_distance">km到達！</string>
     <string name="dashboard_milestone_steps">歩到達！</string>
     <string name="dashboard_milestone_time">分を記録！</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">前回のセッション</string>
     <string name="dashboard_last_session_duration">時間</string>
     <string name="dashboard_last_session_distance">距離</string>
-    <string name="dashboard_last_session_steps">歩数</string>
     <string name="dashboard_last_session_view_map">地図を表示</string>
     <string name="dashboard_recent_trips_title">最近のトラッキング</string>
     <string name="dashboard_recent_trips_empty">最近のトラッキングセッションはありません。トラッキングを開始すると、ここに表示されます。</string>
     <string name="dashboard_recent_history_loading">最近のトラッキングを読み込み中…</string>
     <string name="dashboard_recent_history_unavailable">最近のトラッキングは利用できません</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s 履歴は利用できません</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">ソースリケンス権限は利用できません</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">保存されたソース証拠の瞬間の写真は利用できません</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">制限されたソース履歴は安全に終わることができませんでした</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">保存されたソース履歴 完整性のチェックが失敗</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">物理史の会員登録は確認できなかった</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">位置情報</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">セル</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">アクティビティ</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">歩数</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">気圧</string>
     <string name="dashboard_recent_steps_title">歩数セッション</string>
     <string name="dashboard_recent_steps_available">歩数履歴を利用できます</string>
     <string name="dashboard_recent_steps_materializing">歩数履歴を準備中…</string>
     <string name="dashboard_recent_steps_partial">一部の歩数履歴</string>
+    <string name="dashboard_recent_pressure_title">気圧セッション</string>
+    <string name="dashboard_recent_pressure_available">気圧履歴を利用できます</string>
+    <string name="dashboard_recent_pressure_materializing">気圧履歴を準備中…</string>
+    <string name="dashboard_recent_pressure_partial">気圧履歴は一部のみです</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">圧力の履歴が削除</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">圧力の履歴は確認できませんでした</string>
+    <string name="dashboard_recent_pressure_unavailable">気圧履歴を利用できません</string>
+    <string name="dashboard_recent_pressure_failed">気圧履歴を準備できませんでした</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · 範囲 %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">変化 %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">保存された記録範囲がありません</string>
+    <string name="dashboard_pressure_coverage_complete">全範囲を記録</string>
+    <string name="dashboard_pressure_coverage_partial">一部の範囲を記録</string>
+    <string name="dashboard_pressure_coverage_unknown">記録範囲を確認できません</string>
+    <string name="dashboard_recent_activity_title">アクティビティセッション</string>
+    <string name="dashboard_recent_activity_ready">アクティビティ履歴を利用できます</string>
+    <string name="dashboard_recent_activity_materializing">アクティビティ履歴を準備中…</string>
+    <string name="dashboard_recent_activity_partial">アクティビティ履歴は一部のみです</string>
+    <string name="dashboard_recent_activity_unavailable">アクティビティ履歴を利用できません</string>
+    <string name="dashboard_recent_activity_failed">アクティビティ履歴を確認できませんでした</string>
+    <string name="dashboard_recent_activity_summary">%1$s · 活動時間 %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi 会議</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">セルセッション</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">捕獲されたWi-Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">捕獲された携帯電話ラジオ</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">本議会議の情報源</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">このセッションでは位置が記録されていません経路,距離,速度,高度は利用できません</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">確認された%1$s履歴は利用できません.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">この装置で捕まった</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">輸入された保存された証拠</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">保存されたラジオ史を準備する...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">部分保存されたラジオ史</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">保存されているラジオ履歴</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">ラジオ履歴不可</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">資格のある無線証拠がない</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">保存されたラジオ履歴が削除された</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">ラジオ履歴は確認できませんでした</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">ラジオ履歴確認が失敗</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">確認済みの記録範囲がありません</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">部分的に検証されたカバー</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">完全な検証されたカバー</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">記録範囲を確認できません</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">保存されたラジオ観測を待っている</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">無線観測は保存されていません</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">保存されたソース証拠は削除されました</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">保存された証拠は安全に提示できない</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">場所 経路 距離 速度 標高 は この 源 の 歴史 の 一部 で は ない.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 保存されたスキャン結果</item>
+        <item quantity="other">%1$d 保存されたスキャン結果</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 保存されたラジオ記録</item>
+        <item quantity="other">%1$d 保存されたラジオ記録</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 保存された配達</item>
+        <item quantity="other">%1$d 残された配達</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 配送は部分的な結果</item>
+        <item quantity="other">%1$d 配達結果は部分的な結果</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">記録されたアクティビティ</string>
+    <string name="dashboard_live_activity_movement">最後に記録された動き</string>
+    <string name="dashboard_live_activity_active_time">活動時間</string>
+    <string name="dashboard_live_activity_gaps">確認された欠落: %1$d</string>
+    <string name="dashboard_activity_coverage_none">確認済みの記録範囲がありません</string>
+    <string name="dashboard_activity_coverage_partial">一部の範囲を記録</string>
+    <string name="dashboard_activity_coverage_complete">全範囲を記録</string>
+    <string name="dashboard_activity_still">静止</string>
+    <string name="dashboard_activity_walking">歩行</string>
+    <string name="dashboard_activity_running">ランニング</string>
+    <string name="dashboard_activity_cycling">サイクリング</string>
+    <string name="dashboard_activity_vehicle">乗り物内</string>
+    <string name="dashboard_activity_on_foot">徒歩</string>
+    <string name="dashboard_activity_tilting">傾き</string>
+    <string name="dashboard_activity_unknown">不明なアクティビティ</string>
     <string name="dashboard_exploration_title">探索</string>
     <string name="dashboard_exploration_new_today">今日の新規</string>
     <string name="dashboard_exploration_total_cells">合計セル数</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">トラッキングを開始</string>
     <string name="dashboard_ring_enable_location">位置情報を有効化</string>
     <string name="dashboard_pill_start">開始</string>
-    <string name="dashboard_pill_stop">停止</string>
     <string name="dashboard_pill_enable_location">位置情報を有効化</string>
     <string name="dashboard_insights_title">セッションの分析</string>
     <string name="dashboard_cd_insight_item">分析: %1$s</string>
     <string name="widget_latest_achievement">最新の実績</string>
     <string name="dashboard_latest_achievement_title">最新の実績</string>
     <string name="dashboard_latest_achievement_empty">トラッキングを続けて最初の実績を解除しましょう</string>
-    <string name="dashboard_metric_pressure">気圧</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">範囲 %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">変化 %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">保存されたタイムゾーン: %1$s</string>
-    <string name="dashboard_recent_pressure_title">気圧セッション</string>
-    <string name="dashboard_recent_pressure_available">気圧履歴を利用できます</string>
-    <string name="dashboard_recent_pressure_materializing">気圧履歴を準備中…</string>
-    <string name="dashboard_recent_pressure_partial">気圧履歴は一部のみです</string>
-    <string name="dashboard_recent_pressure_unavailable">気圧履歴を利用できません</string>
-    <string name="dashboard_recent_pressure_failed">気圧履歴を準備できませんでした</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · 範囲 %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">変化 %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">保存された記録範囲がありません</string>
-    <string name="dashboard_pressure_coverage_complete">全範囲を記録</string>
-    <string name="dashboard_pressure_coverage_partial">一部の範囲を記録</string>
-    <string name="dashboard_pressure_coverage_unknown">記録範囲を確認できません</string>
-    <string name="dashboard_recent_activity_title">アクティビティセッション</string>
-    <string name="dashboard_recent_activity_ready">アクティビティ履歴を利用できます</string>
-    <string name="dashboard_recent_activity_materializing">アクティビティ履歴を準備中…</string>
-    <string name="dashboard_recent_activity_partial">アクティビティ履歴は一部のみです</string>
-    <string name="dashboard_recent_activity_unavailable">アクティビティ履歴を利用できません</string>
-    <string name="dashboard_recent_activity_failed">アクティビティ履歴を確認できませんでした</string>
-    <string name="dashboard_recent_activity_summary">%1$s · 活動時間 %2$s</string>
-    <string name="dashboard_live_activity_title">記録されたアクティビティ</string>
-    <string name="dashboard_live_activity_movement">最後に記録された動き</string>
-    <string name="dashboard_live_activity_active_time">活動時間</string>
-    <string name="dashboard_live_activity_gaps">確認された欠落: %1$d</string>
-    <string name="dashboard_activity_coverage_none">確認済みの記録範囲がありません</string>
-    <string name="dashboard_activity_coverage_partial">一部の範囲を記録</string>
-    <string name="dashboard_activity_coverage_complete">全範囲を記録</string>
-    <string name="dashboard_activity_still">静止</string>
-    <string name="dashboard_activity_walking">歩行</string>
-    <string name="dashboard_activity_running">ランニング</string>
-    <string name="dashboard_activity_cycling">サイクリング</string>
-    <string name="dashboard_activity_vehicle">乗り物内</string>
-    <string name="dashboard_activity_on_foot">徒歩</string>
-    <string name="dashboard_activity_tilting">傾き</string>
-    <string name="dashboard_activity_unknown">不明なアクティビティ</string>
-    <string name="dashboard_finishing_session">セッションを終了しています…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">輸入する ステップ</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$dの記録を表示する</item>
+        <item quantity="other">%1$d の録音を表示する</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">記録を隠す %1$d</item>
+        <item quantity="other">記録を隠す %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">記録 %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s ステップ</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">少なくとも%1$sステップ</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">ステップは利用できません</string>
 </resources>

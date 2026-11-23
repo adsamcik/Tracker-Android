@@ -14,7 +14,6 @@
     <string name="coordinates_title">Координати</string>
     <string name="description_settings">Бутон за настройки</string>
     <string name="description_tracking_start">Бутон за стартиране на проследяването</string>
-    <string name="description_tracking_stop">Бутон за спиране на проследяването</string>
     <string name="description_tracking_start_no_permission">Стартиране на проследяването — необходимо е разрешение</string>
     <string name="description_points_today">Спечелени точки днес: %s</string>
     <string name="description_copy">Копиране на стойността</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Продължителност на сесията</string>
     <string name="duration_value">продължителност %s</string>
     <string name="error_nothing_to_track">Включете поне една опция за проследяване (местоположение, крачки или активност)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Включете Услугите за местоположение, за да използвате активирания източник за проследяване.</string>
     <string name="hint_customize_notification_show_in_content">Показване в съдържанието на известието</string>
     <string name="hint_customize_notification_show_in_title">Показване в заглавието на известието</string>
     <string name="horizontal_accuracy_title">Хоризонтална точност</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker се стартира — местоположението се използва</string>
     <string name="notification_starting_without_location">Tracker се стартира</string>
-    <string name="notification_stop">Спиране</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Спиране за %d минути</string>
     <string name="notification_stop_til_recharge">Спиране до зареждане</string>
-    <string name="stop_tracking_dialog_title">Да се спре ли проследяването?</string>
     <string name="stop_tracking_dialog_message">Автоматичното проследяване е включено и може скоро отново да стартира нова сесия, ако просто спрете.</string>
     <string name="notification_tracker_active_ticker">Записване на маршрута ви — местоположението се използва</string>
     <string name="notification_tracker_active_without_location">Проследяване без местоположение</string>
     <string name="notification_tracking_active">Проследяване</string>
     <string name="notification_tracking_start_failed_title">Проследяването не можа да започне</string>
     <string name="notification_tracking_start_failed_text">Отворете приложението, за да прегледате разрешенията и да възобновите проследяването.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Подготовка на проследяване</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Не се събират данни, докато възстановяването не бъде завършено.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Подготовка на проследяване</string>
     <string name="settings_activity_enabled_title">Активност</string>
     <string name="settings_cell_enabled_title">Клетка</string>
     <string name="settings_disabled_recharge_summary">Автоматичното проследяване е изключено, докато телефонът ви не бъде свързан със зарядно устройство</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Местоположение</string>
     <string name="settings_notification_customize_summary">Променете какво и в какъв ред да се показва в известието за проследяване.</string>
     <string name="settings_notification_customize_title">Персонализиране на известието</string>
+    <string name="settings_notification_move_up">Нагоре</string>
+    <string name="settings_notification_move_down">Надолу</string>
+    <string name="settings_notification_load_failed">Настройките за известия не могат да се заредят.</string>
+    <string name="settings_notification_save_failed">Промените не са запазени.</string>
+    <string name="settings_notification_retry">Опитайте отново</string>
     <string name="settings_notification_styled_summary">Използвайте цвета на стила на приложението за известия.</string>
     <string name="settings_notification_styled_title">Цветни известия</string>
     <string name="ski_notification_title">Статистика за ски</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Броене на крачки</string>
     <string name="settings_tracking_min_distance_title">Минимално разстояние между обновяванията</string>
     <string name="settings_tracking_min_time_title">Минимално закъснение между обновяванията</string>
-    <string name="settings_tracking_notice_summary">Промените влизат в сила, когато рестартирате проследяването</string>
     <string name="settings_tracking_required_accuracy_title">Необходима точност на местоположението</string>
     <string name="settings_tracking_title">Проследяване</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Стартиране на проследяването</string>
     <string name="shortcut_start_tracking_long">Стартиране на проследяването на местоположението</string>
-    <string name="shortcut_stop_tracking">Спиране на проследяването</string>
-    <string name="shortcut_stop_tracking_long">Спиране на проследяването на местоположението</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Край на сесията</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Прекратяване на текущата сесия</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Изключване на проследяването</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Спиране на всяко проследяване и автоматично стартиране</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Акции за проследяване</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Пауза за автоматично стартиране</string>
     <string name="speed_title">Скорост</string>
     <string name="speed_value">скорост %s</string>
     <string name="battery_title">Батерия</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d минута проследяване</item>
         <item quantity="other">%1$d минути проследяване</item>
     </plurals>
-    <string name="insight_exploration_title">Изследовател!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Открихте %1$d нова област</item>
         <item quantity="other">Открихте %1$d нови области</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Назад</string>
     <string name="insight_distance_title">Изминато разстояние</string>
     <string name="insight_distance_desc">Изминахте %1$s през тази сесия.</string>
-    <string name="insight_steps_title">Записани крачки</string>
-    <string name="insight_steps_desc">%1$s крачки през тази сесия — продължавайте така!</string>
     <string name="tracker_measurement_partial">Частично</string>
 </resources>

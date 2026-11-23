@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Backup pre-aggiornamento esportato</string>
     <string name="settings_migration_backup_export_failure">Impossibile esportare il backup pre-aggiornamento</string>
     <string name="settings_migration_backup_export_cleanup_required">Esportazione non riuscita. Elimina il backup esportato parzialmente dalla posizione selezionata.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">L\'importazione di database legacy richiede attenzione</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Il tuo database originale e\' ancora su questo dispositivo. Riprova l\'importazione per aprire Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Dimensione della banca dati ereditaria: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Riprova l\'importazione</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Database di esportazione legacy</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Cancellare la banca dati legacy e ricominciare da capo</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Database ereditaria esportata</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Non è stato possibile esportare il database legacy</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">L\'esportazione non è riuscita e la destinazione incompleta non è stata rimossa. Eliminarla manualmente.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Cappettina di database legacy</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Versione %1$d %2$s %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Versione sorgente: %1$d\nArchivio: %2$s\nImportazione: %3$s\nLe righe importate: %4$d\nRighe conservate solo nella cassaforte: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Importazione completata: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Non importati</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Importazione</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Importazione completa</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Importazione fallita</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Cancellare il database?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Questo rimuove definitivamente %1$s da questo dispositivo. I dati v27 non sono interessati. Conservare la copia esportata se in seguito avrete bisogno del database originale.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Database ereditaria cancellata</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Non è stato possibile eliminare il database legacy</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Il monitoraggio della ripresa richiede attenzione</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">La raccolta resta bloccata mentre Tracker riconcilia in modo sicuro i suoi dati di tracciamento. Riprova senza cancellare la storia.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Riprova il recupero di tracciamento</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Database di sviluppo ha bisogno di un backup manuale</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker ha trovato un database di sviluppo di versione 28 non spedito che non corrisponde a questa costruzione. Le funzioni di tracciamento e di database restano disattivate e il file di database è rimasto invariato. Fare un backup dei dati dell\'app o del database prima di sostituire o riparare questa installazione di sviluppo.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Database richiede attenzione</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker non è stato possibile identificare o convalidare in modo sicuro questo database. Le funzioni di tracciamento e di database restano disattivate e il file di database è rimasto invariato. Fare un backup dei dati dell\'app o del database prima di tentare il recupero manuale.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Database temporaneamente non disponibile</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Le funzionalità di tracciamento e database restano disattivate mentre Tracker riprende in sicurezza. Nessun dato è stato cancellato. Provate di nuovo a verificare se il problema di blocco o di stoccaggio temporaneo è stato eliminato.</string>
     <string name="settings_delete_data_success">Tutti i dati raccolti sono stati eliminati</string>
     <string name="settings_delete_data_failure">Impossibile eliminare tutti i dati raccolti</string>
     <string name="settings_game_goals_title">Obiettivi</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Caricamento impostazioni di gioco…</string>
     <string name="settings_game_load_error">Impossibile caricare le impostazioni di gioco. Riprova.</string>
     <string name="settings_map_info_hint">Queste impostazioni controllano qualità e prestazioni della visualizzazione della mappa. La maggior parte degli utenti può usare i valori predefiniti.</string>
+    <string name="settings_map_offline_data_section">Dati di mappa offline</string>
     <string name="settings_map_online_tiles_section_title">Tile mappa online</string>
     <string name="settings_map_online_tiles_enable_title">Usa tile mappa online</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Disattivato — viene usata solo la mappa di base offline inclusa. Nessuna richiesta di rete.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Personalizzato</string>
     <string name="tracking_preset_custom_description">Regola manualmente ogni parametro di tracciamento</string>
     <string name="tracking_preset_selector_subtitle">Scegli un profilo di partenza, quindi regola qualsiasi impostazione qui sotto.</string>
+    <string name="tracking_preset_change">Confronta le opzioni</string>
+    <string name="tracking_preset_done">Mostra solo selezionato</string>
     <string name="tracking_preset_customized_summary">Hai regolato finemente il tracciamento. Scegli una preimpostazione sopra per reimpostare.</string>
+    <string name="settings_tracking_section_start_stop">Tracciamento automatico</string>
+    <string name="settings_tracking_section_battery_detail">Qualità del tracciamento</string>
+    <string name="settings_tracking_section_data_collected">Dati raccolti</string>
     <string name="settings_tracking_section_detail">Raccolta posizione</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Viaggi all\'esterno (opzionale)</string>
     <string name="settings_tracking_section_notifications">Notifiche</string>
+    <string name="settings_transition_detection_friendly_title">Rilevazione del movimento a batteria efficiente</string>
+    <string name="settings_transition_detection_friendly_summary">Utilizza le modifiche di attività Android per evitare frequenti controlli di background. Le parti automatiche possono reagire un po\' più lentamente.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Non è disponibile il tracciamento automatico</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">La tua scelta di modalità automatica è salvata. Per il funzionamento del sistema di avvio automatico è richiesto un permesso di riconoscimento dell\'attività.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Scegli cosa registrare tra i viaggi.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi viaggi esterni</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Viaggi all\'esterno delle celle</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Tra i viaggi.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Salvato come in funzione. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">La copertura all\'esterno è opportunistica e può contenere le lacune di autorizzazione, fornitore, processo, riavvio o sistema operativo. Tracker non prevede un\'operazione di raccolta permanente o un\'invenzione di durata di conservazione.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">La raccolta è sospesa perché la politica di conservazione del prodotto non è ancora disponibile.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Controllo della collezione...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">La raccolta è contenuta in modo sicuro dall\'attuale distribuzione.</string>
+    <string name="settings_ambient_user_turned_off">Il tracciamento è disattivato. Le tue scelte e i dati salvati vengono conservati.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Consenti l’accesso al conteggio dei passi in Health Connect per completare i dati mancanti quando Tracker è chiuso.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Permettere l\'accesso al conteggio di passi in Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Non ho potuto controllare l\'accesso Health Connect. Prova di nuovo.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Il conteggio dei passi può essere importato mentre Tracker è in esecuzione. L’accesso in background può ridurre le lacune nella cronologia dei passi.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Non è disponibile un fornitore di step supportato per tutto il giorno.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Aggiorna Health Connect in modo che Tracker possa leggere il conteggio dei passi.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Non riuscivo a controllare il fornitore di passaggi. Prova di nuovo dopo.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Concedete all\'attività fisica il permesso di contare i passi su questo dispositivo.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">La registrazione dei passi non è disponibile su questo dispositivo.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect è pronto. Alcuni periodi possono avere ancora lacune.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">La registrazione dei passi è pronta. Alcuni periodi possono avere ancora lacune.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Per registrare la posizione tra le sessioni è necessario l’accesso alla posizione in background. L’impostazione di registrazione durante le sessioni resta invariata.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi Non sono soddisfatti i requisiti di autorizzazione alla scansione. Concedendo loro non permette la cattura della posizione.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Non sono soddisfatti i requisiti di autorizzazione per il richiamo alla cellulare. Concedendo loro non permette la cattura della posizione.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passive Location è pronta per la riconciliazione tra proprietario e fonte. Fornisce punti opportunistici, non continuità di percorso.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Richiami dei risultati di scansione sono pronti per la riconciliazione tra proprietario e fonte. Nessuna scansione o cadenza di sveglia è promessa.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Le richieste di cambio di cellulare qualificate con timestamp sono pronte per la riconciliazione tra il proprietario e la fonte. Non è promessa alcuna cadenza di aggiornamento forzata.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">La piattaforma o il fornitore richiesto non sono disponibili, quindi la raccolta non è disponibile.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Risparmiati; stato operativo in attesa</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Risparmiati; disponibilità operativa segnalata</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Inserito; non operativo</string>
+    <string name="settings_location_source_summary">Registrare il percorso, la distanza e la velocità. Di solito il costo più alto della batteria.</string>
+    <string name="settings_activity_source_summary">Registra camminate, ciclismo, guida e immobilità durante tutta la giornata.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Segue i passi durante tutto il giorno. I viaggi organizzano la stessa storia dei passaggi.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Controlla la raccolta dei passaggi.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Disattiva il monitoraggio</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">- Si spegne...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Sessioni di arresto, registrazione di tutto il giorno e avvio automatico. Le tue scelte e i dati salvati restano.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Il tracciamento è disattivato. Le tue scelte e i dati salvati vengono conservati.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Non riuscivo a spegnere il tracciamento. Prova di nuovo.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Registra la pressione dell\'aria durante tutto il giorno con una notifica di tracciamento.</string>
+    <string name="settings_ambient_activity_ready">Pronto a registrare l\'attività.</string>
+    <string name="settings_ambient_pressure_ready">Pronto a registrare la pressione atmosferica.</string>
+    <string name="settings_pressure_host_unavailable">Impossibile avviare la registrazione della pressione atmosferica in background.</string>
+    <string name="settings_wifi_source_summary">Registrare le reti Wi-Fi vicine per aggiungere il contesto locale. I dati rimangono su questo dispositivo.</string>
+    <string name="settings_cell_source_summary">Registra le torri cellulari vicine per aggiungere il contesto della posizione. I dati rimangono su questo dispositivo.</string>
+    <string name="settings_location_source_compact">Route, distanza e velocità</string>
+    <string name="settings_activity_source_compact">Tipo di movimento e silenzio</string>
+    <string name="settings_steps_source_compact">Passi per tutto il giorno</string>
+    <string name="settings_barometer_source_compact">Altezza e elevazione</string>
+    <string name="settings_wifi_source_compact">Context della rete vicina</string>
+    <string name="settings_cell_source_compact">Context della torre vicina</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Statuto tecnico</string>
+    <string name="settings_technical_status_summary">Calcolo della batteria, autorizzazioni e stato di raccolta.</string>
+    <string name="settings_technical_status_attention">Alcune fonti di raccolta hanno bisogno di attenzione. Aprite per i dettagli.</string>
+    <string name="settings_simple_source_controls_title">Utilizzare semplici controlli</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Traccia automaticamente camminate e corse.</string>
     <string name="setup_auto_tracking_in_motion">In movimento</string>
     <string name="setup_auto_tracking_in_motion_desc">Traccia automaticamente ogni movimento, inclusi guida e ciclismo.</string>
-    <string name="setup_preset_title">Dettaglio del tracciamento</string>
+    <string name="settings_auto_tracking_mode_summary">Scegli il movimento da avviare e fermare automaticamente.</string>
     <string name="setup_recommended">Consigliato</string>
     <string name="setup_what_to_collect_title">Cosa raccogliere</string>
     <string name="setup_what_to_collect_subtitle">Altre opzioni qui sotto. Inizia a esplorare senza autorizzazioni oppure concedile in seguito. I dati restano su questo dispositivo.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Attività</string>
     <string name="setup_source_activity_desc">Rileva se stai camminando, correndo, andando in bicicletta o guidando.</string>
     <string name="setup_source_steps">Passi</string>
-    <string name="setup_source_steps_desc">Conta i passi usando il contapassi del dispositivo.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Segui i passi durante tutto il giorno. I viaggi organizzano la stessa storia.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Nessun sensore diretto. Tracker controllerà la sorgente di passaggio sul dispositivo.</string>
+    <string name="setup_perm_steps_why">Consenti l\'accesso al movimento per contare i passi su questo dispositivo durante tutta la giornata.</string>
+    <string name="setup_perm_grant_steps_content_description">Consenti l\'accesso al movimento per i Passi</string>
+    <string name="setup_steps_health_connect_why">Consenti i Passi in Health Connect per colmare le lacune quando Tracker è chiuso.</string>
+    <string name="setup_steps_provider_ready">Una fonte di passi sul dispositivo è pronta. Alcuni periodi possono ancora avere lacune.</string>
+    <string name="setup_steps_provider_checking">Verifica delle fonti di passi disponibili…</string>
     <string name="setup_source_wifi">Reti Wi-Fi</string>
-    <string name="setup_source_wifi_desc">Registra le reti Wi-Fi vicine per migliorare la precisione della posizione.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Registrare le reti Wi-Fi nelle vicinanze, con o senza localizzazione.</string>
     <string name="setup_source_cell">Celle telefoniche</string>
-    <string name="setup_source_cell_desc">Registra le informazioni sulle celle per il contesto della posizione.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Registrare le torri cellulari vicine, con o senza localizzazione.</string>
     <string name="setup_perm_location_why">Necessaria per registrare i percorsi e mostrarli sulla mappa. La posizione resta su questo dispositivo — non viene inviata a un server.</string>
     <string name="setup_perm_location_bg_why">Per continuare a registrare il percorso quando cambi app o lo schermo si spegne, Tracker deve accedere alla tua posizione in background. La posizione registrata resta su questo dispositivo — non viene inviata a un server. Alla prossima richiesta di sistema scegli "Consenti sempre" per abilitare il tracciamento automatico; "Solo durante l\'uso dell\'app" fa funzionare Tracker solo quando la sua schermata è aperta.</string>
     <string name="setup_perm_activity_why">Permette a Tracker di rilevare cosa stai facendo (cammini, vai in bicicletta, guidi, sei fermo), così il tracciamento automatico può sospendersi quando non ti muovi e risparmiare batteria. I dati delle attività restano su questo dispositivo — non vengono inviati a un server.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Concedi autorizzazione radio cellulare</string>
     <string name="setup_perm_granted">Concessa ✓</string>
     <string name="permission_grant_in_settings">Consenti nelle Impostazioni →</string>
-    <string name="permission_disabled_due_to_denial">%1$s disattivato perché l\'autorizzazione è stata negata. Concedila nelle Impostazioni per abilitarlo.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s è selezionato ma non può essere raccolto fino a quando non è concesso il permesso.</string>
     <string name="settings_wifi_permission_required">Richiede l\'autorizzazione Wi-Fi/posizione. Attiva l\'interruttore per concederla — fino ad allora non vengono registrati dati Wi-Fi e i dati registrati restano su questo dispositivo.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">L\'accesso è ancora necessario. Le tue scelte sono conservate.</string>
     <string name="settings_cell_permission_required">Richiede l\'autorizzazione allo stato del telefono e alla posizione precisa. Attiva l\'interruttore per concederla — fino ad allora non vengono registrati dati cellulari e i dati registrati restano su questo dispositivo.</string>
     <string name="settings_barometer_unavailable">Il sensore di pressione non è disponibile su questo dispositivo.</string>
     <string name="settings_activity_permission_required">Richiede l\'autorizzazione al riconoscimento attività. Attiva l\'interruttore per concederla.</string>
-    <string name="settings_steps_unavailable">Il sensore contapassi non è disponibile su questo dispositivo.</string>
     <string name="setup_start_exploring">Inizia a esplorare</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Finire la messa a punto...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Riprova</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Non riuscivo a salvare l\'installazione. Le tue scelte sono ancora qui.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Non sono riusciti a preparare i dati salvati. Le tue scelte sono ancora qui.</string>
     <string name="setup_continue">Continua</string>
     <string name="setup_step_indicator">Passaggio %1$d di %2$d</string>
     <string name="setup_online_tiles_title">Tile mappa online?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Quando è abilitato, il fornitore può vedere il tuo indirizzo IP e le tile che carichi — approssimativamente quale area della mappa stai guardando. Tracker non invia mai un account, un identificatore o la cronologia delle posizioni.</string>
     <string name="setup_online_tiles_change_later">Puoi cambiare questa opzione in qualsiasi momento in Impostazioni → Mappa → Tile mappa online.</string>
     <string name="setup_background_access_optional">Facoltativo, ma consigliato. Puoi cambiare questa opzione in qualsiasi momento in Impostazioni → Tracciamento.</string>
-    <string name="background_reliability_status_exempt">Attività in background consentita</string>
-    <string name="background_reliability_status_optimized">Ottimizzazione batteria attiva</string>
-    <string name="background_reliability_allow_action">Consenti attività in background</string>
-    <string name="background_reliability_samsung_hint">I dispositivi Samsung possono anche inserire le app in \"App in sospensione\". Apri le impostazioni della batteria, rimuovi Tracker dalle app in sospensione e imposta l\'app affinché non venga sospesa.</string>
-    <string name="background_reliability_samsung_action">Apri impostazioni della batteria del dispositivo</string>
-    <string name="settings_tracebox_title">Diagnostica degli arresti anomali</string>
-    <string name="settings_tracebox_root_summary">Diagnostica locale di crash, ANR e struttura</string>
     <string name="setup_background_location_title">Consenti la posizione in background per il monitoraggio automatico</string>
     <string name="setup_background_location_disclosure">Il monitoraggio automatico si avvia mentre Tracker è in background e registra il tuo percorso anche quando la schermata dell’app non è aperta. I dati sulla posizione restano su questo dispositivo. Nelle impostazioni di posizione dell’app, scegli “%1$s”.</string>
     <string name="setup_background_location_open_settings">Apri le impostazioni di posizione</string>
     <string name="setup_background_location_decline">Non ora</string>
     <string name="setup_background_location_manual_only">Il monitoraggio manuale in primo piano resta disponibile. Il monitoraggio automatico della posizione rimarrà disattivato finché la posizione in background non sarà consentita.</string>
-    <string name="settings_ambient_user_turned_off">Il tracciamento è disattivato. Le tue scelte e i dati salvati vengono conservati.</string>
-    <string name="setup_perm_steps_why">Consenti l\'accesso al movimento per contare i passi su questo dispositivo durante tutta la giornata.</string>
-    <string name="setup_perm_grant_steps_content_description">Consenti l\'accesso al movimento per i Passi</string>
-    <string name="setup_steps_health_connect_why">Consenti i Passi in Health Connect per colmare le lacune quando Tracker è chiuso.</string>
-    <string name="setup_steps_provider_ready">Una fonte di passi sul dispositivo è pronta. Alcuni periodi possono ancora avere lacune.</string>
-    <string name="setup_steps_provider_checking">Verifica delle fonti di passi disponibili…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Impostazioni di tracciamento di sfondo</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android e la politica del dispositivo possono interrompere o interrompere il lavoro di sfondo. Tracker può segnalare le restrizioni che Android espone, ma non può annullare lo stato di restrizione o fermo forzato.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Rilevazione di restrizioni di sfondo</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Ottimizzazione della batteria rilevata</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nessuna restrizione rilevata</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Stato di restrizione non disponibile</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android segnala che l\'attività di background è Restritta. Il monitoraggio può cessare quando Tracker non è visibile; l\'app non può annullare questa politica.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android segnala che il Tracker non è presente nella lista delle batterie. La gestione dell\'alimentazione può ritardare il lavoro di base; l\'elenco delle autorizzazioni riduce le restrizioni ma non garantisce un monitoraggio continuo.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android non segnala alcuna restrizione di sfondo e Tracker è nella lista di permessi per le batterie. Il sistema può ancora fermare l\'app, e non si può annullare la fermata forzata.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker non ha potuto leggere tutti i segnali di restrizione Android pertinenti. Non è possibile confermare alcuna causa o rimedio specifico per il dispositivo.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Impostazioni della batteria dell\'app aperta</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Impostazioni di ottimizzazione della batteria aperta</string>
+    <string name="settings_tracebox_title">Diagnostica degli arresti anomali</string>
+    <string name="settings_tracebox_root_summary">Diagnostica locale di crash, ANR e struttura</string>
     <string name="settings_tracking_changes_apply_live">Le modifiche aggiornano il tracciamento in corso</string>
     <string name="settings_balance_title">Energia e dettagli</string>
     <string name="settings_balance_custom">Impostazioni personalizzate · Scegli il bilanciamento</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Dettagli · Bilanciamento generale: %1$s</string>
     <string name="settings_balance_inherit">Usa il bilanciamento generale</string>
     <string name="settings_balance_summary">Scegli la qualità abituale delle fonti selezionate. Le sessioni attive privilegiano i dettagli delle fonti partecipanti. Scegliere un bilanciamento sostituisce le frequenze di raccolta precedenti; le fonti scelte, il consenso in background e i filtri di precisione restano salvati.</string>
-    <string name="export_format_portable_steps_desc">Cronologia dei passi verificata, copertura e lacune senza coordinate del percorso</string>
-    <string name="export_format_portable_ambient_steps_desc">Passi in background, tempo di attività, date, lacune di copertura e fuso orario salvato senza coordinate del percorso</string>
-    <string name="export_format_portable_activity_desc">Intervalli di movimento registrati, affidabilità e copertura senza coordinate del percorso</string>
-    <string name="export_format_portable_pressure_desc">Misurazioni dirette della pressione in hPa, copertura e lacune senza coordinate del percorso</string>
-    <string name="export_sensitivity_portable_title">Esportare la cronologia registrata?</string>
-    <string name="export_sensitivity_portable_steps_message">Questo file contiene conteggi dei passi, intervalli temporali e informazioni sulla copertura. Non contiene coordinate del percorso. Continua solo se ti fidi della destinazione.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Questo file contiene passi in background, intervalli di attività, date, lacune di copertura e il fuso orario salvato. Non contiene coordinate del percorso. Continua solo se ti fidi della destinazione.</string>
-    <string name="export_sensitivity_portable_activity_message">Questo file contiene intervalli di movimento registrati, intervalli temporali e informazioni sulla copertura. Non contiene coordinate del percorso. Continua solo se ti fidi della destinazione.</string>
-    <string name="export_sensitivity_portable_pressure_message">Questo file contiene misurazioni della pressione e intervalli temporali che possono rivelare informazioni sull\'ambiente. Non contiene coordinate del percorso o altitudine calibrata. Continua solo se ti fidi della destinazione.</string>
-    <string name="settings_activity_source_summary">Registra camminate, ciclismo, guida e immobilità durante tutta la giornata.</string>
-    <string name="settings_ambient_activity_ready">Pronto a registrare l\'attività.</string>
-    <string name="settings_ambient_pressure_ready">Pronto a registrare la pressione atmosferica.</string>
-    <string name="settings_pressure_host_unavailable">Impossibile avviare la registrazione della pressione atmosferica in background.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Riprendi il monitoraggio</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Non sono riuscito a riprendere il tracciamento. Prova di nuovo.</string>
 </resources>

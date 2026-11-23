@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Pārbaudīta soļu vēsture, pārklājums un trūkumi bez maršruta koordinātām</string>
+    <string name="export_format_portable_ambient_steps_desc">Fonā savākti soļi, aktivitātes laiks, datumi, pārklājuma trūkumi un saglabātā laika josla bez maršruta koordinātām</string>
+    <string name="export_format_portable_activity_desc">Ierakstīti kustības intervāli, ticamība un pārklājums bez maršruta koordinātām</string>
+    <string name="export_format_portable_pressure_desc">Tieši spiediena mērījumi hPa, pārklājums un trūkumi bez maršruta koordinātām</string>
+    <string name="export_sensitivity_portable_title">Eksportēt ierakstīto vēsturi?</string>
+    <string name="export_sensitivity_portable_steps_message">Šajā failā ir soļu skaits, laika intervāli un informācija par pārklājumu. Tajā nav maršruta koordinātu. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Šajā failā ir fonā savākti soļi, aktivitātes intervāli, datumi, pārklājuma trūkumi un saglabātā laika josla. Tajā nav maršruta koordinātu. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+    <string name="export_sensitivity_portable_activity_message">Šajā failā ir ierakstīti kustības intervāli, laika intervāli un informācija par pārklājumu. Tajā nav maršruta koordinātu. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+    <string name="export_sensitivity_portable_pressure_message">Šajā failā ir spiediena mērījumi un laika intervāli, kas var atklāt informāciju par vidi. Tajā nav maršruta koordinātu vai kalibrēta augstuma. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+</resources>

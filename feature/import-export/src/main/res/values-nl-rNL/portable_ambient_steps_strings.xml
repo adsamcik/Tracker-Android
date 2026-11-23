@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Draagbare achtergrondstappen</string>
+    <string name="export_error_no_portable_ambient_steps">Er is geen geverifieerde geschiedenis van achtergrondstappen beschikbaar om te exporteren.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">De geschiedenis van achtergrondstappen is onvolledig of kan niet worden geverifieerd voor export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Export van achtergrondstappen is tijdelijk niet beschikbaar. Probeer het opnieuw.</string>
+    <string name="export_error_portable_ambient_steps_scope">Deze selectie van achtergrondstappen kan niet worden weergegeven in de draagbare bestandsindeling.</string>
+    <string name="export_error_portable_ambient_steps_write">Het bestand met draagbare achtergrondstappen kon niet worden gemaakt.</string>
+    <string name="export_ambient_steps_sensitivity_title">Geschiedenis van achtergrondstappen exporteren?</string>
+    <string name="export_ambient_steps_sensitivity_message">Dit bestand bevat aantallen stappen, activiteitsperioden, datums, hiaten in de registratie en opgeslagen tijdzonegegevens die dagelijkse activiteitspatronen kunnen onthullen. Het bevat geen routecoördinaten. Ga alleen verder als je de bestemming vertrouwt.</string>
+</resources>

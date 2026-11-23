@@ -127,7 +127,6 @@
     <string name="settings_map_zoom_buttons_subtitle">Taispeáin cnaipí + agus − ar an scáileán chun an léarscáil a zúmáil, nuair atá sé deacair bioráil chun zúmáil a úsáid.</string>
     <string name="tips_map_date_range_title">Raon dátaí</string>
     <string name="tips_map_my_location_title">Mo shuíomh</string>
-    <string name="tips_map_sheet_description">Osclóidh sconna nó tarraingt suas an bharra seo tuilleadh roghanna don léarscáil, lena n-áirítear roghnú sraithe agus eochair.</string>
     <string name="map_search_placeholder">Domhanleithead, Domhanfhad m.sh. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Bain triail as 48.8566, 2.3522 • 48.8566 2.3522 • T48.8566 O2.3522 • 48°51\'24\"T 2°21\'08\"O</string>
     <string name="map_search_clear">Glan cuardach</string>

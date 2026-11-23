@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Suíomh i rith an lae</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Ar ais idir seisiúin.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Ceadaítear idir seisiúin. Braitheann an láithreacht ar rochtain agus teorainneacha tuairisceana Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Ag dul i ngleic le</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Ní dhéanfaidh an t-ábhar</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Ag an am céanna, cuirfidh tú an t-aisteoir ar an suíomh.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Úsáideann sé suíomhanna a sholáthraíonn feidhmchláir eile nó an córas. Is féidir le cisead fada a dhéanamh.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Bainfidh Tracker suíomh a bhailiú idir seisiúin, a iarrachtaí a choigeartú chun gluaiseacht, agus taispeánfaidh fógra leanúnach. Is féidir leis seo níos mó bataraí a úsáid ná a bhailiú passive. Cuirtear do rogha ar fáil roimh Android a iarraidh rochtain ar shuíomh. Tá sé ag fanacht nuair nach bhfuil rochtain ann; is féidir leat é a ghlasáil ar bith.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Úsáid suíomh oiriúnaithe</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Ceadaigh rochtain ar an suíomh</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Roghnaigh mionsonraithe suíomh oiriúnaithe</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Fógraí suíomh: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Cumhacht agus mionsonraí suíomh</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Roghnaigh leibhéal a ghlacadh Adaptive Location. Is é an comhionannas an réamhshocraithe; is fearr le seisiúin beo níos mionsonraithe. Android agus is féidir le do rochtain an toradh a theorannú.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Cumhacht ar dtús</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Cumhacht a thairiscint</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Cothromaithe</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Ní mór duit mion-fhiosrúchán a dhéanamh</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Ní mór duit an t-aistriúchán a dhéanamh.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Cúnamh ar an ngníomh</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Roghnaítear úsáid a bhaint as comharthaí gluaiseachta chun suíomh a choigeartú. Ní thaifeadann sé seo aon stair Gníomhaíochta agus ní féidir sé seisiún a thosú. Tá an suíomh fós i bhfeidhm má dhiúltaíonn tú.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Ceadaigh comharthaí gluaiseachta</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Ní raibh sé in ann an athrú seo a chur i bhfeidhm. Déan iarracht arís.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Níl an bailiúchán oiriúnaithe ag rith fós.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Úsáideann do leibhéal mionsonraithe suíomh oiriúnaithe.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Tá suíomh oiriúnaithe ar fáil.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Iarrtar an t-iarratas ar shuíomh arna shocrú ag an bhfeiste.</string>
+</resources>

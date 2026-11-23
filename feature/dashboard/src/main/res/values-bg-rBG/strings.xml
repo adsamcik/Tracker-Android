@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Завършване на сесията…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · частично</string>
     <string name="dashboard_title">Табло за управление</string>
     <string name="dashboard_tracking_title">Проследяване</string>
     <string name="dashboard_recording">Записване</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Поредица: %1$d дни. Докоснете, за да видите подробностите за поредицата</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Започнете поредица. Докоснете, за да видите подробностите за поредицата</string>
-    <string name="dashboard_cd_stop_tracking">Спиране на проследяването</string>
     <string name="dashboard_action_enable_location">Разрешаване на достъп до местоположението</string>
     <string name="dashboard_action_view_details">Преглед на подробностите</string>
     <string name="dashboard_action_view_map">Преглед на картата</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Подготвяне на трайно запазената история на крачките…</string>
     <string name="dashboard_live_steps_missing">Изчакване на валидно наблюдение на крачки</string>
     <string name="dashboard_live_steps_unavailable">Трайно запазената история на крачките не е налична</string>
+    <string name="dashboard_metric_pressure">Налягане</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Диапазон %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Промяна %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Запазена часова зона: %1$s</string>
     <string name="dashboard_milestone_distance">км достигнати!</string>
     <string name="dashboard_milestone_steps">крачки достигнати!</string>
     <string name="dashboard_milestone_time">мин проследени!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Последна сесия</string>
     <string name="dashboard_last_session_duration">Продължителност</string>
     <string name="dashboard_last_session_distance">Разстояние</string>
-    <string name="dashboard_last_session_steps">Крачки</string>
     <string name="dashboard_last_session_view_map">Преглед на картата</string>
     <string name="dashboard_recent_trips_title">Скорошно проследяване</string>
     <string name="dashboard_recent_trips_empty">Няма скорошни сесии за проследяване. Стартирайте проследяване, за да ги видите тук.</string>
     <string name="dashboard_recent_history_loading">Зареждане на скорошното проследяване…</string>
     <string name="dashboard_recent_history_unavailable">Скорошното проследяване не е налично</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s история не е налична</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Не е наличен източникът на актуалността</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Не е наличен записът на запазените доказателства</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Прочетената история на източника не може да завърши безопасно</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Проверка на целостта на запазената история на източника се провали</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Не може да се потвърди членството в физическата история.</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Местоположение</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Клетка</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Активност</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Крачки</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Налягане</string>
     <string name="dashboard_recent_steps_title">Сесия с крачки</string>
     <string name="dashboard_recent_steps_available">Историята на крачките е налична</string>
     <string name="dashboard_recent_steps_materializing">Подготовка на историята на крачките…</string>
     <string name="dashboard_recent_steps_partial">Частична история на крачките</string>
+    <string name="dashboard_recent_pressure_title">Сесия за налягане</string>
+    <string name="dashboard_recent_pressure_available">История на налягането е налична</string>
+    <string name="dashboard_recent_pressure_materializing">Подготвя се история на налягането…</string>
+    <string name="dashboard_recent_pressure_partial">Частична история на налягането</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Изтрита история на налягането</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Не може да се провери историята на налягането</string>
+    <string name="dashboard_recent_pressure_unavailable">История на налягането не е налична</string>
+    <string name="dashboard_recent_pressure_failed">История на налягането не можа да бъде подготвена</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · диапазон %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Промяна %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Няма запазено покритие</string>
+    <string name="dashboard_pressure_coverage_complete">Пълно покритие</string>
+    <string name="dashboard_pressure_coverage_partial">Частично покритие</string>
+    <string name="dashboard_pressure_coverage_unknown">Покритието не е налично</string>
+    <string name="dashboard_recent_activity_title">Сесия за активност</string>
+    <string name="dashboard_recent_activity_ready">История на активността е налична</string>
+    <string name="dashboard_recent_activity_materializing">Подготвя се история на активността…</string>
+    <string name="dashboard_recent_activity_partial">Частична история на активността</string>
+    <string name="dashboard_recent_activity_unavailable">История на активността не е налична</string>
+    <string name="dashboard_recent_activity_failed">История на активността не можа да бъде проверена</string>
+    <string name="dashboard_recent_activity_summary">%1$s · активно време %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi сесия</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Сеанс на клетката</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Заловен Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Хванано мобилно радио</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Източници в тази сесия</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Мястото не е записано в тази сесия. Пътят, разстоянието, скоростта и височината не са достъпни.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Проверен %1$s история не е наличен.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Заснети с това устройство.</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Внос на запазени доказателства</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Подготвяне на запазена история на радиото...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Частично запазена радиоистория</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Съхраняване на радиоисторията</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Радио история не е налична</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Без квалифицирани радио доказателства</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Изтрити съхранени радиоистории</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Не може да се провери историята на радиото</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Проверка на целостта на историята на радиото е провала.</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Няма проверено покритие</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Частично проверено покритие</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Попълна проверявана покритие</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Покритието не е налично</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Очакване на запазени радионаблюдения</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Няма запазени радионаблюдения</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Съхраняваните източници са изтрити.</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Съхранявани доказателства не могат да бъдат представени безопасно</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Мястото, маршрутът, разстоянието, скоростта и височината не са част от тази история.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d запазен резултат от сканирането</item>
+        <item quantity="other">%1$d запазени резултати от сканирането</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d задържани радио записи</item>
+        <item quantity="other">%1$d съхранявани радио записи</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d задържана доставка</item>
+        <item quantity="other">%1$d задържани доставки</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d доставка има частични резултати</item>
+        <item quantity="other">%1$d доставки имат частични резултати</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Записана активност</string>
+    <string name="dashboard_live_activity_movement">Последно записано движение</string>
+    <string name="dashboard_live_activity_active_time">Активно време</string>
+    <string name="dashboard_live_activity_gaps">Известни пропуски: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Няма проверено покритие</string>
+    <string name="dashboard_activity_coverage_partial">Частично покритие</string>
+    <string name="dashboard_activity_coverage_complete">Пълно покритие</string>
+    <string name="dashboard_activity_still">Неподвижно</string>
+    <string name="dashboard_activity_walking">Ходене</string>
+    <string name="dashboard_activity_running">Бягане</string>
+    <string name="dashboard_activity_cycling">Колоездене</string>
+    <string name="dashboard_activity_vehicle">В превозно средство</string>
+    <string name="dashboard_activity_on_foot">Пеша</string>
+    <string name="dashboard_activity_tilting">Накланяне</string>
+    <string name="dashboard_activity_unknown">Неизвестна активност</string>
     <string name="dashboard_exploration_title">Изследване</string>
     <string name="dashboard_exploration_new_today">Ново днес</string>
     <string name="dashboard_exploration_total_cells">Общо клетки</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Стартиране на проследяването</string>
     <string name="dashboard_ring_enable_location">Разрешаване на местоположението</string>
     <string name="dashboard_pill_start">Старт</string>
-    <string name="dashboard_pill_stop">Стоп</string>
     <string name="dashboard_pill_enable_location">Разрешаване на местоположението</string>
     <string name="dashboard_insights_title">Анализи на сесията</string>
     <string name="dashboard_cd_insight_item">Анализ: %1$s</string>
     <string name="widget_latest_achievement">Последно постижение</string>
     <string name="dashboard_latest_achievement_title">Последно постижение</string>
     <string name="dashboard_latest_achievement_empty">Продължете да проследявате, за да отключите първото си постижение</string>
-    <string name="dashboard_metric_pressure">Налягане</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Диапазон %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Промяна %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Запазена часова зона: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Сесия за налягане</string>
-    <string name="dashboard_recent_pressure_available">История на налягането е налична</string>
-    <string name="dashboard_recent_pressure_materializing">Подготвя се история на налягането…</string>
-    <string name="dashboard_recent_pressure_partial">Частична история на налягането</string>
-    <string name="dashboard_recent_pressure_unavailable">История на налягането не е налична</string>
-    <string name="dashboard_recent_pressure_failed">История на налягането не можа да бъде подготвена</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · диапазон %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Промяна %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Няма запазено покритие</string>
-    <string name="dashboard_pressure_coverage_complete">Пълно покритие</string>
-    <string name="dashboard_pressure_coverage_partial">Частично покритие</string>
-    <string name="dashboard_pressure_coverage_unknown">Покритието не е налично</string>
-    <string name="dashboard_recent_activity_title">Сесия за активност</string>
-    <string name="dashboard_recent_activity_ready">История на активността е налична</string>
-    <string name="dashboard_recent_activity_materializing">Подготвя се история на активността…</string>
-    <string name="dashboard_recent_activity_partial">Частична история на активността</string>
-    <string name="dashboard_recent_activity_unavailable">История на активността не е налична</string>
-    <string name="dashboard_recent_activity_failed">История на активността не можа да бъде проверена</string>
-    <string name="dashboard_recent_activity_summary">%1$s · активно време %2$s</string>
-    <string name="dashboard_live_activity_title">Записана активност</string>
-    <string name="dashboard_live_activity_movement">Последно записано движение</string>
-    <string name="dashboard_live_activity_active_time">Активно време</string>
-    <string name="dashboard_live_activity_gaps">Известни пропуски: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Няма проверено покритие</string>
-    <string name="dashboard_activity_coverage_partial">Частично покритие</string>
-    <string name="dashboard_activity_coverage_complete">Пълно покритие</string>
-    <string name="dashboard_activity_still">Неподвижно</string>
-    <string name="dashboard_activity_walking">Ходене</string>
-    <string name="dashboard_activity_running">Бягане</string>
-    <string name="dashboard_activity_cycling">Колоездене</string>
-    <string name="dashboard_activity_vehicle">В превозно средство</string>
-    <string name="dashboard_activity_on_foot">Пеша</string>
-    <string name="dashboard_activity_tilting">Накланяне</string>
-    <string name="dashboard_activity_unknown">Неизвестна активност</string>
-    <string name="dashboard_finishing_session">Завършване на сесията…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Вносни стъпки</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Покажете запис %1$d</item>
+        <item quantity="other">Покажете записите %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Скрийте запис %1$d</item>
+        <item quantity="other">Скрийте записите %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Записване %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s стъпки</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Най-малко %1$s стъпки</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Недостъпни стъпки</string>
 </resources>

@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Pirmsjaunināšanas dublējumkopija eksportēta</string>
     <string name="settings_migration_backup_export_failure">Neizdevās eksportēt pirmsjaunināšanas dublējumkopiju</string>
     <string name="settings_migration_backup_export_cleanup_required">Eksportēšana neizdevās. Dzēsiet daļēji eksportēto dublējumkopiju no atlasītās vietas.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Parāda datu bāzes importam nepieciešama uzmanība</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Jūsu sākotnējā datu bāze joprojām ir šajā ierīcē. Izdzīvojiet importēšanu, lai atvērtu Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Parāda datu bāzes lielums: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Atkārto importa mēģinājums</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Eksporta datu bāze</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Izmazgājiet iepriekšējo datu bāzi un sākot no jauna</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Eksportēta datu bāze</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Nevaru eksportēt iepriekšējo datu bāzi</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Eksportam nav izdevies, un nav iespējams atcelt nepilnīgu galamērķi. Izmazgā manuāli.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Vārds ar datu bāzi</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Verzija %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Izsākta versija: %1$d\nSaimniekošana: %2$s\nImport: %3$s\nImportētas rindas: %4$d\nRings saglabāts tikai kasē: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Imports pabeigts: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Neimportēti</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Importēšana</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Importa pabeigts</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Importa darbības traucējumi</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Izmazgājiet iepriekšējo datu bāzi?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Tas pastāvīgi izņem %1$s no šī ierīce. Jūsu V27 dati nav ietekmēti. Ja Jums vēlāk būs nepieciešama sākotnējā datu bāze, saglabājiet eksportēto kopiju.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Izdzēvēta datu bāze</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Nav iespējams izdzēst iepriekšējo datu bāzi</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Atgādinot uzlabojumu, nepieciešama uzmanība</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Kopsavilkšana joprojām nav veikta, kamēr Tracker drošībā saskaņo savus izsekošanas datus. Izdzīvojot vēlreiz, neskaidrojot vēsturi.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Atkārtojiet uzlabojumu atgūšanu</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Ražošanas datubāzē vajag manuālu rezervju</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker atrada neizsūtīto 28. versijas attīstības datubāzi, kas neatbilst šai konstrukcijai. Izmeklēšanas un datu bāzes funkcijas joprojām ir izslēgtas, un datu bāzes fails nav mainījies. Aplikācijas datu vai datu bāzes kopija pirms aizstāt vai atjaunot šo izstrādes ierīci.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Datu bāzei vajag uzmanību</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker nevarēja droši identificēt vai apstiprināt šo datu bāzi. Izmeklēšanas un datu bāzes funkcijas joprojām ir izslēgtas, un datu bāzes fails nav mainījies. Apdrošināt datumu vai datubāzi pirms manuāla atgūšanas.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Datu bāze nav laikīgi pieejama</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Piece un datu bāzes funkcijas paliek izslēgtas, kamēr Tracker atkārtoti mēģina droši. Nav izdzēsts dati. Tagad mēģiniet atkārtoti pārbaudīt, vai pagaidu slēpošana vai uzglabāšanas problēma ir izsludināta.</string>
     <string name="settings_delete_data_success">Visi savāktie dati tika dzēsti</string>
     <string name="settings_delete_data_failure">Neizdevās dzēst visus savāktos datus</string>
     <string name="settings_game_goals_title">Mērķi</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Notiek spēles iestatījumu ielāde…</string>
     <string name="settings_game_load_error">Neizdevās ielādēt spēles iestatījumus. Lūdzu, mēģiniet vēlreiz.</string>
     <string name="settings_map_info_hint">Šie iestatījumi nosaka kartes vizualizācijas kvalitāti un veiktspēju. Lielākā daļa lietotāju var izmantot noklusējuma vērtības.</string>
+    <string name="settings_map_offline_data_section">Karta dati ārpus līnijas</string>
     <string name="settings_map_online_tiles_section_title">Tiešsaistes kartes mozaīkas</string>
     <string name="settings_map_online_tiles_enable_title">Izmantot tiešsaistes kartes mozaīkas</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Izslēgts — tiek izmantota tikai iekļautā bezsaistes pamatkarte. Tīkla pieprasījumu nav.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Pielāgots</string>
     <string name="tracking_preset_custom_description">Manuāli pielāgojiet katru izsekošanas parametru</string>
     <string name="tracking_preset_selector_subtitle">Izvēlieties sākuma profilu, pēc tam precizējiet jebkuru tālāk norādīto iestatījumu.</string>
+    <string name="tracking_preset_change">Kopājiet iespējas</string>
+    <string name="tracking_preset_done">Izskatīt tikai izvēlētu</string>
     <string name="tracking_preset_customized_summary">Esat precizējis izsekošanu. Izvēlieties iepriekš norādīto priekšiestatījumu, lai atiestatītu.</string>
+    <string name="settings_tracking_section_start_stop">Automātiska izsekošana</string>
+    <string name="settings_tracking_section_battery_detail">Sarakšanas kvalitāte</string>
+    <string name="settings_tracking_section_data_collected">Izsauktie dati</string>
     <string name="settings_tracking_section_detail">Atrašanās vietas vākšana</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Izslēgšanas ekskursijas (pēc izvēles)</string>
     <string name="settings_tracking_section_notifications">Paziņojumi</string>
+    <string name="settings_transition_detection_friendly_title">Baterijas efektīva kustības detekcija</string>
+    <string name="settings_transition_detection_friendly_summary">izmanto Android aktivitātes maiņas, lai izvairītos no biežām datu pārbaudes. Automatiska startēšana var reagoties nedaudz lēnāk.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automātiska izsekošana nav pieejama</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Jūsu automātiskā režīma izvēle ir saglabāta. Pirms automātiskā startēšanas ir nepieciešams darbības atzīšanas atļauja.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Izvēli, ko uzrakstīt starp ceļojumiem.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi ārējās ekskursijas</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Celtes ārpuses ekskursijas</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Turpinājumā.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Sakarā ar to. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Izslēguma nodrošināšana ir oportunista un var ietvert atļauju, pakalpojumu sniedzēja, procesa, atstaršanas vai operatīvās sistēmas nepilnības. Tracker neatbildo par visu laiku veikto savākšanu vai neatbildo uzglabāšanas ilgumu.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Izsaucēšana ir pārtraukta, jo produkts saglabāšanas politika vēl nav pieejama.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Pārbaudē kolekciju...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Kolekciju ir drošībā aizturējis pašreizējais izsludinājums.</string>
+    <string name="settings_ambient_user_turned_off">Izsekošana ir izslēgta. Jūsu izvēles un saglabātie dati paliek.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Atļaujiet piekļuvi soļu skaitam lietotnē Health Connect, lai aizpildītu trūkstošos datus, kad Tracker ir aizvērts.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Pieļaut piekļuvi pakāpes skaitam Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Nevaru pārbaudīt Health Connect piekļuvi. Izprāvi vēlreiz.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Soļu skaitu var importēt, kamēr Tracker darbojas. Piekļuve fonā var samazināt iztrūkumus soļu vēsturē.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Nav pieejams atbalsts, kas sniegtu visu dienu.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Aktualizē Health Connect lai Tracker varētu lasīt pakāpes skaitļus.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Nevarēju pārbaudīt pakāpes piegādātāju. Vēlāk mēģiniet atkal.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Pieļauj fiziskajai aktivitātēm skaitīt kāpumus uz šo ierīci.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Šajā ierīcē nav pieejams kāpumu ieraksts.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect ir gatavs. Dažos periodos var vēl būt traucējumi.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Steps ieraksts ir gatavs. Dažos periodos var vēl būt traucējumi.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Lai vāktu atrašanās vietas datus starp sesijām, nepieciešama piekļuve atrašanās vietai fonā. Iestatījums datu ierakstīšanai sesijas laikā nemainās.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi skanēšanas atļaujas prasības nav izpildītas. Ja to piešķir, nav iespējams iegūt vietas.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android  ⁇ s Nē, nav izpildīti cellu atcelšanas atļaujas prasības. Ja to piešķir, nav iespējams iegūt vietas.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasīva vieta ir gatava attaisnot avotu īpašniekam. Tas nodrošina oportunistiskus punktus, nevis maršruta nepārtrauktību.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi skanēšanas rezultāta atkārtotas uzskatus ir gatavi saskaņošanai starp avota īpašniekam. Neizspēlēta skanēšana vai uzbudēšanas kadence.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Laikmarka kvalifikācijas cellu pārmaiņu atkārtotas uzskatus ir gatavas atveseļošanai starp avotu īpašniekam un avota īpašniekam. Neatkarīgi no pilnvarota atjaunināšanas kadencei.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Vajadzīga platforma vai piegādātājs nav pieejams, tāpēc iekasēšana netiek veikta.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Izmantotas; ekspluatācijas statuss gaidāms</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Sakarā ar to, kas iegūta; ziņots par ekspluatācijas pieejamību</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Apstrādāts; ekspluatācijā nav</string>
+    <string name="settings_location_source_summary">Piekrīt maršrutu, attālumu un ātrumu. Parasti lielākais akumulatora izmaksas.</string>
+    <string name="settings_activity_source_summary">Visas dienas garumā reģistrē iešanu, braukšanu ar velosipēdu, braukšanu ar auto un nekustīgumu.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Izrauga kāpumus visā dienā. Izceļas organizē to pašu pakāpes vēsturi.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Pārbaudēju kāpju kolekciju.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Izslēgt izsekošanu</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Izplūdes...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Atstājiet sesijas, uzstājiet visu dienu un startē automātiski. Jūsu izvēle un saglabāti dati paliek.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Izsekošana ir izslēgta. Jūsu izvēles un saglabātie dati paliek.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Nevaru izslēgt izslēgšanu. Izprāvi vēlreiz.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Pārregistrujiet gaisa spiedienu visā dienā ar novērošanas paziņojumu.</string>
+    <string name="settings_ambient_activity_ready">Viss gatavs aktivitāšu reģistrēšanai.</string>
+    <string name="settings_ambient_pressure_ready">Viss gatavs gaisa spiediena reģistrēšanai.</string>
+    <string name="settings_pressure_host_unavailable">Neizdevās sākt gaisa spiediena reģistrēšanu fonā.</string>
+    <string name="settings_wifi_source_summary">Piekrīt Wi-Fi tīklus, lai pievienotu vietējo kontekstu. Dati paliek uz šo ierīci.</string>
+    <string name="settings_cell_source_summary">Piekārtojiet tuvu mobilās tornes, lai pievienotu vietas kontekstu. Dati paliek uz šo ierīci.</string>
+    <string name="settings_location_source_compact">Reģistrācija, attālums un ātrums</string>
+    <string name="settings_activity_source_compact">Kārtība un kustība</string>
+    <string name="settings_steps_source_compact">Pielikumi visā dienā</string>
+    <string name="settings_barometer_source_compact">Altuve un augstums</string>
+    <string name="settings_wifi_source_compact">Tuvajos tīkla konteksts</string>
+    <string name="settings_cell_source_compact">Tuvajā torņa konteksts</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Tehniskais stāvoklis</string>
+    <string name="settings_technical_status_summary">Akumules aprēķins, atļaujas un uzglabāšanas statuss.</string>
+    <string name="settings_technical_status_attention">Dažiem kolekcijas avotiem ir nepieciešams pievērst uzmanību. Atvērtas detaļām.</string>
+    <string name="settings_simple_source_controls_title">Jautājums:</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Automātiski izsekojiet iešanu un skriešanu.</string>
     <string name="setup_auto_tracking_in_motion">Kustībā</string>
     <string name="setup_auto_tracking_in_motion_desc">Automātiski izsekojiet visu pārvietošanos, tostarp auto vadīšanu un braukšanu ar velosipēdu.</string>
-    <string name="setup_preset_title">Izsekošanas detalizācija</string>
+    <string name="settings_auto_tracking_mode_summary">Izvēlējiet, kuru kustību ir jāiesāk un jāstājas automātiski.</string>
     <string name="setup_recommended">Ieteicams</string>
     <string name="setup_what_to_collect_title">Ko vākt</string>
     <string name="setup_what_to_collect_subtitle">Tālāk ir vairāk opciju. Sāciet izpētīt bez atļaujām vai piešķiriet tās vēlāk. Dati paliek šajā ierīcē.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Aktivitāte</string>
     <string name="setup_source_activity_desc">Nosakiet, vai ejat, skrienat, braucat ar velosipēdu vai vadāt auto.</string>
     <string name="setup_source_steps">Soļi</string>
-    <string name="setup_source_steps_desc">Skaitiet soļus, izmantojot ierīces soļu skaitītāju.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Izmeklējiet paļāvus visā dienā. Izceļas veido vienāda vēsturi.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Nav tieša kājas sensora. Tracker pārbaudīs, vai ir ierīce uz virzienu.</string>
+    <string name="setup_perm_steps_why">Atļaujiet piekļuvi kustībām, lai šajā ierīcē skaitītu soļus visu dienu.</string>
+    <string name="setup_perm_grant_steps_content_description">Atļaut piekļuvi kustībām Soļiem</string>
+    <string name="setup_steps_health_connect_why">Atļaujiet Soļus Health Connect, lai aizpildītu trūkumus, kad Tracker ir aizvērts.</string>
+    <string name="setup_steps_provider_ready">Soļu avots ierīcē ir gatavs. Dažos periodos joprojām var būt trūkumi.</string>
+    <string name="setup_steps_provider_checking">Pārbauda pieejamos soļu avotus…</string>
     <string name="setup_source_wifi">Wi-Fi tīkli</string>
-    <string name="setup_source_wifi_desc">Reģistrējiet tuvumā esošos Wi-Fi tīklus, lai uzlabotu atrašanās vietas precizitāti.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Piekārtojot tuvu Wi-Fi tīklus, ar vai bez atrašanās vietas novērošanas.</string>
     <string name="setup_source_cell">Mobilo sakaru torņi</string>
-    <string name="setup_source_cell_desc">Reģistrējiet mobilo sakaru torņu informāciju atrašanās vietas kontekstam.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Piekārtojiet tuvu mobilās tornes, ar vai bez atrašanās vietas izsekošanas.</string>
     <string name="setup_perm_location_why">Nepieciešama, lai ierakstītu maršrutus un parādītu tos kartē. Atrašanās vieta paliek šajā ierīcē — nekas netiek nosūtīts uz serveri.</string>
     <string name="setup_perm_location_bg_why">Lai turpinātu ierakstīt maršrutu, kad pārslēdzaties uz citu lietotni vai ekrāns izslēdzas, Tracker fonā nepieciešama piekļuve atrašanās vietai. Ierakstītā atrašanās vieta paliek šajā ierīcē — nekas netiek nosūtīts uz serveri. Nākamajā sistēmas uzvednē izvēlieties "Atļaut vienmēr", lai iespējotu automātisku izsekošanu; opcija "Lietojot lietotni" ļauj Tracker darboties tikai tad, kad tā ekrāns ir atvērts.</string>
     <string name="setup_perm_activity_why">Ļauj Tracker noteikt, ko jūs darāt (ejat, braucat ar velosipēdu, vadāt auto, nekustaties), lai automātiskā izsekošana varētu apstāties, kad nekustaties, un taupīt akumulatoru. Aktivitāšu dati paliek šajā ierīcē — nekas netiek nosūtīts uz serveri.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Piešķirt mobilo sakaru radio atļauju</string>
     <string name="setup_perm_granted">Piešķirta ✓</string>
     <string name="permission_grant_in_settings">Atļaut iestatījumos →</string>
-    <string name="permission_disabled_due_to_denial">%1$s ir atspējots, jo atļauja tika noraidīta. Piešķiriet to iestatījumos, lai iespējotu.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s ir izvēlēts, bet nevar iekasēt, kamēr nav piešķirta atļauja.</string>
     <string name="settings_wifi_permission_required">Nepieciešama Wi-Fi/atrašanās vietas atļauja. Ieslēdziet slēdzi, lai to piešķirtu — līdz tam Wi-Fi dati netiek ierakstīti, un ierakstītie dati paliek šajā ierīcē.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Pievienošanās vēl ir nepieciešama. Jūsu izvēle ir saglabāta.</string>
     <string name="settings_cell_permission_required">Nepieciešama tālruņa stāvokļa un precīzas atrašanās vietas atļauja. Ieslēdziet slēdzi, lai to piešķirtu — līdz tam šūnu dati netiek ierakstīti, un ierakstītie dati paliek šajā ierīcē.</string>
     <string name="settings_barometer_unavailable">Šajā ierīcē nav pieejams spiediena sensors.</string>
     <string name="settings_activity_permission_required">Nepieciešama aktivitāšu atpazīšanas atļauja. Ieslēdziet slēdzi, lai to piešķirtu.</string>
-    <string name="settings_steps_unavailable">Šajā ierīcē nav pieejams soļu skaitītāja sensors.</string>
     <string name="setup_start_exploring">Sākt izpēti</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Piepildot uzbūvi...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Mēģināt vēlreiz</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Nevaru saglabāt konfigurāciju. Tavas izvēles vēl ir šeit.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Negribēju sagatavot saglabāt datus. Tavas izvēles vēl ir šeit.</string>
     <string name="setup_continue">Turpināt</string>
     <string name="setup_step_indicator">%1$d. solis no %2$d</string>
     <string name="setup_online_tiles_title">Tiešsaistes kartes mozaīkas?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Kad funkcija ir iespējota, nodrošinātājs var redzēt jūsu IP adresi un ielādētās mozaīkas — aptuveni kartes apgabalu, ko skatāt. Tracker nekad nesūta kontu, identifikatoru vai jūsu atrašanās vietu vēsturi.</string>
     <string name="setup_online_tiles_change_later">To jebkurā laikā varat mainīt sadaļā Iestatījumi → Karte → Tiešsaistes kartes mozaīkas.</string>
     <string name="setup_background_access_optional">Neobligāti, bet ieteicams. To jebkurā laikā varat mainīt sadaļā Iestatījumi → Izsekošana.</string>
-    <string name="background_reliability_status_exempt">Darbība fonā atļauta</string>
-    <string name="background_reliability_status_optimized">Akumulatora optimizācija ir ieslēgta</string>
-    <string name="background_reliability_allow_action">Atļaut darbību fonā</string>
-    <string name="background_reliability_samsung_hint">Samsung ierīces var ievietot lietotnes arī sadaļā "Miega lietotnes". Atveriet akumulatora iestatījumus, noņemiet Tracker no miega lietotnēm un iestatiet, lai tas netiktu iemidzināts.</string>
-    <string name="background_reliability_samsung_action">Atvērt ierīces akumulatora iestatījumus</string>
-    <string name="settings_tracebox_title">Avāriju diagnostika</string>
-    <string name="settings_tracebox_root_summary">Vietējā avāriju, ANR un strukturālā diagnostika</string>
     <string name="setup_background_location_title">Atļaut atrašanās vietu fonā automātiskai izsekošanai</string>
     <string name="setup_background_location_disclosure">Automātiskā izsekošana sākas, kamēr Tracker darbojas fonā, un ieraksta jūsu maršrutu arī tad, ja lietotnes ekrāns nav atvērts. Atrašanās vietas dati paliek šajā ierīcē. Lietotnes atrašanās vietas iestatījumos izvēlieties “%1$s”.</string>
     <string name="setup_background_location_open_settings">Atvērt atrašanās vietas iestatījumus</string>
     <string name="setup_background_location_decline">Ne tagad</string>
     <string name="setup_background_location_manual_only">Manuālā izsekošana priekšplānā joprojām ir pieejama. Automātiskā atrašanās vietas izsekošana paliks izslēgta, līdz tiks atļauta atrašanās vieta fonā.</string>
-    <string name="settings_ambient_user_turned_off">Izsekošana ir izslēgta. Jūsu izvēles un saglabātie dati paliek.</string>
-    <string name="setup_perm_steps_why">Atļaujiet piekļuvi kustībām, lai šajā ierīcē skaitītu soļus visu dienu.</string>
-    <string name="setup_perm_grant_steps_content_description">Atļaut piekļuvi kustībām Soļiem</string>
-    <string name="setup_steps_health_connect_why">Atļaujiet Soļus Health Connect, lai aizpildītu trūkumus, kad Tracker ir aizvērts.</string>
-    <string name="setup_steps_provider_ready">Soļu avots ierīcē ir gatavs. Dažos periodos joprojām var būt trūkumi.</string>
-    <string name="setup_steps_provider_checking">Pārbauda pieejamos soļu avotus…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Sīkdatnes, kas ļauj sekot fonus</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android un ierīču politika var apturēt vai apturēt fonisko darbu. Tracker var ziņot par ierobežojumiem, ko Android izpaužas, bet tas nevar pārsniegt ierobežošanas vai piespiedu stāvokļa.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Reklāmas ierobežojums konstatēts</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Baterijas optimizācija atklāta</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nav konstatēts ierobežojums</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">ierobežošanas režīms nav pieejams</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android norāda, ka darbības pamatā ir ierobežotas. Pēc Tracker nav redzams, izsekošana var pārtraukt; aplikācija nevar pārsūtīt šo politiku.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android ziņojums par to, ka Tracker nav iekļauts akumulatora reģistrā. Elektroenerģijas pārvaldība var aizkavēt priekšlaicīgu darbu; atļaujas saraksts samazina ierobežojumus, bet nenozīmē nepārtrauktu izsekošanu.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ziņojums par nekādiem ierobežojumiem, un Tracker ir iekļauts akumulatoru reģistrā. Sistemā joprojām ir iespēja apturēt aplikāciju, un spēka pārtraukšanu nevar pārsūtīt.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nevarēja izlasīt visus attiecīgos ierobežošanas signālus Android. Nav iespējams apstiprināt ierīci specifisku iemeslu vai ārstēšanas metodi.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Atvērtas aplikācijas akumulatoru iestatījumi</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Atvērtas baterijas optimizācijas iestatījumi</string>
+    <string name="settings_tracebox_title">Avāriju diagnostika</string>
+    <string name="settings_tracebox_root_summary">Vietējā avāriju, ANR un strukturālā diagnostika</string>
     <string name="settings_tracking_changes_apply_live">Izmaiņas atjaunina pašreizējo izsekošanu</string>
     <string name="settings_balance_title">Enerģija un detalizācija</string>
     <string name="settings_balance_custom">Pielāgoti iestatījumi · Izvēlēties līdzsvaru</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Detaļas · Kopējais līdzsvars: %1$s</string>
     <string name="settings_balance_inherit">Izmantot kopējo līdzsvaru</string>
     <string name="settings_balance_summary">Izvēlieties atlasīto avotu parasto kvalitāti. Aktīvās sesijas dod priekšroku iesaistīto avotu detalizācijai. Līdzsvara izvēle aizstāj iepriekšējo vākšanas biežumu; avotu izvēles, piekrišana vākšanai fonā un precizitātes filtri paliek saglabāti.</string>
-    <string name="export_format_portable_steps_desc">Pārbaudīta soļu vēsture, pārklājums un trūkumi bez maršruta koordinātām</string>
-    <string name="export_format_portable_ambient_steps_desc">Fonā savākti soļi, aktivitātes laiks, datumi, pārklājuma trūkumi un saglabātā laika josla bez maršruta koordinātām</string>
-    <string name="export_format_portable_activity_desc">Ierakstīti kustības intervāli, ticamība un pārklājums bez maršruta koordinātām</string>
-    <string name="export_format_portable_pressure_desc">Tieši spiediena mērījumi hPa, pārklājums un trūkumi bez maršruta koordinātām</string>
-    <string name="export_sensitivity_portable_title">Eksportēt ierakstīto vēsturi?</string>
-    <string name="export_sensitivity_portable_steps_message">Šajā failā ir soļu skaits, laika intervāli un informācija par pārklājumu. Tajā nav maršruta koordinātu. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Šajā failā ir fonā savākti soļi, aktivitātes intervāli, datumi, pārklājuma trūkumi un saglabātā laika josla. Tajā nav maršruta koordinātu. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
-    <string name="export_sensitivity_portable_activity_message">Šajā failā ir ierakstīti kustības intervāli, laika intervāli un informācija par pārklājumu. Tajā nav maršruta koordinātu. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
-    <string name="export_sensitivity_portable_pressure_message">Šajā failā ir spiediena mērījumi un laika intervāli, kas var atklāt informāciju par vidi. Tajā nav maršruta koordinātu vai kalibrēta augstuma. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
-    <string name="settings_activity_source_summary">Visas dienas garumā reģistrē iešanu, braukšanu ar velosipēdu, braukšanu ar auto un nekustīgumu.</string>
-    <string name="settings_ambient_activity_ready">Viss gatavs aktivitāšu reģistrēšanai.</string>
-    <string name="settings_ambient_pressure_ready">Viss gatavs gaisa spiediena reģistrēšanai.</string>
-    <string name="settings_pressure_host_unavailable">Neizdevās sākt gaisa spiediena reģistrēšanu fonā.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Atsākt izsekošanu</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Nevaru atjaunot izsekošanu. Izprāvi vēlreiz.</string>
 </resources>

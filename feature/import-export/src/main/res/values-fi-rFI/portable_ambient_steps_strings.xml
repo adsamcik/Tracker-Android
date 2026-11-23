@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Siirrettävät tausta-askeleet</string>
+    <string name="export_error_no_portable_ambient_steps">Vietävää, vahvistettua tausta-askelhistoriaa ei ole saatavilla.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Tausta-askelhistoria on puutteellinen tai sitä ei voida vahvistaa vientiä varten.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Tausta-askeleiden vienti ei ole tilapäisesti käytettävissä. Yritä uudelleen.</string>
+    <string name="export_error_portable_ambient_steps_scope">Tätä tausta-askeleiden valintaa ei voida esittää siirrettävässä tiedostomuodossa.</string>
+    <string name="export_error_portable_ambient_steps_write">Siirrettävää tausta-askeltiedostoa ei voitu luoda.</string>
+    <string name="export_ambient_steps_sensitivity_title">Viedäänkö tausta-askelhistoria?</string>
+    <string name="export_ambient_steps_sensitivity_message">Tämä tiedosto sisältää askelmääriä, toiminnan aikavälejä, päivämääriä, tallennuksen aukkoja ja tallennettuja aikavyöhyketietoja, jotka voivat paljastaa päivittäisiä toimintatapoja. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
+</resources>

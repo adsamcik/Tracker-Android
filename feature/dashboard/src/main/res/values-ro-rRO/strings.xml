@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Încheierea sesiunii…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · parțial</string>
     <string name="dashboard_title">Panou</string>
     <string name="dashboard_tracking_title">Urmărire</string>
     <string name="dashboard_recording">Se înregistrează</string>
@@ -21,7 +23,6 @@
         <item quantity="other">Serie: %1$d zile. Atinge pentru a vedea detaliile seriei</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Începe o serie. Atinge pentru a vedea detaliile seriei</string>
-    <string name="dashboard_cd_stop_tracking">Oprește urmărirea</string>
     <string name="dashboard_action_enable_location">Activează accesul la locație</string>
     <string name="dashboard_action_view_details">Vezi detaliile</string>
     <string name="dashboard_action_view_map">Vezi harta</string>
@@ -43,6 +44,11 @@
     <string name="dashboard_live_steps_materializing">Se pregătește istoricul pașilor salvat permanent…</string>
     <string name="dashboard_live_steps_missing">Se așteaptă o observație validă a pașilor</string>
     <string name="dashboard_live_steps_unavailable">Istoricul pașilor salvat permanent nu este disponibil</string>
+    <string name="dashboard_metric_pressure">Presiune</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Interval %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Schimbare %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Fus orar salvat: %1$s</string>
     <string name="dashboard_milestone_distance">km atinși!</string>
     <string name="dashboard_milestone_steps">pași atinși!</string>
     <string name="dashboard_milestone_time">min urmărite!</string>
@@ -64,16 +70,106 @@
     <string name="dashboard_last_session_title">Ultima sesiune</string>
     <string name="dashboard_last_session_duration">Durată</string>
     <string name="dashboard_last_session_distance">Distanță</string>
-    <string name="dashboard_last_session_steps">Pași</string>
     <string name="dashboard_last_session_view_map">Vezi harta</string>
     <string name="dashboard_recent_trips_title">Urmărire recentă</string>
     <string name="dashboard_recent_trips_empty">Nu există sesiuni recente de urmărire. Pornește urmărirea pentru a le vedea aici.</string>
     <string name="dashboard_recent_history_loading">Se încarcă urmărirea recentă…</string>
     <string name="dashboard_recent_history_unavailable">Urmărirea recentă nu este disponibilă</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s istoricul nu este disponibil</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Autoritatea de recenţă a sursei nu este disponibilă</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Nu este disponibil instantaneul de probă de sursă păstrat</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Citirea istoricului de surse limitate nu a putut termina în siguranță</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Istoricul sursă păstrat a eșuat verificările de integritate</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Nu a putut fi verificată istoricul fizic.</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Locație</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Rețea mobilă</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Activitate</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Pași</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Presiune atmosferică</string>
     <string name="dashboard_recent_steps_title">Sesiune de pași</string>
     <string name="dashboard_recent_steps_available">Istoricul pașilor este disponibil</string>
     <string name="dashboard_recent_steps_materializing">Se pregătește istoricul pașilor…</string>
     <string name="dashboard_recent_steps_partial">Istoric parțial al pașilor</string>
+    <string name="dashboard_recent_pressure_title">Sesiune de presiune</string>
+    <string name="dashboard_recent_pressure_available">Istoricul presiunii este disponibil</string>
+    <string name="dashboard_recent_pressure_materializing">Se pregătește istoricul presiunii…</string>
+    <string name="dashboard_recent_pressure_partial">Istoricul presiunii parțial</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Istoricul de presiune șters</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Nu s-a putut verifica istoricul presiunii</string>
+    <string name="dashboard_recent_pressure_unavailable">Istoricul presiunii nu este disponibil</string>
+    <string name="dashboard_recent_pressure_failed">Istoricul presiunii nu a putut fi pregătit</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · interval %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Schimbare %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Fără acoperire păstrată</string>
+    <string name="dashboard_pressure_coverage_complete">Acoperire completă</string>
+    <string name="dashboard_pressure_coverage_partial">Acoperire parțială</string>
+    <string name="dashboard_pressure_coverage_unknown">Acoperire indisponibilă</string>
+    <string name="dashboard_recent_activity_title">Sesiune de activitate</string>
+    <string name="dashboard_recent_activity_ready">Istoricul activității este disponibil</string>
+    <string name="dashboard_recent_activity_materializing">Se pregătește istoricul activității…</string>
+    <string name="dashboard_recent_activity_partial">Istoricul activității parțial</string>
+    <string name="dashboard_recent_activity_unavailable">Istoricul activității nu este disponibil</string>
+    <string name="dashboard_recent_activity_failed">Istoricul activității nu a putut fi verificat</string>
+    <string name="dashboard_recent_activity_summary">%1$s · timp activ %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi sesiune</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Sesiune celulare</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Capturat Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Radio mobil capturat</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Surse din această sesiune</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Localizarea nu este capturată în această sesiune. Ruta, distanţa, viteza şi altitudinea nu sunt disponibile.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Istoricul verificat %1$s nu este disponibil.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Capturat pe acest dispozitiv</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Evidențe păstrate importate</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Pregătesc istoricul radio...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Istoria parțială păstrată a radioului</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Istoricul radio păstrat disponibil</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Istoricul radio nu este disponibil</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Nu există dovezi radio calificate păstrate</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Istoricul de radio păstrat șters</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Istoricul radio nu a putut fi verificat</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Verificarea integrităţii istoricului radio a eşuat .</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Fără acoperire verificată</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">acoperire verificată parțială</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">O acoperire completă verificată</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Acoperire indisponibilă</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Așteptarea observațiilor radio păstrate</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Nu sunt disponibile observații radio păstrate</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Dovezile de sursă păstrate au fost șterse.</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Dovezile păstrate nu pot fi prezentate în siguranță</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Localizarea, ruta, distanţa, viteza şi altitudinea nu fac parte din această istorie sursă.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d rezultatul scanării păstrat</item>
+        <item quantity="other">%1$d rezultatele scanării păstrate</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d înregistrări radio păstrate</item>
+        <item quantity="other">%1$d înregistrări radio păstrate</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d livrare rezervată</item>
+        <item quantity="other">%1$d livrări retinute</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d livrarea are rezultate parţiale</item>
+        <item quantity="other">%1$d livrările au rezultate parţiale</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Activitate înregistrată</string>
+    <string name="dashboard_live_activity_movement">Ultima mișcare înregistrată</string>
+    <string name="dashboard_live_activity_active_time">Timp activ</string>
+    <string name="dashboard_live_activity_gaps">Lacune cunoscute: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Fără acoperire verificată</string>
+    <string name="dashboard_activity_coverage_partial">Acoperire parțială</string>
+    <string name="dashboard_activity_coverage_complete">Acoperire completă</string>
+    <string name="dashboard_activity_still">Staționar</string>
+    <string name="dashboard_activity_walking">Mers pe jos</string>
+    <string name="dashboard_activity_running">Alergare</string>
+    <string name="dashboard_activity_cycling">Ciclism</string>
+    <string name="dashboard_activity_vehicle">În vehicul</string>
+    <string name="dashboard_activity_on_foot">Pe jos</string>
+    <string name="dashboard_activity_tilting">Înclinare</string>
+    <string name="dashboard_activity_unknown">Activitate necunoscută</string>
     <string name="dashboard_exploration_title">Explorare</string>
     <string name="dashboard_exploration_new_today">Nou astăzi</string>
     <string name="dashboard_exploration_total_cells">Total celule</string>
@@ -151,51 +247,23 @@
     <string name="dashboard_ring_start_tracking">Pornește urmărirea</string>
     <string name="dashboard_ring_enable_location">Activează locația</string>
     <string name="dashboard_pill_start">Pornește</string>
-    <string name="dashboard_pill_stop">Oprește</string>
     <string name="dashboard_pill_enable_location">Activează locația</string>
     <string name="dashboard_insights_title">Informații despre sesiune</string>
     <string name="dashboard_cd_insight_item">Informație: %1$s</string>
     <string name="widget_latest_achievement">Cea mai recentă realizare</string>
     <string name="dashboard_latest_achievement_title">Cea mai recentă realizare</string>
     <string name="dashboard_latest_achievement_empty">Continuă urmărirea pentru a debloca prima realizare</string>
-    <string name="dashboard_metric_pressure">Presiune</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Interval %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Schimbare %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Fus orar salvat: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Sesiune de presiune</string>
-    <string name="dashboard_recent_pressure_available">Istoricul presiunii este disponibil</string>
-    <string name="dashboard_recent_pressure_materializing">Se pregătește istoricul presiunii…</string>
-    <string name="dashboard_recent_pressure_partial">Istoricul presiunii parțial</string>
-    <string name="dashboard_recent_pressure_unavailable">Istoricul presiunii nu este disponibil</string>
-    <string name="dashboard_recent_pressure_failed">Istoricul presiunii nu a putut fi pregătit</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · interval %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Schimbare %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Fără acoperire păstrată</string>
-    <string name="dashboard_pressure_coverage_complete">Acoperire completă</string>
-    <string name="dashboard_pressure_coverage_partial">Acoperire parțială</string>
-    <string name="dashboard_pressure_coverage_unknown">Acoperire indisponibilă</string>
-    <string name="dashboard_recent_activity_title">Sesiune de activitate</string>
-    <string name="dashboard_recent_activity_ready">Istoricul activității este disponibil</string>
-    <string name="dashboard_recent_activity_materializing">Se pregătește istoricul activității…</string>
-    <string name="dashboard_recent_activity_partial">Istoricul activității parțial</string>
-    <string name="dashboard_recent_activity_unavailable">Istoricul activității nu este disponibil</string>
-    <string name="dashboard_recent_activity_failed">Istoricul activității nu a putut fi verificat</string>
-    <string name="dashboard_recent_activity_summary">%1$s · timp activ %2$s</string>
-    <string name="dashboard_live_activity_title">Activitate înregistrată</string>
-    <string name="dashboard_live_activity_movement">Ultima mișcare înregistrată</string>
-    <string name="dashboard_live_activity_active_time">Timp activ</string>
-    <string name="dashboard_live_activity_gaps">Lacune cunoscute: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Fără acoperire verificată</string>
-    <string name="dashboard_activity_coverage_partial">Acoperire parțială</string>
-    <string name="dashboard_activity_coverage_complete">Acoperire completă</string>
-    <string name="dashboard_activity_still">Staționar</string>
-    <string name="dashboard_activity_walking">Mers pe jos</string>
-    <string name="dashboard_activity_running">Alergare</string>
-    <string name="dashboard_activity_cycling">Ciclism</string>
-    <string name="dashboard_activity_vehicle">În vehicul</string>
-    <string name="dashboard_activity_on_foot">Pe jos</string>
-    <string name="dashboard_activity_tilting">Înclinare</string>
-    <string name="dashboard_activity_unknown">Activitate necunoscută</string>
-    <string name="dashboard_finishing_session">Încheierea sesiunii…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Paşi importati</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Află înregistrarea %1$d</item>
+        <item quantity="other">Află înregistrările %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Ascunde înregistrarea %1$d</item>
+        <item quantity="other">Ascunde înregistrările %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Înregistrare %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s pași</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Cel puțin %1$s pași</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Pași indisponibil</string>
 </resources>

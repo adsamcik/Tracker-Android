@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Pasos en segundo plano en formato portable</string>
+    <string name="export_error_no_portable_ambient_steps">No hay un historial verificado de pasos en segundo plano disponible para exportar.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">El historial de pasos en segundo plano está incompleto o no se puede verificar para la exportación.</string>
+    <string name="export_error_portable_ambient_steps_retryable">La exportación de pasos en segundo plano no está disponible temporalmente. Inténtalo de nuevo.</string>
+    <string name="export_error_portable_ambient_steps_scope">Esta selección de pasos en segundo plano no se puede representar en el formato de archivo portable.</string>
+    <string name="export_error_portable_ambient_steps_write">No se pudo crear el archivo de pasos en segundo plano en formato portable.</string>
+    <string name="export_ambient_steps_sensitivity_title">¿Exportar el historial de pasos en segundo plano?</string>
+    <string name="export_ambient_steps_sensitivity_message">Este archivo contiene recuentos de pasos, intervalos de actividad, fechas, lagunas en el registro e información guardada de la zona horaria que pueden revelar patrones de actividad diaria. No contiene coordenadas de rutas. Continúa solo si confías en el destino.</string>
+</resources>

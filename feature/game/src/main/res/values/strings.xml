@@ -15,7 +15,6 @@
     <string name="minigame_fuserun_description">Escape each virtual blast radius before its fuse expires</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Carve sharp alternating turns to build a flow combo</string>
-    <string name="minigame_locked">Unlocks at Level %1$d</string>
 
     <!-- Game hub: Play section -->
     <string name="game_play_section_title">Play</string>
@@ -219,7 +218,6 @@
     <string name="goals_reached_notification">%1$s! You reached your %2$s goal!</string>
     <string name="goals_daily_goal">daily</string>
     <string name="goals_weekly_goal">weekly</string>
-    <string name="goals_monthly_goal">monthly</string>
     
     <!-- Game screen UI strings -->
     <string name="game_steps_goals_title">Steps goals</string>

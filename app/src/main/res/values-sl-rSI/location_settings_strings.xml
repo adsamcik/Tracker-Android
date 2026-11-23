@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Lokacija ves dan</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Med sestankami.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Aktivirana med secijami. Dostopnost je odvisna od dostopa in omejitev Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Prilagodljiva</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Samo pasivno</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Prilagoduje zbiranje lokacije v gibanje in vaše preference podrobnosti, z stalno obvestilo.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Uporablja pozicije, ki jih zagotavljajo druge aplikacije ali sistem. Dolge razlike so možne.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker bo zbiral lokacijo med secijami, prilagodil svoj napor gibanju in prikazal tekoče obvestilo. To lahko uporablja več baterije kot pasivno zbiranje. Vaša izbira je shranjena, preden Android zahteva dostop do lokacije. Če ne bo dostopa, bo čakala. Lahko jo izklopiš kadarkoli.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Uporabite prilagodljivo lokacijo</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Dovoli dostop do lokacije</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Izberite prilagojeno Podrobnost lokacije</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Podrobnost lokacije: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Moč lokacije in podrobnosti</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Izberite raven za prilagodljivo lokacijo. Izravnava je privzeta; živa sevanja raje podrobneje. Android in vaš dostop lahko omeji rezultat.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Najprej moč.</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Slabo moč.</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Uravnoteženo</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Prednost podrobnosti</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Najprej podrobnosti.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Pomoč pri predlogih</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Možno je uporabiti navodila za gibanje za prilagoditev lokacije. To ne zapisuje zgodovine dejavnosti in ne more začeti seje. Lokalizacija še vedno deluje, če zavrneš.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Dovolite navodila za gibanje</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Ne bi mogla uporabiti te spremembe. Poskusite še enkrat.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptivna zbirka še ni v teku.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Uporablja prilagodljivo stopnjo podrobnosti lokacije.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptivna lokacija je na voljo.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Zahtevka za lokacijo, ki jo je naprava prilagodila.</string>
+</resources>

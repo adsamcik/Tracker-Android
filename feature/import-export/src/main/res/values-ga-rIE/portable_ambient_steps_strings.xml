@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Céimeanna cúlra iniompartha</string>
+    <string name="export_error_no_portable_ambient_steps">Níl aon stair fhíoraithe de chéimeanna cúlra ar fáil le heaspórtáil.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Tá stair na gcéimeanna cúlra neamhiomlán nó ní féidir í a fhíorú le haghaidh easpórtála.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Níl easpórtáil céimeanna cúlra ar fáil faoi láthair. Bain triail eile as.</string>
+    <string name="export_error_portable_ambient_steps_scope">Ní féidir an roghnú seo de chéimeanna cúlra a léiriú san fhormáid comhaid iniompartha.</string>
+    <string name="export_error_portable_ambient_steps_write">Níorbh fhéidir an comhad céimeanna cúlra iniompartha a chruthú.</string>
+    <string name="export_ambient_steps_sensitivity_title">Stair na gcéimeanna cúlra a easpórtáil?</string>
+    <string name="export_ambient_steps_sensitivity_message">Tá líon na gcéimeanna, tréimhsí gníomhaíochta, dátaí, bearnaí sa taifeadadh agus faisnéis chrios ama shábháilte sa chomhad seo, a d\'fhéadfadh patrúin gníomhaíochta laethúla a nochtadh. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+</resources>

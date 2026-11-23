@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">आँकड़े</string>
     <string name="stats_cell_count">सेल संख्या</string>
     <string name="stats_collections">अपडेट संख्या</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">सेल %1$s · %2$s नमूने</string>
     <string name="stats_cell_signal_carrier">वाहक %1$s‑%2$s</string>
     <string name="trip_detail_title">यात्रा विवरण</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">स्रोत इतिहास</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">स्रोत इतिहास अनुपलब्ध</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">ऐप प्रक्रिया को फिर से बनाने के बाद यह निजी चयन बरकरार नहीं रखा गया था। हालिया इतिहास पर लौटें और इसे फिर से चुनें।</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">चयनित आरक्षित स्रोत प्रविष्टि अब उपलब्ध नहीं है।</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">सीमित स्रोत इतिहास पढ़ना सुरक्षित रूप से समाप्त नहीं हो सका।</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">चयनित आरक्षित स्रोत प्रविष्टि अखंडता जांच में विफल रही।</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">इस चयन को प्रस्तुत करने के लिए आवश्यक स्रोत-सबूत स्नैपशॉट उपलब्ध नहीं है।</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">स्रोत द्वारा जारी चयन में वर्तमान बनाए गए प्रविष्टि की पहचान नहीं की जाती है।</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">स्रोत इतिहास पढ़ने में विफल रहा। इसे ताज़ा करने की कोशिश करें।</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">यात्रा नहीं मिली</string>
     <string name="trip_detail_not_found_subtitle">यह यात्रा हटाई गई हो सकती है</string>
     <string name="trip_detail_error_title">यात्रा लोड नहीं हो सकी</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">दूरी</string>
     <string name="trip_detail_date">तिथि</string>
     <string name="trip_detail_steps">कदम</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">पूरा कवरेज</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">कम से कम यह संख्या · आंशिक कवरेज</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">आंशिक इतिहास · कोई विश्वसनीय गणना उपलब्ध नहीं</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">सत्यापित नहींः %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">विरासत मूल्य · पूर्णता सत्यापित नहीं</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">इतिहास को अपडेट करना ...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">इस सत्र के लिए कैप्चर नहीं किया</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">इस सत्र के लिए अक्षम</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">समर्थित नहीं</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">अनुमति की आवश्यकता थी</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Android द्वारा सीमित</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">उपलब्ध नहीं</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">कोई योग्य अवलोकन नहीं</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">हटाया गया</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">इतिहास अनुपलब्ध</string>
     <string name="trip_detail_samples">नमूने</string>
     <string name="trip_detail_source">स्रोत</string>
     <string name="trip_detail_avg_speed">औसत गति</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">हटाएँ</string>
     <string name="trip_detail_cancel">रद्द करें</string>
     <string name="trip_detail_more_options">और विकल्प</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">इस कैप्चर किए गए स्रोत के लिए उपलब्ध क्रियाएँ</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">स्रोत प्राधिकरण</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">उत्पत्ति</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">आरक्षित प्रयोजन</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">केवल स्रोत सत्र की सटीक कैप्चर</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">पोर्टेबल स्रोत सदस्यता</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">सत्यापित अपरिवर्तनीय कैप्चर इतिहास इसे एकमात्र कैप्चर स्रोत के रूप में नामित करता है।</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">आयातित प्रारूप स्रोत सदस्यता को बनाए रखा साबित करता है, यह नहीं कि इस उपकरण ने साक्ष्य दर्ज किया है।</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">वाई-फाई सत्र</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">सेल सत्र</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">संग्रहीत रेडियो सारांश</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">स्थिति</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">कवरेज</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">संग्रहीत रेडियो इतिहास तैयार करना</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">आंशिक रूप से संरक्षित रेडियो इतिहास</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">उपलब्ध रेडियो इतिहास संग्रहीत</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">रेडियो इतिहास अनुपलब्ध</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">कोई योग्य रेडियो साक्ष्य नहीं</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">संग्रहीत रेडियो इतिहास हटाया गया</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">रेडियो इतिहास सत्यापित नहीं किया जा सका</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">रेडियो इतिहास अखंडता जांच विफल</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">कोई सत्यापित कवरेज नहीं</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">आंशिक सत्यापित कवरेज</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">पूर्ण सत्यापित कवरेज</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">कवरेज उपलब्ध नहीं है</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">रेडियो अवलोकनों के लिए प्रतीक्षा कर रहे हैं।</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">कोई रेडियो अवलोकन नहीं है।</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">संग्रहीत स्रोत साक्ष्य को हटा दिया गया।</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">संग्रहीत साक्ष्य सुरक्षित रूप से प्रस्तुत नहीं किया जा सकता है।</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">प्रतिधारण वितरण</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">आंशिक परिणामों के साथ डिलीवरी</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">संरक्षित साक्ष्य Wi‑Fi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">स्कैन के परिणाम सहेजे गए</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">आवृत्ति बैंड परिणाम मिश्रण</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">प्रतिबन्धित सिग्नल सीमा</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d से %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 गीगाहर्ट्ज</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 गीगाहर्ट्ज</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">अन्य बैंड</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">प्रतिरक्षित कोशिका साक्ष्य</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">संग्रहीत रेडियो रिकॉर्ड</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">पंजीकृत स्थिति के रिकॉर्ड</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">रेडियो प्रौद्योगिकी रिकॉर्ड मिश्रण</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">सीडीएमए</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">डब्ल्यूसीडीएमए</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">टीडी-एससीडीएमए</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">एलटीई</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5जी एनआर</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">इस विवरण से कोई नेटवर्क, टॉवर, ग्राहक, मार्ग, दूरी, गति, ऊंचाई या स्थान पहचान का खुलासा नहीं किया गया है।</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">कदम सत्र</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">संरक्षित कदम सबूत</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">कवरेज</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">कोई कवर अंतराल नहीं</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">पूर्ण कवर अंतराल</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">आंशिक रूप से कवर किया गया अंतराल</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">कवरेज उपलब्ध नहीं है</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">केवल संरक्षित कदम सबूत दिखाया गया है। स्थान को कैप्चर नहीं किया गया था, इसलिए मार्ग और स्थान से प्राप्त मेट्रिक्स उपलब्ध नहीं हैं।</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">गतिविधि सत्र</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">गतिविधि बैंड, अवधि और विश्वसनीयता डिवाइस पर संग्रहीत साक्ष्य का अनुमानित सारांश है।</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">गतिविधि सारांश</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">स्थिति</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">कवरेज</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">उत्पत्ति</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">ज्ञात सक्रिय समय</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">ज्ञात निष्क्रिय समय</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">अवैध समय</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">ज्ञात अंतर समय</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">गतिविधि बैंड और अंतराल</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">अनुमानित अवधि</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">विश्वास</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">गतिविधि संक्रमण संकेत</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">लगभग %1$d ⁇ %2$d%% से %3$d अवलोकन बनाए रखा गया</item>
+        <item quantity="other">लगभग %1$d ⁇ %2$d%% %3$d अवलोकनों से संरक्षित</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">साक्ष्य का प्रकार</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">परिष्कृत संक्रमण</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">ज्ञात अंतर</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">कारण</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">अनुमानित अवधि</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">गतिविधि का इतिहास तैयार करना</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">गतिविधि का इतिहास अधूरा है</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">गतिविधि का इतिहास उपलब्ध है</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">गतिविधि का इतिहास उपलब्ध नहीं है</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">गतिविधि के इतिहास की पुष्टि नहीं की जा सकी</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">संग्रहीत गतिविधि इतिहास अभी भी तैयार किया जा रहा है; अभी तक इसकी अवधि का कोई निष्कर्ष नहीं निकाला गया है।</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">सत्र का केवल एक हिस्सा ही गतिविधि के सबूतों को बरकरार रखता है।</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">किसी भी गतिविधि की अवधि बरकरार नहीं है।</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">कोई विश्वसनीय गतिविधि परिणाम उपलब्ध नहीं है।</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">संचित गतिविधि साक्ष्य अखंडता जांच में विफल रहे।</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">कोई सत्यापित कवरेज नहीं</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">आंशिक कवरेज</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">पूरा कवरेज</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">इस डिवाइस पर कैप्चर</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">आयातित संग्रहीत साक्ष्य</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">स्थिर</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">चलना</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">दौड़ना</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">साइकिल चलाना</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">वाहन में</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">पैदल</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">झुकना</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">अज्ञात गतिविधि</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">संक्रमण</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">नमूना शुद्धिकरण</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">नमूने में वर्गीकरण</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">कोई योग्य सबूत नहीं रखा गया</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">गतिविधि प्रदाता का विराम</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">प्राधिकरण बदल गया</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">प्रक्रिया या डिवाइस को पुनरारंभ करें</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">साक्ष्य योग्य नहीं थे</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">कैप्चर सत्र</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">स्थान नहीं पकड़ा गया</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">पकड़े गए स्रोत</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">इस सटीक स्रोत संयोजन के लिए चयनित विवरण अभी तक उपलब्ध नहीं है। मार्ग, GPX, दूरी, गति, ऊंचाई और अन्य स्थान-उत्पन्न क्रियाएं अनुपलब्ध हैं।</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">स्थान</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">सेल</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">गतिविधि</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">कदम</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">दबाव</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">पकड़े जाने के स्रोत सत्यापित नहीं</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">यह पुराना सत्र सत्यापित कैप्चर इतिहास से पहले है। यात्रा विवरण दिखाए गए हैं और यह अधूरा हो सकता है।</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">दबाव सत्र</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">वायु दबाव</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">स्थिति</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">नवीनतम</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">आरक्षित रेंज</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">अंतिम में पहला बदलाव</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">कवरेज</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">भंडारण क्षेत्र</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">बनाए रखा दबाव अद्यतन ...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">आंशिक प्रतिधारण दबाव</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">बनाए रखा गया दबाव उपलब्ध</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">प्रतिधारण दबाव हटाया गया</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">बनाए रखा गया दबाव सत्यापित नहीं किया जा सका</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">दबाव अनुपलब्ध</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">दबाव इतिहास विफल</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">इतिहास अनुपलब्ध</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">इस यात्रा के लिए कैप्चर स्रोत इतिहास को ताज़ा करने के लिए पुनः प्रयास करें।</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">संग्रहीत स्रोत-सबूत स्नैपशॉट अनुपलब्ध है। इसे ताज़ा करने की कोशिश करें।</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">सीमित स्रोत इतिहास पढ़ना सुरक्षित रूप से समाप्त नहीं हो सका। इसे ताज़ा करने की कोशिश करें।</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">संग्रहीत स्रोत इतिहास अखंडता जांच विफल. स्रोत उपलब्ध होने के बाद पुनः प्रयास करें।</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">भौतिक इतिहास की सदस्यता को सुरक्षित रूप से सत्यापित नहीं किया जा सका।</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">कोई सहेजा गया कवरेज नहीं</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">पूर्ण संरक्षित कवरेज</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">आंशिक रूप से संरक्षित कवरेज</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">कवरेज उपलब्ध नहीं है</string>
     <string name="ski_detail_header">स्की सत्र</string>
     <string name="ski_detail_runs">रन</string>
     <string name="ski_detail_vertical">ऊर्ध्वाधर</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">आखिरी बार देखा</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">समयरेखा</string>
-    <string name="history_tab_trips">यात्राएँ</string>
     <string name="history_tab_calendar">कैलेंडर</string>
     <string name="history_screen_title">इतिहास</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">अगला महीना</string>
     <string name="history_calendar_distance">दूरी</string>
     <string name="history_calendar_steps">कदम</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">अद्यतन ...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">पकड़ा नहीं गया</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">अपूर्ण</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">उपलब्ध नहीं</string>
     <string name="history_calendar_trips">यात्राएँ</string>
     <string name="history_exploration_title">खोज</string>
     <string name="history_exploration_cells">सेल</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">इतिहास</string>
     <string name="history_view_trip_on_map">यात्रा को मानचित्र पर देखें</string>
     <string name="stats_heatmap_title">गतिविधि</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">आयातित कदम</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">मार्ग और अन्य सेंसर डेटा शामिल नहीं हैं।</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">सत्र</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">सत्र जोड़ें</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">सम्पादन सत्र</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">नाम (वैकल्पिक)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">गतिविधि लेबल</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">कोई लेबल नहीं</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">शुरुआत</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">समाप्ति</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">समय क्षेत्र</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">समय क्षेत्र लागू करें</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">बचत करने से पहले समय क्षेत्र को लागू करें।</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">पुनः लोड सत्र</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">रिकॉर्डिंग विवरण</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">सत्र हटाएँ</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">सहेजें</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">रद्द करें</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">इस सत्र को हटा दें?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">रिकॉर्ड किए गए आंकड़े इतिहास में रहेंगे।</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">तिथि</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">समय</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">यह स्थानीय समय मौजूद नहीं है क्योंकि घड़ियाँ आगे बढ़ती हैं। एक और समय चुनें।</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">यह बार दो बार होता है। उसका UTC ऑफसेट चुनें।</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">शुरुआत के बाद अंत होना चाहिए। दोनों समय 1 जनवरी 1970 को या उसके बाद होने चाहिए।</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">अंत भविष्य में नहीं हो सकता।</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">एक IANA समय क्षेत्र दर्ज करें, जैसे कि यूरोप/प्राग या यूटीसी।</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">अधिकतम 200 वर्णों का उपयोग करें।</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">यह लेबल हटा दिया गया था। एक और लेबल चुनें या कोई लेबल न चुनें।</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">इस सत्र में परिवर्तन या एकत्र किए गए डेटा को हटा दिया गया था। बचत करने से पहले पुनः लोड करें।</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">यह सत्र अब उपलब्ध नहीं है।</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">सत्र अस्थायी रूप से अनुपलब्ध हैं। इतिहास को फिर से खोलने की कोशिश करें।</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">इस अवधि में कोई सत्र नहीं।</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">नामित सत्र</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">रिकॉर्ड हो रहा है</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">रिकॉर्डिंग का समय अनिश्चित है। इसके अंतराल को बदलने से पहले समय की पुष्टि करें।</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">पहले के दिन से जारी</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">सब दिखाओ</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">सत्र को संपादित करने या उसे हटाने के लिए सत्र को समाप्त करें।</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">इस दिन के लिए सत्र देखें</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">कुछ सत्र मार्कर नहीं दिखाए जाते हैं। इसके सत्रों को देखने के लिए एक दिन चुनें।</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">दिन %1$d, सत्र है</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">दिन %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">फिर कोशिश करें</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">रिकॉर्डिंग ब्राउज़ करें</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">सत्रों को वापस</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">निर्यात सत्र</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">फ़ाइल सहेजने में असमर्थ था. फिर से कोशिश करो.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">निर्यात सत्र</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">पूर्ण रिकॉर्डिंग के साथ निर्यात सत्र जो इसकी तारीखों से आगे बढ़ता है।</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">मैं खत्म नहीं कर सका। फिर से कोशिश करो.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">इस रिकॉर्डिंग को हटा दें?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">इसके सहेजे गए रीडिंग को स्थायी रूप से हटा दिया जाएगा।</string>
     <string name="stats_recorded_partial_value">%1$s · आंशिक</string>
     <string name="history_activity_started">शुरू: %1$s</string>
     <string name="history_activity_ended">समाप्त: %1$s</string>

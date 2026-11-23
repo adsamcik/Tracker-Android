@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Verifierad steghistorik, täckning och luckor utan ruttkoordinater</string>
+    <string name="export_format_portable_ambient_steps_desc">Bakgrundssteg, aktivitetstid, datum, täckningsluckor och sparad tidszon utan ruttkoordinater</string>
+    <string name="export_format_portable_activity_desc">Registrerade rörelseintervall, tillförlitlighet och täckning utan ruttkoordinater</string>
+    <string name="export_format_portable_pressure_desc">Direkta tryckmätningar i hPa, täckning och luckor utan ruttkoordinater</string>
+    <string name="export_sensitivity_portable_title">Exportera registrerad historik?</string>
+    <string name="export_sensitivity_portable_steps_message">Den här filen innehåller stegantal, tidsintervall och täckningsinformation. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Den här filen innehåller bakgrundssteg, aktivitetsintervall, datum, täckningsluckor och sparad tidszon. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
+    <string name="export_sensitivity_portable_activity_message">Den här filen innehåller registrerade rörelseintervall, tidsintervall och täckningsinformation. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
+    <string name="export_sensitivity_portable_pressure_message">Den här filen innehåller tryckmätningar och tidsintervall som kan avslöja information om omgivningen. Den innehåller inga ruttkoordinater eller kalibrerad höjd. Fortsätt bara om du litar på destinationen.</string>
+</resources>

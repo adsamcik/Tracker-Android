@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Uciekaj z każdego wirtualnego promienia wybuchu, zanim wygaśnie lont</string>
     <string name="minigame_switchback_name">Zygzak</string>
     <string name="minigame_switchback_description">Wykonuj ostre naprzemienne skręty, aby budować serię płynności</string>
-    <string name="minigame_locked">Odblokowuje się na poziomie %1$d</string>
     <string name="game_play_section_title">Graj</string>
     <string name="game_progress_section_title">Postęp</string>
     <string name="minigame_outrun_goal_line">Utrzymaj przewagę 25–100 m nad duchem</string>
@@ -196,7 +195,6 @@
     <string name="goals_reached_notification">%1$s! Osiągnięto %2$s cel!</string>
     <string name="goals_daily_goal">dzienny</string>
     <string name="goals_weekly_goal">tygodniowy</string>
-    <string name="goals_monthly_goal">miesięczny</string>
     <string name="game_steps_goals_title">Cele kroków</string>
     <string name="game_step_sensor_unavailable">Czujnik kroków niedostępny</string>
     <string name="game_step_sensor_unavailable_detail">To urządzenie nie ma czujnika krokomierza. Nie można śledzić celów kroków.</string>

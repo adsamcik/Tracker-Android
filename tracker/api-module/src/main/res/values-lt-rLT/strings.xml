@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordinatės</string>
     <string name="description_settings">Nustatymų mygtukas</string>
     <string name="description_tracking_start">Pradėti sekimą</string>
-    <string name="description_tracking_stop">Sustabdyti sekimą</string>
     <string name="description_tracking_start_no_permission">Pradėti sekimą – būtinas leidimas</string>
     <string name="description_points_today">Šiandien gauti taškai: %s</string>
     <string name="description_copy">Kopijuoti reikšmę</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Sesijos trukmė</string>
     <string name="duration_value">trukmė %s</string>
     <string name="error_nothing_to_track">Įjunkite bent vieną sekimo parinktį (vietą, žingsnius arba veiklą)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Įjungkite vietos paslaugas, kad galėtumėte naudoti įjungtą sekimo šaltinį.</string>
     <string name="hint_customize_notification_show_in_content">Rodyti pranešimo turinyje</string>
     <string name="hint_customize_notification_show_in_title">Rodyti pranešimo antraštėje</string>
     <string name="horizontal_accuracy_title">Horizontalusis tikslumas</string>
@@ -48,16 +48,17 @@
     </plurals>
     <string name="notification_starting">„Tracker“ paleidžiamas – naudojama vieta</string>
     <string name="notification_starting_without_location">„Tracker“ paleidžiamas</string>
-    <string name="notification_stop">Sustabdyti</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Sustabdyti %d min.</string>
     <string name="notification_stop_til_recharge">Sustabdyti iki įkrovimo</string>
-    <string name="stop_tracking_dialog_title">Sustabdyti sekimą?</string>
     <string name="stop_tracking_dialog_message">Įjungtas automatinis sekimas; jei tik sustabdysite, netrukus gali būti pradėta nauja sesija.</string>
     <string name="notification_tracker_active_ticker">Įrašomas jūsų maršrutas – naudojama vieta</string>
     <string name="notification_tracker_active_without_location">Sekimas nenaudojant vietos</string>
     <string name="notification_tracking_active">Sekimas</string>
     <string name="notification_tracking_start_failed_title">Nepavyko pradėti sekimo</string>
     <string name="notification_tracking_start_failed_text">Atidarykite programą, peržiūrėkite leidimus ir tęskite sekimą.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Parengti sekimą</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Kol nebus užbaigtas atkūrimas, duomenų nebus surinkti.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Parengti sekimą</string>
     <string name="settings_activity_enabled_title">Veikla</string>
     <string name="settings_cell_enabled_title">Ląstelė</string>
     <string name="settings_disabled_recharge_summary">Automatinis sekimas išjungtas, kol telefonas nebus prijungtas prie įkroviklio</string>
@@ -65,6 +66,11 @@
     <string name="settings_location_enabled_title">Vieta</string>
     <string name="settings_notification_customize_summary">Pakeiskite, kas ir kokia tvarka turi būti rodoma sekimo pranešime.</string>
     <string name="settings_notification_customize_title">Tinkinti pranešimą</string>
+    <string name="settings_notification_move_up">Perkelti aukštyn</string>
+    <string name="settings_notification_move_down">Perkelti žemyn</string>
+    <string name="settings_notification_load_failed">Nepavyko įkelti pranešimų nustatymų.</string>
+    <string name="settings_notification_save_failed">Pakeitimai neišsaugoti.</string>
+    <string name="settings_notification_retry">Bandyti dar kartą</string>
     <string name="settings_notification_styled_summary">Pranešimams naudoti programos stiliaus spalvą.</string>
     <string name="settings_notification_styled_title">Spalvoti pranešimai</string>
     <string name="ski_notification_title">Slidinėjimo statistika</string>
@@ -74,14 +80,17 @@
     <string name="settings_steps_enabled_title">Žingsnių skaičius</string>
     <string name="settings_tracking_min_distance_title">Mažiausias atstumas tarp atnaujinimų</string>
     <string name="settings_tracking_min_time_title">Mažiausia delsa tarp atnaujinimų</string>
-    <string name="settings_tracking_notice_summary">Pakeitimai įsigalios iš naujo pradėjus sekimą</string>
     <string name="settings_tracking_required_accuracy_title">Reikalingas vietos tikslumas</string>
     <string name="settings_tracking_title">Sekimas</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Pradėti sekimą</string>
     <string name="shortcut_start_tracking_long">Pradėti vietos sekimą</string>
-    <string name="shortcut_stop_tracking">Sustabdyti sekimą</string>
-    <string name="shortcut_stop_tracking_long">Sustabdyti vietos sekimą</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Baigti seansą</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Baigti dabartinį seansą</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Išjungti stebėjimą</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Sustabdyti visą stebėjimą ir automatinį paleidimą</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Sekimo veiksmai</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pauzai automatiškai pradedami</string>
     <string name="speed_title">Greitis</string>
     <string name="speed_value">greitis %s</string>
     <string name="battery_title">Akumuliatorius</string>
@@ -111,7 +120,6 @@
         <item quantity="few">%1$d sekimo minutės</item>
         <item quantity="other">%1$d sekimo minučių</item>
     </plurals>
-    <string name="insight_exploration_title">Tyrinėtojas!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Atrasta %1$d nauja teritorija</item>
         <item quantity="few">Atrastos %1$d naujos teritorijos</item>
@@ -179,7 +187,5 @@
     <string name="action_navigate_back">Grįžti atgal</string>
     <string name="insight_distance_title">Nukeliautas atstumas</string>
     <string name="insight_distance_desc">Šios sesijos metu įveikėte %1$s.</string>
-    <string name="insight_steps_title">Užfiksuoti žingsniai</string>
-    <string name="insight_steps_desc">Šios sesijos metu žengėte %1$s žingsnių – taip ir toliau!</string>
     <string name="tracker_measurement_partial">Daliniai</string>
 </resources>

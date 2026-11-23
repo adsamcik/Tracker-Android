@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Ξεφύγετε από κάθε εικονική ακτίνα έκρηξης πριν λήξει ο πυροκροτητής της</string>
     <string name="minigame_switchback_name">Εναλλασσόμενες στροφές</string>
     <string name="minigame_switchback_description">Κάντε απότομες εναλλασσόμενες στροφές για να δημιουργήσετε συνδυασμό ροής</string>
-    <string name="minigame_locked">Ξεκλειδώνει στο επίπεδο %1$d</string>
     <string name="game_play_section_title">Παίξτε</string>
     <string name="game_progress_section_title">Πρόοδος</string>
     <string name="minigame_outrun_goal_line">Κρατήστε προβάδισμα 25–100 m από το φάντασμα</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Πετύχατε τον %2$s στόχο σας!</string>
     <string name="goals_daily_goal">ημερήσιο</string>
     <string name="goals_weekly_goal">εβδομαδιαίο</string>
-    <string name="goals_monthly_goal">μηνιαίο</string>
     <string name="game_steps_goals_title">Στόχοι βημάτων</string>
     <string name="game_step_sensor_unavailable">Ο αισθητήρας βημάτων δεν είναι διαθέσιμος</string>
     <string name="game_step_sensor_unavailable_detail">Αυτή η συσκευή δεν διαθέτει αισθητήρα μετρητή βημάτων. Δεν είναι δυνατή η παρακολούθηση στόχων βημάτων.</string>

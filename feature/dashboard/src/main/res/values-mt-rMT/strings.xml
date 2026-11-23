@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Qed tintemm is-sessjoni…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · parzjali</string>
     <string name="dashboard_title">Pannell</string>
     <string name="dashboard_tracking_title">Traċċar</string>
     <string name="dashboard_recording">Reġistrazzjoni</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Serje: %1$d jiem. Tektek biex tara d-dettalji tas-serje</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Ibda serje. Tektek biex tara d-dettalji tas-serje</string>
-    <string name="dashboard_cd_stop_tracking">Waqqaf it-traċċar</string>
     <string name="dashboard_action_enable_location">Ippermetti aċċess għall-post</string>
     <string name="dashboard_action_view_details">Ara d-dettalji</string>
     <string name="dashboard_action_view_map">Ara l-mappa</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Qed titħejja l-istorja tal-passi maħżuna b’mod permanenti…</string>
     <string name="dashboard_live_steps_missing">Stennija għal osservazzjoni valida tal-passi</string>
     <string name="dashboard_live_steps_unavailable">L-istorja tal-passi maħżuna b’mod permanenti mhix disponibbli</string>
+    <string name="dashboard_metric_pressure">Pressjoni</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Medda %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Bidla %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Żona tal-ħin salvata: %1$s</string>
     <string name="dashboard_milestone_distance">km milħuqa!</string>
     <string name="dashboard_milestone_steps">passi milħuqa!</string>
     <string name="dashboard_milestone_time">min traċċati!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">L-aħħar sessjoni</string>
     <string name="dashboard_last_session_duration">Tul</string>
     <string name="dashboard_last_session_distance">Distanza</string>
-    <string name="dashboard_last_session_steps">Passi</string>
     <string name="dashboard_last_session_view_map">Ara l-mappa</string>
     <string name="dashboard_recent_trips_title">Traċċar reċenti</string>
     <string name="dashboard_recent_trips_empty">M’hemmx sessjonijiet ta’ traċċar reċenti. Ibda t-traċċar biex tarahom hawn.</string>
     <string name="dashboard_recent_history_loading">Qed jitgħabba t-traċċar reċenti…</string>
     <string name="dashboard_recent_history_unavailable">It-traċċar reċenti mhuwiex disponibbli</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s l- istorja mhix disponibbli</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">L-awtorità ta \' riċenza tas-sors mhix disponibbli</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">L-istampi tal-evidenza tas-sors miżmuma mhumiex disponibbli</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">L-istorja ta \' l- ispirazzjoni limitata ma setgħetx tintemm b\' mod sikur</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Storja tas-sors miżmuma fallit kontrolli tal-integrità</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">L-isostenn tal-istorja fiżika ma setax jiġi vverifikat</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Post</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Ċellola</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Attività</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Passi</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Pressjoni</string>
     <string name="dashboard_recent_steps_title">Sessjoni tal-passi</string>
     <string name="dashboard_recent_steps_available">L-istorja tal-passi hija disponibbli</string>
     <string name="dashboard_recent_steps_materializing">Qed titħejja l-istorja tal-passi…</string>
     <string name="dashboard_recent_steps_partial">Storja parzjali tal-passi</string>
+    <string name="dashboard_recent_pressure_title">Sessjoni tal-pressjoni</string>
+    <string name="dashboard_recent_pressure_available">Storja tal-pressjoni disponibbli</string>
+    <string name="dashboard_recent_pressure_materializing">Qed titħejja storja tal-pressjoni…</string>
+    <string name="dashboard_recent_pressure_partial">Storja tal-pressjoni parzjali</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Storja tal-pressjoni mħassra</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">L-istorja ta\' pressjoni ma setgħetx tiġi vverifikata</string>
+    <string name="dashboard_recent_pressure_unavailable">Storja tal-pressjoni mhux disponibbli</string>
+    <string name="dashboard_recent_pressure_failed">Ma setgħetx titħejja storja tal-pressjoni</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · medda %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Bidla %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Ebda kopertura miżmuma</string>
+    <string name="dashboard_pressure_coverage_complete">Kopertura sħiħa</string>
+    <string name="dashboard_pressure_coverage_partial">Kopertura parzjali</string>
+    <string name="dashboard_pressure_coverage_unknown">Kopertura mhux disponibbli</string>
+    <string name="dashboard_recent_activity_title">Sessjoni tal-attività</string>
+    <string name="dashboard_recent_activity_ready">Storja tal-attività disponibbli</string>
+    <string name="dashboard_recent_activity_materializing">Qed titħejja storja tal-attività…</string>
+    <string name="dashboard_recent_activity_partial">Storja tal-attività parzjali</string>
+    <string name="dashboard_recent_activity_unavailable">Storja tal-attività mhux disponibbli</string>
+    <string name="dashboard_recent_activity_failed">Ma setgħetx tiġi vverifikata storja tal-attività</string>
+    <string name="dashboard_recent_activity_summary">%1$s · ħin attiv %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi sessjoni</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Sessjoni taċ-ċelloli</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Imqabad Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Radju ċellulari miktub</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Sorsi f\'din is-sessjoni</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Il-post mhuwiex ikkaptur f\'din is-sessjoni. Ir- rotta, id- distanza, il- veloċità u l- altitudni mhumiex disponibbli.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">L- istorja verifikata %1$s mhix disponibbli.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Imqabda fuq dan il-mezz</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">L-evidenza miżmuma importata</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Nipprepara l-istorja tar-radju miżmuma...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Storja parzjali miżmuma tar-radju</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Storja tar-radju miżmuma disponibbli</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">L-istorja tar-radju mhux disponibbli</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">L-ebda evidenza tal-radju miżmuma kwalifikata</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Storja tar-radju miżmuma mħassra</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">L-istorja tar-radju ma setgħetx tiġi vverifikata</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Il-verifika tal-integrità tal-istorja tar-radju fallit</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Ebda kopertura vverifikata</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Kopertura verifikata parzjali</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Kopertura sħiħa vverifikata</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Kopertura mhux disponibbli</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Jistennew l-osservazzjonijiet tar-radju miżmuma</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Ma hemm l-ebda osservazzjoni tar-radju miżmuma</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">L-evidenza miżmuma bħala sors ġiet mħassra</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">L-evidenza miżmuma ma tistax tiġi ppreżentata b\'mod sikur</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Il- post, ir- rotta, id- distanza, il- veloċità, u l- altitudni mhumiex parti minn din l- istorja tas- sors.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d riżultat tal-iskanaġġ miżmum</item>
+        <item quantity="other">%1$d riżultati ta\' skanning miżmuma</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d Rekord tal-radju miżmum</item>
+        <item quantity="other">%1$d Rekords tal-radju miżmuma</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d kunsinna miżmuma</item>
+        <item quantity="other">%1$d kunsinna miżmuma</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d it-twassil għandu riżultati parzjali</item>
+        <item quantity="other">%1$d it-twassil għandhom riżultati parzjali</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Attività rreġistrata</string>
+    <string name="dashboard_live_activity_movement">L-aħħar moviment irreġistrat</string>
+    <string name="dashboard_live_activity_active_time">Ħin attiv</string>
+    <string name="dashboard_live_activity_gaps">Lakuni magħrufa: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Ebda kopertura vverifikata</string>
+    <string name="dashboard_activity_coverage_partial">Kopertura parzjali</string>
+    <string name="dashboard_activity_coverage_complete">Kopertura sħiħa</string>
+    <string name="dashboard_activity_still">Wieqaf</string>
+    <string name="dashboard_activity_walking">Mixi</string>
+    <string name="dashboard_activity_running">Ġiri</string>
+    <string name="dashboard_activity_cycling">Ċikliżmu</string>
+    <string name="dashboard_activity_vehicle">F’vettura</string>
+    <string name="dashboard_activity_on_foot">Bil-mixi</string>
+    <string name="dashboard_activity_tilting">Inklinat</string>
+    <string name="dashboard_activity_unknown">Attività mhux magħrufa</string>
     <string name="dashboard_exploration_title">Esplorazzjoni</string>
     <string name="dashboard_exploration_new_today">Ġdid illum</string>
     <string name="dashboard_exploration_total_cells">Ċelloli b’kollox</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Ibda t-traċċar</string>
     <string name="dashboard_ring_enable_location">Ippermetti l-post</string>
     <string name="dashboard_pill_start">Ibda</string>
-    <string name="dashboard_pill_stop">Waqqaf</string>
     <string name="dashboard_pill_enable_location">Ippermetti l-post</string>
     <string name="dashboard_insights_title">Għarfien dwar is-sessjoni</string>
     <string name="dashboard_cd_insight_item">Għarfien: %1$s</string>
     <string name="widget_latest_achievement">L-aħħar kisba</string>
     <string name="dashboard_latest_achievement_title">L-aħħar kisba</string>
     <string name="dashboard_latest_achievement_empty">Kompli t-traċċar biex tiftaħ l-ewwel kisba tiegħek</string>
-    <string name="dashboard_metric_pressure">Pressjoni</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Medda %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Bidla %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Żona tal-ħin salvata: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Sessjoni tal-pressjoni</string>
-    <string name="dashboard_recent_pressure_available">Storja tal-pressjoni disponibbli</string>
-    <string name="dashboard_recent_pressure_materializing">Qed titħejja storja tal-pressjoni…</string>
-    <string name="dashboard_recent_pressure_partial">Storja tal-pressjoni parzjali</string>
-    <string name="dashboard_recent_pressure_unavailable">Storja tal-pressjoni mhux disponibbli</string>
-    <string name="dashboard_recent_pressure_failed">Ma setgħetx titħejja storja tal-pressjoni</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · medda %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Bidla %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Ebda kopertura miżmuma</string>
-    <string name="dashboard_pressure_coverage_complete">Kopertura sħiħa</string>
-    <string name="dashboard_pressure_coverage_partial">Kopertura parzjali</string>
-    <string name="dashboard_pressure_coverage_unknown">Kopertura mhux disponibbli</string>
-    <string name="dashboard_recent_activity_title">Sessjoni tal-attività</string>
-    <string name="dashboard_recent_activity_ready">Storja tal-attività disponibbli</string>
-    <string name="dashboard_recent_activity_materializing">Qed titħejja storja tal-attività…</string>
-    <string name="dashboard_recent_activity_partial">Storja tal-attività parzjali</string>
-    <string name="dashboard_recent_activity_unavailable">Storja tal-attività mhux disponibbli</string>
-    <string name="dashboard_recent_activity_failed">Ma setgħetx tiġi vverifikata storja tal-attività</string>
-    <string name="dashboard_recent_activity_summary">%1$s · ħin attiv %2$s</string>
-    <string name="dashboard_live_activity_title">Attività rreġistrata</string>
-    <string name="dashboard_live_activity_movement">L-aħħar moviment irreġistrat</string>
-    <string name="dashboard_live_activity_active_time">Ħin attiv</string>
-    <string name="dashboard_live_activity_gaps">Lakuni magħrufa: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Ebda kopertura vverifikata</string>
-    <string name="dashboard_activity_coverage_partial">Kopertura parzjali</string>
-    <string name="dashboard_activity_coverage_complete">Kopertura sħiħa</string>
-    <string name="dashboard_activity_still">Wieqaf</string>
-    <string name="dashboard_activity_walking">Mixi</string>
-    <string name="dashboard_activity_running">Ġiri</string>
-    <string name="dashboard_activity_cycling">Ċikliżmu</string>
-    <string name="dashboard_activity_vehicle">F’vettura</string>
-    <string name="dashboard_activity_on_foot">Bil-mixi</string>
-    <string name="dashboard_activity_tilting">Inklinat</string>
-    <string name="dashboard_activity_unknown">Attività mhux magħrufa</string>
-    <string name="dashboard_finishing_session">Qed tintemm is-sessjoni…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Il-passi importati</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Jaraw ir-reġistrazzjoni %1$d</item>
+        <item quantity="other">Ara reġistrazzjonijiet %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Iffranka r-reġistrazzjoni %1$d</item>
+        <item quantity="other">Iskrivi %1$d reġistrazzjonijiet</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Ir-reġistrazzjoni %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s passi</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">L-inqas %1$s passi</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Il-passi mhux disponibbli</string>
 </resources>

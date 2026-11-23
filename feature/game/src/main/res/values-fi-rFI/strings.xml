@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Väistä jokainen virtuaalinen räjähdyssäde ennen kuin sulake palaa loppuun</string>
     <string name="minigame_switchback_name">Mutkajuoksu</string>
     <string name="minigame_switchback_description">Tee jyrkkiä vuorottelevia käännöksiä rakentaaksesi rytmiketjun</string>
-    <string name="minigame_locked">Avautuu tasolla %1$d</string>
     <string name="game_play_section_title">Pelaa</string>
     <string name="game_progress_section_title">Edistyminen</string>
     <string name="minigame_outrun_goal_line">Pidä 25–100 m:n etumatka haamuun</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Saavutit %2$s tavoitteesi!</string>
     <string name="goals_daily_goal">päivittäisen</string>
     <string name="goals_weekly_goal">viikoittaisen</string>
-    <string name="goals_monthly_goal">kuukausittaisen</string>
     <string name="game_steps_goals_title">Askelta koskevat tavoitteet</string>
     <string name="game_step_sensor_unavailable">Askelanturi ei ole käytettävissä</string>
     <string name="game_step_sensor_unavailable_detail">Tässä laitteessa ei ole askelanturia. Askelten tavoitteita ei voi seurata.</string>

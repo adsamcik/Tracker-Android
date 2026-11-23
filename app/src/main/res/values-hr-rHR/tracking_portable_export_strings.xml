@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Provjerena povijest koraka, pokrivenost i praznine bez koordinata rute</string>
+    <string name="export_format_portable_ambient_steps_desc">Pozadinski broj koraka, vrijeme aktivnosti, datumi, praznine u pokrivenosti i spremljena vremenska zona bez koordinata rute</string>
+    <string name="export_format_portable_activity_desc">Zabilježeni intervali kretanja, pouzdanost i pokrivenost bez koordinata rute</string>
+    <string name="export_format_portable_pressure_desc">Izravna mjerenja tlaka u hPa, pokrivenost i praznine bez koordinata rute</string>
+    <string name="export_sensitivity_portable_title">Izvesti zabilježenu povijest?</string>
+    <string name="export_sensitivity_portable_steps_message">Ova datoteka sadrži broj koraka, vremenske intervale i podatke o pokrivenosti. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Ova datoteka sadrži pozadinski broj koraka, intervale aktivnosti, datume, praznine u pokrivenosti i spremljenu vremensku zonu. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
+    <string name="export_sensitivity_portable_activity_message">Ova datoteka sadrži zabilježene intervale kretanja, vremenske intervale i podatke o pokrivenosti. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
+    <string name="export_sensitivity_portable_pressure_message">Ova datoteka sadrži mjerenja tlaka i vremenske intervale koji mogu otkriti informacije o okolini. Ne sadrži koordinate rute ni kalibriranu nadmorsku visinu. Nastavite samo ako vjerujete odredištu.</string>
+</resources>

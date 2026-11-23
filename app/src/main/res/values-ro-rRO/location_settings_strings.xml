@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Locație pe tot parcursul zilei</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Nu între sesiuni.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Abilitate între sesiuni. Disponibilitatea depinde de accesul și de limitele de fundal Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptare</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Numai pasive</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Ajustează colectarea locației la mișcare și preferințele dvs. de detaliu, cu o notificare continuă.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Utilizează pozițiile furnizate de alte aplicații sau de sistem. Sunt posibile lacune lungi.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker va colecta Locarea între sesiuni, își va adapta efortul la mișcare și va afișa o notificare în curs de desfășurare. Aceasta poate folosi mai multă baterie decât colectarea pasivă. Alegerea ta este salvată înainte ca Android să ceară accesul la locație. Lipsa accesului îl lasă să aştepte; îl poţi opri în orice moment.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Utilizaţi locaţia adaptativă</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Permite accesul la locație</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Alegeţi detalii de locaţie adaptative</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Detalii privind locația: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Puterea de locație și detalii</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Alege un nivel pentru a adopta Localizarea adaptativă. Elibrat este standardul; sesiunile live preferă mai multe detalii. Android şi accesul tău poate limita rezultatul.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Puterea mai întâi</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Favorizează puterea</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Echilibrat</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Favorizează detaliile</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Mai întâi detaliu.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Asistență în materie de moțiuni</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Opțional folosește indicii de mișcare pentru a ajusta Locația. Acest lucru nu înregistrează istoricul activității și nu poate începe o sesiune. Localizarea încă funcţionează dacă refuzi.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Permiteți indicii de mișcare</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Nu am putut aplica această schimbare. Încearcă din nou.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Colectarea adaptativă nu funcţionează încă.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Utilizează nivelul de detaliu al localizării.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Localizarea adaptativă este disponibilă.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Cererea de locație ajustată de dispozitiv.</string>
+</resources>

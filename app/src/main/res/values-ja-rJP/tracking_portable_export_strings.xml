@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">検証済みの歩数履歴、記録範囲と欠測。ルートの座標は含みません</string>
+    <string name="export_format_portable_ambient_steps_desc">バックグラウンドの歩数、活動時間、日付、欠測、保存済みのタイムゾーン。ルートの座標は含みません</string>
+    <string name="export_format_portable_activity_desc">記録した移動区間、信頼度と記録範囲。ルートの座標は含みません</string>
+    <string name="export_format_portable_pressure_desc">hPa単位の直接気圧測定、記録範囲と欠測。ルートの座標は含みません</string>
+    <string name="export_sensitivity_portable_title">記録した履歴をエクスポートしますか？</string>
+    <string name="export_sensitivity_portable_steps_message">このファイルには歩数、時間区間、記録範囲の情報が含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">このファイルにはバックグラウンドの歩数、活動時間の区間、日付、欠測、保存済みのタイムゾーンが含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
+    <string name="export_sensitivity_portable_activity_message">このファイルには記録した移動区間、時間区間、記録範囲の情報が含まれます。 ルートの座標は含まれません。保存先を信頼できる場合のみ続行してください。</string>
+    <string name="export_sensitivity_portable_pressure_message">このファイルには気圧測定値と時間区間が含まれ、周辺環境の情報が分かる可能性があります。 ルートの座標や補正済みの標高は含まれません。保存先を信頼できる場合のみ続行してください。</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Ellenőrzött lépéselőzmények, lefedettség és hiányok útvonal-koordináták nélkül</string>
+    <string name="export_format_portable_ambient_steps_desc">Háttérben gyűjtött lépések, aktivitási idő, dátumok, lefedettségi hiányok és mentett időzóna útvonal-koordináták nélkül</string>
+    <string name="export_format_portable_activity_desc">Rögzített mozgási szakaszok, megbízhatóság és lefedettség útvonal-koordináták nélkül</string>
+    <string name="export_format_portable_pressure_desc">Közvetlen nyomásmérések hPa-ban, lefedettség és hiányok útvonal-koordináták nélkül</string>
+    <string name="export_sensitivity_portable_title">Rögzített előzmények exportálása?</string>
+    <string name="export_sensitivity_portable_steps_message">Ez a fájl lépésszámokat, időintervallumokat és lefedettségi információkat tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Ez a fájl háttérben gyűjtött lépésszámokat, aktivitási időintervallumokat, dátumokat, lefedettségi hiányokat és mentett időzónát tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="export_sensitivity_portable_activity_message">Ez a fájl rögzített mozgási szakaszokat, időintervallumokat és lefedettségi információkat tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+    <string name="export_sensitivity_portable_pressure_message">Ez a fájl nyomásméréseket és időintervallumokat tartalmaz, amelyek a környezetről árulhatnak el információkat. Nem tartalmaz útvonal-koordinátákat vagy kalibrált magasságot. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+</resources>

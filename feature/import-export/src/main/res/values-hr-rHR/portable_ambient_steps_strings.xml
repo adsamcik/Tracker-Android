@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Prijenosni pozadinski koraci</string>
+    <string name="export_error_no_portable_ambient_steps">Nema potvrđene povijesti pozadinskih koraka dostupne za izvoz.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Povijest pozadinskih koraka nije potpuna ili se ne može provjeriti za izvoz.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Izvoz pozadinskih koraka privremeno nije dostupan. Pokušajte ponovno.</string>
+    <string name="export_error_portable_ambient_steps_scope">Ovaj odabir pozadinskih koraka ne može se prikazati u prijenosnom formatu datoteke.</string>
+    <string name="export_error_portable_ambient_steps_write">Nije moguće izraditi datoteku prijenosnih pozadinskih koraka.</string>
+    <string name="export_ambient_steps_sensitivity_title">Izvesti povijest pozadinskih koraka?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ova datoteka sadrži broj koraka, vremenske intervale aktivnosti, datume, praznine u bilježenju i spremljene podatke o vremenskoj zoni koji mogu otkriti obrasce dnevne aktivnosti. Ne sadrži koordinate ruta. Nastavite samo ako vjerujete odredištu.</string>
+</resources>

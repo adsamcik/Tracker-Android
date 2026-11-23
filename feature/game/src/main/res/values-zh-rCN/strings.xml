@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">在每个虚拟爆炸范围的引信到期前逃离</string>
     <string name="minigame_switchback_name">急转弯</string>
     <string name="minigame_switchback_description">连续做急转弯以建立流畅连击</string>
-    <string name="minigame_locked">在等级 %1$d 解锁</string>
     <string name="game_play_section_title">游玩</string>
     <string name="game_progress_section_title">进度</string>
     <string name="minigame_outrun_goal_line">保持领先幽灵 25–100 米</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s！您已达成%2$s目标！</string>
     <string name="goals_daily_goal">每日</string>
     <string name="goals_weekly_goal">每周</string>
-    <string name="goals_monthly_goal">每月</string>
     <string name="game_steps_goals_title">步数目标</string>
     <string name="game_step_sensor_unavailable">计步器传感器不可用</string>
     <string name="game_step_sensor_unavailable_detail">此设备没有计步器传感器。无法跟踪步数目标。</string>

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistieken</string>
     <string name="stats_cell_count">Aantal cellen</string>
     <string name="stats_collections">Aantal verzamelingen</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Cel %1$s · %2$s samples</string>
     <string name="stats_cell_signal_carrier">Provider %1$s‑%2$s</string>
     <string name="trip_detail_title">Ritdetails</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Bron geschiedenis</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Bron geschiedenis niet beschikbaar</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Deze privéselectie werd niet bewaard nadat het app-proces opnieuw werd gecreëerd. Ga terug naar de recente geschiedenis en selecteer het opnieuw.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">De geselecteerde ingang van de bewaarde bron is niet meer beschikbaar.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">De beperkte bron geschiedenis lezen kon niet veilig eindigen.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">De geselecteerde ingang van de bewaarde bron is niet geslaagd met integriteitscontroles.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">De bronbewijs snapshot die nodig is om deze selectie te presenteren, is niet beschikbaar.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">De door de bron uitgegeven selectie identificeert de huidige bewaring niet langer.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">De bron geschiedenis lezen mislukt. Probeer het opnieuw op te frissen.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Rit niet gevonden</string>
     <string name="trip_detail_not_found_subtitle">Deze rit is mogelijk verwijderd</string>
     <string name="trip_detail_error_title">Kon rit niet laden</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Afstand</string>
     <string name="trip_detail_date">Datum</string>
     <string name="trip_detail_steps">Stappen</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Volledige dekking</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Tenminste dit aantal · gedeeltelijke dekking</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Gedeeltelijke geschiedenis · geen betrouwbaar aantal beschikbaar</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Niet geverifieerd: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Erfeniswaarde · volheid niet geverifieerd</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Het bijwerken van de geschiedenis...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Niet vastgelegd voor deze sessie</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Deze sessie is uitgeschakeld .</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Niet ondersteund</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Vergunning vereist</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Beperkt door Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Niet beschikbaar</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Geen kwalificerende observaties</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Verwijderd</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Geschiedenis niet beschikbaar</string>
     <string name="trip_detail_samples">Monsters</string>
     <string name="trip_detail_source">Bron</string>
     <string name="trip_detail_avg_speed">Gem. snelheid</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Verwijderen</string>
     <string name="trip_detail_cancel">Annuleren</string>
     <string name="trip_detail_more_options">Meer opties</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Acties niet beschikbaar voor deze vastgestelde bron</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Oorspronkelijke autoriteit</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Oorsprong</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Behoudend doel</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Precise opname van alleen-bron sessie</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Lidmaatschap van draagbare bronnen</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Authentieke vaststellingsgeschiedenis noemt dit als de enige vastgestelde bron.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Het ingevoerde formaat bewijst het behouden van het bronlidmaatschap, niet dat dit apparaat het bewijs heeft opgenomen.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi sessie</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Cell sessie</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Gehouden radiosamenvatting</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Dekking</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Voorbereiding van de vastgehouden radiohistorie</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Deeltjes bewaard gebleven radiohistorie</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Beschermd radiohistorie beschikbaar</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Radio geschiedenis niet beschikbaar</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Geen gekwalificeerd bewaard gebleven radiobewijs</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Gehouden radiohistorie verwijderd</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">De radiohistorie kon niet worden geverifieerd.</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">De integriteitscontrole van de radiohistorie is gefaald .</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Geen geverifieerde dekking</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Deeltjes geverifieerde dekking</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Volledige geverifieerde dekking</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Dekking niet beschikbaar</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Wachtend op vastgehouden radio-observaties.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Er zijn geen vastgehouden radio-observaties.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">De bewaarde bronbewijzen werden verwijderd.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Bewijzen die worden bewaard, kunnen niet veilig worden aangebracht.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Ophouden leveringen</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Leveringen met gedeeltelijke resultaten</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Wi‑Fi bewijsmateriaal bewaard</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Gehouden scanresultaten</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Mix van frequentiebandresultaten</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Gehouden signaalbereik</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d tot en met %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">andere band</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Gehouden cellenbewijs</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Behoud van radiorecords</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Registratie van geregistreerde status</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radio-technologie record mix</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Geen enkel netwerk, toren, abonnee, route, afstand, snelheid, hoogte of locatie-identiteit wordt door dit detail onthuld.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Stappensessie</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Bewijs van de bewaarde stappen</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Dekking</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Geen gedekt interval</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Volledig gedekt interval</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Deelgedeeltelijk gedekte interval</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Dekking niet beschikbaar</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Er is alleen bewaard gebleven bewijsmateriaal van Steps te zien. De locatie is niet vastgelegd, dus route- en locatie-afgeleide metricen zijn niet beschikbaar.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Activiteitssessie</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Activiteitsbanden, duur en betrouwbaarheid zijn ongeveer samenvattingen van het bewaarde bewijsmateriaal op het apparaat.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Samenvatting van de activiteiten</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Dekking</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Oorsprong</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Bekende actieve tijd</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Bekende inactieve tijd</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Niet geclassificeerde tijd</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Bekende tijdsberekening</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Behoudende activiteitsbanden en -gappen</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Ongeveer de duur</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Betrouwbaarheid</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Activiteitsovergangssignaal</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Ongeveer %1$d ⁇ %2$d%% van de bewaarde waarnemingen van %3$d</item>
+        <item quantity="other">Ongeveer %1$d ⁇ %2$d%% van %3$d bewaarde waarnemingen</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Bewijssoort</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Verfijnde overgang</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Bekende kloof</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">De reden</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Ongeveer de duur</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Voorbereiding van de activiteitengeschiedenis</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Gedeeltelijke activiteitsgeschiedenis</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Activiteitsgeschiedenis beschikbaar</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Activiteitsgeschiedenis niet beschikbaar</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Activiteitsgeschiedenis kon niet worden geverifieerd</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Gehouden Activiteitsgeschiedenis wordt nog steeds voorbereid; er wordt nog geen duur afgeleid.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Slechts een deel van de sessie heeft de activiteit bewijzen bewaard.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Er zijn geen vastgestelde duur van de activiteit beschikbaar.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Er is geen betrouwbaar behouden Activiteitsresultaat.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Gehouden Bewijs van activiteit mislukte de integriteitscontroles.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Geen geverifieerde dekking</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Gedeeltelijke dekking</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Volledige dekking</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Gevangen op dit apparaat</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Geïmporteerde bewaarde bewijsstukken</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Stilstaand</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Wandelen</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Hardlopen</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Fietsen</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">In voertuig</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Te voet</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Kantelen</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Onbekende activiteit</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Overgang</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Verfijning in de steekproef</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">In de steekproef opgenomen indeling</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Er is geen bewijsmateriaal bewaard</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Interruptie van de dienstverlener</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Verandering van toestemming</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Proces of apparaat opnieuw starten</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Bewijs niet gekwalificeerd</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Gevangen sessie</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Locatie niet vastgelegd .</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Gevangen bronnen</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">De geselecteerde details zijn nog niet beschikbaar voor deze exacte broncombinatie. Route, GPX, afstand, snelheid, hoogte en andere locatie-afgeleide acties blijven niet beschikbaar.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Locatie</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Cel</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Activiteit</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Stappen</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Druk</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Niet geverifieerde vangstbronnen</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Deze oudere sessie is ouder dan de controleerbare opslaggeschiedenis. Gedetailleerde reisgegevens worden weergegeven en kunnen onvolledig zijn.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Druksessie</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Luchtdruk</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">De laatste</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Gehouden bereik</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Eerste tot laatste wijziging</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Dekking</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Bewaargebied</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Het bijwerken van de gedwongen druk...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Deelgehouden druk</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Behoudende druk beschikbaar</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Gehouden druk verwijderd</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Gehouden druk kon niet worden gecontroleerd</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Druk niet beschikbaar</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">De drukgeschiedenis is mislukt</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Geschiedenis niet beschikbaar</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Probeer opnieuw de geschiedenis van deze reis te vernieuwen.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">De bewaarde bron-bewijs snapshot is niet beschikbaar. Probeer het opnieuw op te frissen.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">De beperkte bron geschiedenis lezen kon niet veilig eindigen. Probeer het opnieuw op te frissen.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Het bewaarde brongeschiedenis is niet gelukt bij de integriteitscontroles. Probeer het opnieuw nadat de bron beschikbaar is.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Het lidmaatschap van de fysieke geschiedenis kon niet veilig worden geverifieerd.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Geen bewaarde dekking</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Volledige gedekte dekking</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Deelname aan een gedeeltelijk gehandhaafde dekking</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Dekking niet beschikbaar</string>
     <string name="ski_detail_header">Skisessie</string>
     <string name="ski_detail_runs">Afdalingen</string>
     <string name="ski_detail_vertical">Hoogteverschil</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Laatst gezien</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Tijdlijn</string>
-    <string name="history_tab_trips">Ritten</string>
     <string name="history_tab_calendar">Kalender</string>
     <string name="history_screen_title">Geschiedenis</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Volgende maand</string>
     <string name="history_calendar_distance">Afstand</string>
     <string name="history_calendar_steps">Stappen</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Ik update...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Niet gevangen .</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Onvolledig</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Niet beschikbaar</string>
     <string name="history_calendar_trips">Ritten</string>
     <string name="history_exploration_title">Verkenning</string>
     <string name="history_exploration_cells">Cellen</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Geschiedenis</string>
     <string name="history_view_trip_on_map">Rit op kaart bekijken</string>
     <string name="stats_heatmap_title">Activiteit</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Invoerstappen</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Routegegevens en andere sensordata zijn niet inbegrepen.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sessies</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Sessie toevoegen</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Bewerken sessie</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Naam (optioneel)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Activiteitslabel</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Geen etiket</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Begin</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Einde</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Tijdzone</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Tijdzone toepassen</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Pas de tijdzone toe voordat u opslaat.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Verladen sessie</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Opnamegegevens</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Verwijder sessie</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Slaan .</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Annuleren</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Deze sessie verwijderen?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">De vastgestelde gegevens zullen in de geschiedenis blijven.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Datum</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Tijd</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Deze lokale tijd bestaat niet omdat de klokken vooruit gaan. Kies een andere tijd.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Deze keer gebeurt het twee keer. Kies de UTC-offset.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Het einde moet na het begin zijn. Beide tijden moeten op of na 1 januari 1970 zijn.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Het einde kan niet in de toekomst zijn.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Een IANA-tijdsone invoeren, zoals Europa/Prague of UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Gebruik maximaal 200 tekens.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Dit etiket is verwijderd. Kies een ander label of geen label.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Deze sessie is gewijzigd of verzamelde gegevens zijn verwijderd. Verladen voordat je spaart.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Deze sessie is niet meer beschikbaar.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Sessies zijn tijdelijk niet beschikbaar. Probeer de geschiedenis opnieuw te openen.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Geen sessies in deze periode.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Onbenamde sessie</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Vastleggen</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">De opnametijd is onzeker. Bevestig de tijd voordat u het interval wijzigt.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Vervolg van een vroegere dag</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Laat alles zien.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Beëindig de sessie om de tijd te bewerken of verwijder.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Bekijk de sessies voor deze dag</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Sommige sessie markeren worden niet weergegeven. Kies een dag om de sessies te bekijken.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Dag %1$d, heeft sessies</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Dag %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Opnieuw proberen</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Browse recordingen</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Terug naar de sessies</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Export sessie</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Ik kon het bestand niet opslaan. Probeer het nog eens.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Uitgevoerde sessie</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Sessie uitgevoerd met volledige opnames die verder gaan dan de datum.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Ik kon het niet afmaken. Probeer het nog eens.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Deze opname verwijderen?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">De opgeslagen aflezen worden permanent verwijderd.</string>
     <string name="stats_recorded_partial_value">%1$s · gedeeltelijk</string>
     <string name="history_activity_started">Gestart: %1$s</string>
     <string name="history_activity_ended">Beëindigd: %1$s</string>

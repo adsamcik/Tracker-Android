@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Copia de siguranță de dinaintea actualizării a fost exportată</string>
     <string name="settings_migration_backup_export_failure">Copia de siguranță de dinaintea actualizării nu a putut fi exportată</string>
     <string name="settings_migration_backup_export_cleanup_required">Exportul a eșuat. Șterge copia de siguranță exportată parțial din locația selectată.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Importul de baze de date legacy necesită atenție</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Baza de date originală este încă pe acest dispozitiv. Încercați din nou importul pentru a deschide Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Dimensiunea bazei de date legacy: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Importare de reîntrebare</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Exportul unei baze de date legate</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Șterge baza de date veche și începe din nou</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Baza de date legacy exportată</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Nu a putut exporta baza de date legacy</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Exportul a eșuat și destinația incompletă nu a putut fi eliminată. Ștergeți-l manual.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Seiful de bază de date</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Versiunea %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Versiunea sursă: %1$d\nStorage: %2$s\nImport: %3$s\nImportate rânduri: %4$d\nRăzboiuri păstrate numai în seif: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Import completat: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Nu importate</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Import</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Import complet</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Importul a eșuat</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Să ştergeţi baza de date tradiţională?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Acest lucru elimină permanent %1$s din acest dispozitiv. Datele dvs. v27 nu sunt afectate. Păstrați copia exportată dacă veți avea nevoie mai târziu de baza de date originală.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Databaza legacy șterită</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Nu a putut șterge baza de date legacy</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Urmărirea recuperării necesită atenţie</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Colectarea rămâne închisă în timp ce Tracker reconciliează în siguranță datele sale de urmărire. Încearcă din nou fără a șterge istoricul.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Repede recuperarea urmăririi</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Baza de date de dezvoltare are nevoie de o rezervă manuală</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker a găsit o bază de date de dezvoltare de versiune 28 care nu corespunde acestei construcții. Caracteristicile de urmărire și de bază de date rămân dezactivate, iar fișierul de bază de date a fost lăsat neschimbat. Faceți o copie de rezervă a datelor aplicației sau a bazei de date înainte de a înlocui sau repara această instalație de dezvoltare.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Baza de date are nevoie de atenţie</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker nu a putut identifica sau valida în siguranță această bază de date. Caracteristicile de urmărire și de bază de date rămân dezactivate, iar fișierul de bază de date a fost lăsat neschimbat. Faceți o copie de backup a datelor aplicației sau a bazei de date înainte de a încerca recuperarea manuală.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Baza de date este temporar indisponibilă</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Funcţiunile de urmărire şi baza de date rămân dezactivate în timp ce Tracker încearcă în siguranţă. Nu au fost șterse date. Încearcă din nou să verifici dacă problema cu încuierea temporară sau cu depozitarea a fost eliminată.</string>
     <string name="settings_delete_data_success">Toate datele colectate au fost șterse</string>
     <string name="settings_delete_data_failure">Nu au putut fi șterse toate datele colectate</string>
     <string name="settings_game_goals_title">Obiective</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Se încarcă setările jocului…</string>
     <string name="settings_game_load_error">Setările jocului nu au putut fi încărcate. Încearcă din nou.</string>
     <string name="settings_map_info_hint">Aceste setări controlează calitatea și performanța vizualizării hărții. Majoritatea utilizatorilor pot folosi valorile implicite.</string>
+    <string name="settings_map_offline_data_section">Datele de pe hărți offline</string>
     <string name="settings_map_online_tiles_section_title">Dale de hartă online</string>
     <string name="settings_map_online_tiles_enable_title">Folosește dale de hartă online</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Dezactivat — este utilizată numai harta de bază offline inclusă. Fără solicitări de rețea.</string>
@@ -197,9 +228,76 @@
     <string name="tracking_preset_custom_name">Personalizat</string>
     <string name="tracking_preset_custom_description">Reglează manual fiecare parametru de urmărire</string>
     <string name="tracking_preset_selector_subtitle">Alege un profil de pornire, apoi reglează fin orice setare de mai jos.</string>
+    <string name="tracking_preset_change">Compararea opţiunilor</string>
+    <string name="tracking_preset_done">Află doar selectate</string>
     <string name="tracking_preset_customized_summary">Ai reglat fin urmărirea. Alege un profil de mai sus pentru a reseta.</string>
+    <string name="settings_tracking_section_start_stop">Urmărire automată</string>
+    <string name="settings_tracking_section_battery_detail">Calitate de urmărire</string>
+    <string name="settings_tracking_section_data_collected">Datele colectate</string>
     <string name="settings_tracking_section_detail">Colectarea locației</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Călătoriile în afara zonei (opționale)</string>
     <string name="settings_tracking_section_notifications">Notificări</string>
+    <string name="settings_transition_detection_friendly_title">Detecția de mișcare eficientă pentru baterii</string>
+    <string name="settings_transition_detection_friendly_summary">Utilizează modificările de activitate Android pentru a evita verificările frecvente de antecedente. Începerile automate pot reacţiona puţin mai încet.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Urmărirea automată nu este disponibilă</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Alegerea ta a modului automat este salvată. Autorizația de recunoaștere a activității este necesară înainte ca pornirea automată să poată funcționa.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Alege ce să înregistrezi între călătorii.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi călătoriile în afara zonei</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Excursii în afara celulelor</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">- Nu, nu, nu.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Salvat ca pe. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Acoperirea în afara călătoriei este oportunistă și poate conține lacune în permis, furnizor, proces, reboot sau sistem de operare. Tracker nu pretinde o colectare permanentă sau nu inventează o durată de păstrare.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Colectarea rămâne suspendată deoarece politica de păstrare a produsului nu este încă disponibilă.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Verificarea colecţiei...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Colectarea este conţinută în condiţii de siguranţă prin implementarea actuală.</string>
+    <string name="settings_ambient_user_turned_off">Urmărirea este oprită. Alegerile și datele salvate sunt păstrate.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Permite accesul la numărul de pași în Health Connect pentru a completa datele lipsă când Tracker este închis.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Permite accesul la numărarea pasurilor în Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Nu am putut verifica accesul Health Connect. Încearcă din nou.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Numărul de pași poate fi importat cât timp rulează Tracker. Accesul în fundal poate reduce golurile din istoricul pașilor.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Nu este disponibil niciun furnizor de pasuri de zi întreagă.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Actualizează Health Connect astfel încât Tracker să poată citi numărătoarea pașii.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Nu am putut verifica furnizorul de paşi. Încearcă din nou mai târziu.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Daţi permisiunea activităţii fizice să numere paşi pe acest dispozitiv.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Înregistrarea pașii nu este disponibilă pe acest dispozitiv.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect este gata. Unele perioade pot avea încă lacune.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Înregistrarea pasului este gata. Unele perioade pot avea încă lacune.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Pentru a înregistra locația între sesiuni este necesar accesul la locație în fundal. Setarea de înregistrare în timpul sesiunilor rămâne neschimbată.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi nu sunt îndeplinite cerințele privind permisiunea de scanare. Acordarea lor nu permite capturarea Localizării.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Nu sunt îndeplinite cerințele privind permisiunea de retragere a telefoanelor mobile. Acordarea lor nu permite capturarea Localizării.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Localizarea pasivă este pregătită pentru reconcilierea dintre proprietar şi sursă. Acesta oferă puncte oportuniste, nu continuitatea traseului.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi apelurile de la rezultatele scanării sunt gata pentru reconciliere dintre sursa și proprietarul. Nu se promite nicio scanare sau cadenta de trezire.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Apelurile de la celulele de schimbare calificate cu timestamp sunt gata pentru reconcilierea dintre sursa şi proprietarul. Nu se promite cadenta forţată de reînnoire.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Plataforma sau furnizorul necesar nu este disponibil, astfel încât colectarea rămâne oprită.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Îndepărtat; starea de funcționare în așteptare</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Înregistrate; disponibilitatea operațională raportată</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Înregistrate; nu funcționează</string>
+    <string name="settings_location_source_summary">Înregistrează ruta, distanţa şi viteza. De obicei, cel mai mare cost de baterie.</string>
+    <string name="settings_activity_source_summary">Înregistrează mersul pe jos, ciclismul, condusul și perioadele fără mișcare pe tot parcursul zilei.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Urmează paşi pe tot parcursul zilei. Excursiile organizează aceeaşi istorie de paşi.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Verific colectarea de paşi.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Dezactivează urmărirea</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Închideţi...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Sesiuni de oprire, înregistrare de toată ziua și pornire automată. Alegiunile şi datele păstrate rămân.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Urmărirea este oprită. Alegerile și datele salvate sunt păstrate.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Nu am putut dezactiva urmărirea. Încearcă din nou.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Înregistrează presiunea aerului pe tot parcursul zilei cu o notificare de urmărire.</string>
+    <string name="settings_ambient_activity_ready">Înregistrarea activității este pregătită.</string>
+    <string name="settings_ambient_pressure_ready">Înregistrarea presiunii atmosferice este pregătită.</string>
+    <string name="settings_pressure_host_unavailable">Nu s-a putut porni înregistrarea presiunii atmosferice în fundal.</string>
+    <string name="settings_wifi_source_summary">Înregistrează rețele din apropiere Wi-Fi pentru a adăuga context local. Datele rămân pe acest dispozitiv.</string>
+    <string name="settings_cell_source_summary">Înregistrează turnurile de celule din apropiere pentru a adăuga contextul locației. Datele rămân pe acest dispozitiv.</string>
+    <string name="settings_location_source_compact">Ruta, distanţa şi viteza</string>
+    <string name="settings_activity_source_compact">Tip de mișcare și liniște</string>
+    <string name="settings_steps_source_compact">Paşi pe tot parcursul zilei</string>
+    <string name="settings_barometer_source_compact">Altitudinea și înălțimea</string>
+    <string name="settings_wifi_source_compact">Contextul rețelei din apropiere</string>
+    <string name="settings_cell_source_compact">Contextul turnului din apropiere</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Statut tehnic</string>
+    <string name="settings_technical_status_summary">Bateria estimată, permisiuni și statutul de colectare.</string>
+    <string name="settings_technical_status_attention">Unele surse de colectare au nevoie de atenţie. Deschis pentru detalii.</string>
+    <string name="settings_simple_source_controls_title">Utilizaţi comenzi simple</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -264,7 +362,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Urmărește automat mersul pe jos și alergarea.</string>
     <string name="setup_auto_tracking_in_motion">În mișcare</string>
     <string name="setup_auto_tracking_in_motion_desc">Urmărește automat orice deplasare, inclusiv condusul și ciclismul.</string>
-    <string name="setup_preset_title">Detaliile urmăririi</string>
+    <string name="settings_auto_tracking_mode_summary">Alegeţi care mişcare trebuie să înceapă şi să opriţi călătoriile automat.</string>
     <string name="setup_recommended">Recomandat</string>
     <string name="setup_what_to_collect_title">Ce se colectează</string>
     <string name="setup_what_to_collect_subtitle">Mai multe opțiuni mai jos. Începe să explorezi fără permisiuni sau acordă-le mai târziu. Datele rămân pe acest dispozitiv.</string>
@@ -273,11 +371,17 @@
     <string name="setup_source_activity">Activitate</string>
     <string name="setup_source_activity_desc">Detectează dacă mergi pe jos, alergi, mergi cu bicicleta sau conduci.</string>
     <string name="setup_source_steps">Pași</string>
-    <string name="setup_source_steps_desc">Numără pașii folosind pedometrul dispozitivului.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Urmăreşte paşi pe tot parcursul zilei. Călătoriile organizează aceeaşi istorie.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Fără senzor de pas direct. Tracker va verifica dacă există o sursă de pasare pe dispozitiv.</string>
+    <string name="setup_perm_steps_why">Permiteți accesul la mișcare pentru numărarea pașilor pe acest dispozitiv pe tot parcursul zilei.</string>
+    <string name="setup_perm_grant_steps_content_description">Permite accesul la mișcare pentru Pași</string>
+    <string name="setup_steps_health_connect_why">Permiteți Pașii în Health Connect pentru completarea golurilor când Tracker este închis.</string>
+    <string name="setup_steps_provider_ready">O sursă de pași de pe dispozitiv este pregătită. Unele perioade pot avea în continuare goluri.</string>
+    <string name="setup_steps_provider_checking">Se verifică sursele de pași disponibile…</string>
     <string name="setup_source_wifi">Rețele WiFi</string>
-    <string name="setup_source_wifi_desc">Înregistrează rețelele WiFi din apropiere pentru a îmbunătăți precizia locației.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Înregistrarea rețelelor din apropiere Wi-Fi, cu sau fără localizare.</string>
     <string name="setup_source_cell">Turnuri celulare</string>
-    <string name="setup_source_cell_desc">Înregistrează informațiile despre turnurile celulare pentru contextul locației.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Înregistrarea turnurilor de celule din apropiere, cu sau fără localizare.</string>
     <string name="setup_perm_location_why">Este necesară pentru a înregistra rutele și a le afișa pe hartă. Locația rămâne pe acest dispozitiv — nimic nu este trimis către un server.</string>
     <string name="setup_perm_location_bg_why">Pentru a continua înregistrarea rutei când schimbi aplicațiile sau se stinge ecranul, Tracker are nevoie de acces la locație în fundal. Locația înregistrată rămâne pe acest dispozitiv — nimic nu este trimis către un server. La următorul mesaj de sistem, alege „Permite tot timpul” pentru a activa urmărirea automată; „Doar când folosești aplicația” face ca Tracker să funcționeze numai când ecranul său este deschis.</string>
     <string name="setup_perm_activity_why">Permite Tracker să detecteze ce faci (mers pe jos, ciclism, condus, staționar), astfel încât urmărirea automată să se poată întrerupe când nu te miști și să economisească bateria. Datele despre activitate rămân pe acest dispozitiv — nimic nu este trimis către un server.</string>
@@ -293,13 +397,17 @@
     <string name="setup_perm_grant_cell_content_description">Acordă permisiunea pentru radio celular</string>
     <string name="setup_perm_granted">Acordată ✓</string>
     <string name="permission_grant_in_settings">Permite în Setări →</string>
-    <string name="permission_disabled_due_to_denial">%1$s este dezactivată deoarece permisiunea a fost refuzată. Acordă permisiunea din Setări pentru activare.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s este selectat, dar nu poate fi colectat până la acordarea permisiunii.</string>
     <string name="settings_wifi_permission_required">Necesită permisiunea Wi-Fi/de localizare. Activează comutatorul pentru a o acorda — nu se înregistrează date Wi-Fi până atunci, iar datele înregistrate rămân pe acest dispozitiv.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Accesul este încă necesar. Alegerile tale sunt păstrate.</string>
     <string name="settings_cell_permission_required">Necesită permisiunea pentru starea telefonului și locația precisă. Activează comutatorul pentru a o acorda — nu se înregistrează date celulare până atunci, iar datele înregistrate rămân pe acest dispozitiv.</string>
     <string name="settings_barometer_unavailable">Senzorul de presiune nu este disponibil pe acest dispozitiv.</string>
     <string name="settings_activity_permission_required">Necesită permisiunea de recunoaștere a activității. Activează comutatorul pentru a o acorda.</string>
-    <string name="settings_steps_unavailable">Senzorul contorului de pași nu este disponibil pe acest dispozitiv.</string>
     <string name="setup_start_exploring">Începe explorarea</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Terminarea setării...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Reîncearcă</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Nu am putut salva setarea. Alegerile tale sunt încă aici.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Nu am putut pregăti datele salvate. Alegerile tale sunt încă aici.</string>
     <string name="setup_continue">Continuă</string>
     <string name="setup_step_indicator">Pasul %1$d din %2$d</string>
     <string name="setup_online_tiles_title">Dale de hartă online?</string>
@@ -311,24 +419,25 @@
     <string name="setup_online_tiles_privacy">Cât timp este activat, furnizorul poate vedea adresa ta IP și dalele pe care le încarci — aproximativ zona hărții pe care o privești. Tracker nu trimite niciodată un cont, un identificator sau istoricul locațiilor.</string>
     <string name="setup_online_tiles_change_later">Poți schimba aceasta oricând din Setări → Hartă → Dale de hartă online.</string>
     <string name="setup_background_access_optional">Opțional, dar recomandat. Poți schimba aceasta oricând din Setări → Urmărire.</string>
-    <string name="background_reliability_status_exempt">Activitatea în fundal este permisă</string>
-    <string name="background_reliability_status_optimized">Optimizarea bateriei este activă</string>
-    <string name="background_reliability_allow_action">Permite activitatea în fundal</string>
-    <string name="background_reliability_samsung_hint">Dispozitivele Samsung pot pune aplicațiile și în „Aplicații inactive”. Deschide setările bateriei, elimină apoi Tracker din Aplicații inactive și setează-l să nu fie pus în repaus.</string>
-    <string name="background_reliability_samsung_action">Deschide setările bateriei dispozitivului</string>
-    <string name="settings_tracebox_title">Diagnosticare a blocărilor</string>
-    <string name="settings_tracebox_root_summary">Diagnosticare locală pentru blocări, ANR și structură</string>
     <string name="setup_background_location_title">Permiteți locația în fundal pentru urmărirea automată</string>
     <string name="setup_background_location_disclosure">Urmărirea automată pornește când Tracker rulează în fundal și vă înregistrează traseul chiar și atunci când ecranul aplicației nu este deschis. Datele de locație rămân pe acest dispozitiv. În setările de locație ale aplicației, alegeți „%1$s”.</string>
     <string name="setup_background_location_open_settings">Deschideți setările de locație</string>
     <string name="setup_background_location_decline">Nu acum</string>
     <string name="setup_background_location_manual_only">Urmărirea manuală în prim-plan rămâne disponibilă. Urmărirea automată a locației va rămâne oprită până când locația în fundal este permisă.</string>
-    <string name="settings_ambient_user_turned_off">Urmărirea este oprită. Alegerile și datele salvate sunt păstrate.</string>
-    <string name="setup_perm_steps_why">Permiteți accesul la mișcare pentru numărarea pașilor pe acest dispozitiv pe tot parcursul zilei.</string>
-    <string name="setup_perm_grant_steps_content_description">Permite accesul la mișcare pentru Pași</string>
-    <string name="setup_steps_health_connect_why">Permiteți Pașii în Health Connect pentru completarea golurilor când Tracker este închis.</string>
-    <string name="setup_steps_provider_ready">O sursă de pași de pe dispozitiv este pregătită. Unele perioade pot avea în continuare goluri.</string>
-    <string name="setup_steps_provider_checking">Se verifică sursele de pași disponibile…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Setările de urmărire a fondului</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android și politica dispozitivului pot opri sau opri activitatea de fundal. Tracker poate raporta restricțiile pe care Android le expune, dar nu poate să anuleze starea restricționată sau oprită cu forță.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Restricție de fond detectată</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Optimizarea bateriei detectată</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nu s-a detectat nicio restricție</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Starea de restricție nu este disponibilă</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android raportează că activitatea de fond este restricționată. Urmărirea se poate opri atunci când Tracker nu este vizibil; aplicația nu poate anula această politică.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android raportează că Tracker nu este pe lista de permisiuni de baterie. Gestionarea energiei electrice poate întârzia lucrările de fond; listarea de permisiuni reduce restricțiile, dar nu garantează o urmărire continuă.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android nu raportează nicio restricţie de fundal şi Tracker este pe lista de permisiuni pentru baterii. Sistemul încă poate opri aplicaţia, iar oprirea forţată nu poate fi anulată.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nu a putut citi toate semnalele de restricție relevante Android. Nu poate fi confirmată nici o cauză sau remediu specifică dispozitivului.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Deschide setările bateriei aplicației</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Deschide setările de optimizare a bateriei</string>
+    <string name="settings_tracebox_title">Diagnosticare a blocărilor</string>
+    <string name="settings_tracebox_root_summary">Diagnosticare locală pentru blocări, ANR și structură</string>
     <string name="settings_tracking_changes_apply_live">Modificările actualizează urmărirea curentă</string>
     <string name="settings_balance_title">Energie și detalii</string>
     <string name="settings_balance_custom">Setări personalizate · Alege echilibrul</string>
@@ -336,17 +445,6 @@
     <string name="settings_balance_inherit_value">Detalii · Echilibru general: %1$s</string>
     <string name="settings_balance_inherit">Folosește echilibrul general</string>
     <string name="settings_balance_summary">Alegeți calitatea obișnuită pentru sursele selectate. Sesiunile active favorizează detaliile surselor participante. Alegerea unui echilibru înlocuiește frecvențele de colectare vechi; sursele alese, consimțământul pentru fundal și filtrele de precizie rămân salvate.</string>
-    <string name="export_format_portable_steps_desc">Istoric al pașilor verificat, acoperire și goluri fără coordonatele traseului</string>
-    <string name="export_format_portable_ambient_steps_desc">Pași din fundal, timp de activitate, date, goluri de acoperire și fus orar salvat fără coordonatele traseului</string>
-    <string name="export_format_portable_activity_desc">Intervale de mișcare înregistrate, încredere și acoperire fără coordonatele traseului</string>
-    <string name="export_format_portable_pressure_desc">Măsurători directe ale presiunii în hPa, acoperire și goluri fără coordonatele traseului</string>
-    <string name="export_sensitivity_portable_title">Exportați istoricul înregistrat?</string>
-    <string name="export_sensitivity_portable_steps_message">Acest fișier conține numărul de pași, intervale de timp și informații despre acoperire. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Acest fișier conține pași din fundal, intervale de activitate, date, goluri de acoperire și fusul orar salvat. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
-    <string name="export_sensitivity_portable_activity_message">Acest fișier conține intervale de mișcare înregistrate, intervale de timp și informații despre acoperire. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
-    <string name="export_sensitivity_portable_pressure_message">Acest fișier conține măsurători ale presiunii și intervale de timp care pot dezvălui informații despre mediu. Nu conține coordonatele traseului sau altitudine calibrată. Continuați numai dacă aveți încredere în destinație.</string>
-    <string name="settings_activity_source_summary">Înregistrează mersul pe jos, ciclismul, condusul și perioadele fără mișcare pe tot parcursul zilei.</string>
-    <string name="settings_ambient_activity_ready">Înregistrarea activității este pregătită.</string>
-    <string name="settings_ambient_pressure_ready">Înregistrarea presiunii atmosferice este pregătită.</string>
-    <string name="settings_pressure_host_unavailable">Nu s-a putut porni înregistrarea presiunii atmosferice în fundal.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Reia urmărirea</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Nu am putut reia urmărirea. Încearcă din nou.</string>
 </resources>

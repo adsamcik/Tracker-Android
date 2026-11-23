@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Atsarginė kopija prieš naujinimą eksportuota</string>
     <string name="settings_migration_backup_export_failure">Nepavyko eksportuoti atsarginės kopijos prieš naujinimą</string>
     <string name="settings_migration_backup_export_cleanup_required">Eksportuoti nepavyko. Ištrinkite iš dalies eksportuotą atsarginę kopiją iš pasirinktos vietos.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Paveldo duomenų bazės importas reikalauja dėmesio</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Jūsų originali duomenų bazė vis dar yra šiame įrenginyje. Iš naujo pabandykite atidaryti importą Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Paveldo duomenų bazės dydis: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Paskutinis importas</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Eksporto paveldo duomenų bazė</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Ištrinkite seną duomenų bazę ir pradėkite iš naujo</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Išvestas paveldo duomenų bazė</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Negaliu eksportuoti senosios duomenų bazės</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Eksportas nepavyko, todėl nepabaigta paskirties vieta negalėjo būti pašalinta. Ištrinkite jį rankiniu būdu.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Paveldo duomenų bazės saugykla</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Išskirtumas %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Šaldo versija: %1$d\nSpaustymas: %2$s\nImportas: %3$s\nImportas eilutės: %4$d\n eilutės saugomos tik saugykloje: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Importavimas baigtas: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Ne importuotas</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Importas</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Importuoti baigtas</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Importo nesėkmė</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Ištrinti senąją duomenų bazę?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Tai visam laikui pašalina %1$s iš šio prietaiso. Jūsų \"V27\" duomenys nepažeisti. Išvestą kopiją laikykite, jei vėliau jums prireiks originalios duomenų bazės.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Ištrinta palikimo duomenų bazė</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Negalima ištrinti senosios duomenų bazės</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Reikia atkreipti dėmesį į atkurimą</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Atranka išlieka uždaryta, o Tracker saugiai sutampa savo stebėjimo duomenis. Išbandykite dar kartą be ištrinimo istorijos.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Paskambinkite atkurti sekimą</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Gaminimo duomenų bazė turi būti atsarginė</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker rado neišleistą versijos 28 plėtros duomenų bazę, kuri neatitinka šios statybos. Sekimo ir duomenų bazės funkcijos išlieka išjungtos, o duomenų bazės failas buvo paliktas nesikeičiantis. Paslauginkite programos duomenis arba duomenų bazę prieš pakeičiant ar taisydami šią kūrimo įrenginį.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Duomenų bazė turi būti įvertinta</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker negalėjo saugiai nustatyti ir patvirtinti šios duomenų bazės. Sekimo ir duomenų bazės funkcijos išlieka išjungtos, o duomenų bazės failas buvo paliktas nesikeičiantis. Paslauginkite programos duomenis arba duomenų bazę prieš bandydami rankinį atkūrimą.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Duomenų bazė yra laikinai neprisiekiama</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Sekimo ir duomenų bazės funkcijos išlieka išjungtos, kol Tracker saugiai iš naujo bandoma. Nėra ištrinti duomenų. Dabar pabandykite patikrinti, ar laikinai užrakintas ar saugojimo problema išnyksta.</string>
     <string name="settings_delete_data_success">Visi surinkti duomenys ištrinti</string>
     <string name="settings_delete_data_failure">Nepavyko ištrinti visų surinktų duomenų</string>
     <string name="settings_game_goals_title">Tikslai</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Įkeliami žaidimo nustatymai…</string>
     <string name="settings_game_load_error">Nepavyko įkelti žaidimo nustatymų. Bandykite dar kartą.</string>
     <string name="settings_map_info_hint">Šie nustatymai valdo žemėlapio vaizdavimo kokybę ir našumą. Daugumai naudotojų tinka numatytosios reikšmės.</string>
+    <string name="settings_map_offline_data_section">Ne interneto žemėlapių duomenys</string>
     <string name="settings_map_online_tiles_section_title">Internetinės žemėlapio plytelės</string>
     <string name="settings_map_online_tiles_enable_title">Naudoti internetines žemėlapio plyteles</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Išjungta – naudojamas tik pridėtas neprisijungus veikiantis pagrindinis žemėlapis. Tinklo užklausų nėra.</string>
@@ -197,9 +228,76 @@
     <string name="tracking_preset_custom_name">Pasirinktinis</string>
     <string name="tracking_preset_custom_description">Rankiniu būdu koreguokite kiekvieną sekimo parametrą</string>
     <string name="tracking_preset_selector_subtitle">Pasirinkite pradinį profilį, tada tiksliai pakoreguokite bet kurį nustatymą žemiau.</string>
+    <string name="tracking_preset_change">Suvieniokite pasirinkimus</string>
+    <string name="tracking_preset_done">Parodykite tik pasirinktas</string>
     <string name="tracking_preset_customized_summary">Tiksliai sureguliavote sekimą. Norėdami atstatyti, pasirinkite aukščiau esantį išankstinį nustatymą.</string>
+    <string name="settings_tracking_section_start_stop">Automatinis sekimas</string>
+    <string name="settings_tracking_section_battery_detail">Sekimo kokybė</string>
+    <string name="settings_tracking_section_data_collected">Susirinkti duomenys</string>
     <string name="settings_tracking_section_detail">Vietos rinkimas</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Išvažiavimas į lauką (nepriimtinis)</string>
     <string name="settings_tracking_section_notifications">Pranešimai</string>
+    <string name="settings_transition_detection_friendly_title">Baterijos efektyvus judėjimo nustatymas</string>
+    <string name="settings_transition_detection_friendly_summary">Naudojamas Android veikimo pokyčiai, kad būtų išvengta dažnės pastabos tikrinimo. Automatiniai pradžia gali reaguoti šiek tiek lėčiau.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatinė sekimo sistema nepasiekiama</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Jūsų pasirinktas automatinis režimas išsaugotas. Prieš pradedant veikti automatiškai, reikia veiklos atpažinimo leidimo.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Pasirinkite, ką įrašyti tarp kelionių.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi kelionės iš išorės</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Išvažiavimas iš ląstelės</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Išvažiuoti tarp kelionių.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Paslėpta kaip įjungta. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Išorinės kelionės apimtis yra oportunistinė ir gali turėti leidimo, paslaugų teikėjo, proceso, atnaujinimo arba OS bėdų. Tracker nenurodo, kad jas būtų galima surinkti nuolat arba išgalvoja saugojimo trukmę.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Išėmimas sustabdomas, nes produkto laikymo politika dar nėra.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Skaitmenų patikrinimas...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Susiėmimas yra saugiai užfiksuotas dabartiniu išleidimu.</string>
+    <string name="settings_ambient_user_turned_off">Sekimas išjungtas. Jūsų pasirinkimai ir išsaugoti duomenys lieka.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Suteikite prieigą prie žingsnių skaičiaus programoje Health Connect, kad Tracker galėtų užpildyti istorijos spragas, kai programa uždaryta.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Leidinkite prieigą prie žingsnių skaičiavimo Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Negaliu patikrinti Health Connect prieigos. Pabandyk dar kartą.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Žingsnių skaičių galima importuoti, kai „Tracker“ veikia. Prieiga fone gali sumažinti žingsnių istorijos spragas.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Nėra palaikomos visos dienos žingsnių teikėjų.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Įstatykite Health Connect taip, kad Tracker galėtų skaityti žingsnių skaičiaus.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Negaliu patikrinti žingsnių teikėjo. Pabandyk dar kartą vėliau.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Duokite fizinei veiklai leidimą skaičiuoti žingsnius šiame įrenginyje.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Šioje įrenginyje nėra jokių žingsnių įrašų.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect paruoštas. Kai kuriose laikotarpiuose gali dar būti pertraukos.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Stebės įrašas paruoštas. Kai kuriose laikotarpiuose gali dar būti pertraukos.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Norint rinkti vietovės duomenis tarp seansų, reikia prieigos prie vietovės fone. Vietovės įrašymo seansų metu nuostata nepasikeis.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi skėpimo leidimo reikalavimai neatitinkami. Jei jie bus atiduoti, nebus galima užfiksuoti vietos.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android  ⁇ s Neįvykdomos mobiliojo ryšio atšaukimo leidimo reikalavimai. Jei jie bus atiduoti, nebus galima užfiksuoti vietos.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasyvi vieta paruošta šaltinio savininkui susitaikyti. Ji suteikia oportunistinius taškus, o ne maršruto tęstinumą.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi skenavimo rezultatų grįžtamas kvietimas paruoštas šaltinio savininkui susitaikyti. Nėra pažadų, kad būtų galima stebėti ar atsigauti.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Laiko ženklu kvalifikuotos ląstelių perjungimo atšaukimo ryšys yra pasiruošusios atšaukimui iš šaltinio savininko. Neprivaloma įvartinis atnaujinimo kadentas.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Reikalingas platformas ar teikėjas nėra prieinamas, todėl surinkimas nėra atliekamas.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Išsaugotas; išankstinis eksploatacinis statusas</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Skirti; pranešama apie veiklos prieinamumą</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Išsaugotas; ne eksploatuojamas</string>
+    <string name="settings_location_source_summary">Įrašykite maršrutą, atstumą ir greitį. Paprastai didžiausias baterijos sąnaudas.</string>
+    <string name="settings_activity_source_summary">Visą dieną registruoja ėjimą, važiavimą dviračiu, vairavimą ir nejudrumą.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Visą dieną seka žingsnius. Kelionės organizuoja tą patį žingsnio istoriją.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Pasvarstoju žingsnių rinkinį.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Išjungti stebėjimą</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Išjungia...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Sustojus sesijas, visą dieną įrašyti ir automatiškai pradėti. Jūsų pasirinkimai ir išsaugoti duomenys lieka.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Sekimas išjungtas. Jūsų pasirinkimai ir išsaugoti duomenys lieka.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Negaliu išjungti sekimo. Pabandyk dar kartą.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Laikykite oro slėgis visą dieną su stebėjimo pranešimu.</string>
+    <string name="settings_ambient_activity_ready">Veiklos įrašymas paruoštas.</string>
+    <string name="settings_ambient_pressure_ready">Oro slėgio įrašymas paruoštas.</string>
+    <string name="settings_pressure_host_unavailable">Nepavyko pradėti oro slėgio įrašymo fone.</string>
+    <string name="settings_wifi_source_summary">Užregistruokite netoliese esančius Wi-Fi tinklus, kad pridėtų vietinį kontekstą. Duomenys lieka šiame įrenginyje.</string>
+    <string name="settings_cell_source_summary">Užregistruokite netoliese esančius mobiliųjų telefonų bokštus, kad pridėtų vietos kontekstą. Duomenys lieka šiame įrenginyje.</string>
+    <string name="settings_location_source_compact">Kelionė, atstumas ir greitis</string>
+    <string name="settings_activity_source_compact">Vairo rūšis ir tylumas</string>
+    <string name="settings_steps_source_compact">Ketvirčiai per dieną</string>
+    <string name="settings_barometer_source_compact">Aukštumas ir aukštis</string>
+    <string name="settings_wifi_source_compact">Artimųjų tinklų kontekstas</string>
+    <string name="settings_cell_source_compact">Nedauginės bokšto kontekstas</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Techninė būklė</string>
+    <string name="settings_technical_status_summary">Akumuliatoriaus skaičiavimas, leidimai ir surinkimo statusas.</string>
+    <string name="settings_technical_status_attention">Kai kuriems kolekcijos šaltiniams reikia atkreipti dėmesį. Atvėrę detalėms.</string>
+    <string name="settings_simple_source_controls_title">Naudokite paprastas valdymo priemones</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -264,7 +362,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Automatiškai sekti ėjimą ir bėgimą.</string>
     <string name="setup_auto_tracking_in_motion">Judant</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatiškai sekti bet kokį judėjimą, įskaitant vairavimą ir važiavimą dviračiu.</string>
-    <string name="setup_preset_title">Sekimo detalumas</string>
+    <string name="settings_auto_tracking_mode_summary">Pasirinkite, kuris judėjimas turėtų pradėti ir automatiškai sustabdyti keliones.</string>
     <string name="setup_recommended">Rekomenduojama</string>
     <string name="setup_what_to_collect_title">Ką rinkti</string>
     <string name="setup_what_to_collect_subtitle">Daugiau parinkčių rasite žemiau. Pradėkite tyrinėti be leidimų arba suteikite juos vėliau. Duomenys lieka šiame įrenginyje.</string>
@@ -273,11 +371,17 @@
     <string name="setup_source_activity">Veikla</string>
     <string name="setup_source_activity_desc">Nustatykite, ar einate, bėgate, važiuojate dviračiu ar vairuojate.</string>
     <string name="setup_source_steps">Žingsniai</string>
-    <string name="setup_source_steps_desc">Skaičiuokite žingsnius naudodami įrenginio žingsniamatį.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Sekite žingsnius visą dieną. Kelionės organizuoja tą pačią istoriją.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Nėra tiesioginio žingsnių jutiklio. Tracker patikrins, ar įrenginyje yra žingsnio šaltinis.</string>
+    <string name="setup_perm_steps_why">Leiskite prieigą prie judėjimo, kad šis įrenginys skaičiuotų žingsnius visą dieną.</string>
+    <string name="setup_perm_grant_steps_content_description">Leisti prieigą prie judėjimo žingsniams</string>
+    <string name="setup_steps_health_connect_why">Leiskite Žingsnius Health Connect, kad būtų užpildytos spragos uždarius Tracker.</string>
+    <string name="setup_steps_provider_ready">Žingsnių šaltinis įrenginyje paruoštas. Kai kuriais laikotarpiais vis tiek gali būti spragų.</string>
+    <string name="setup_steps_provider_checking">Tikrinami prieinami žingsnių šaltiniai…</string>
     <string name="setup_source_wifi">Wi‑Fi tinklai</string>
-    <string name="setup_source_wifi_desc">Registruokite netoliese esančius Wi‑Fi tinklus, kad pagerintumėte vietos tikslumą.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Užregistruoti netoliese esančius Wi-Fi tinklus, su arba be vietos stebėjimo.</string>
     <string name="setup_source_cell">Ryšio bokštai</string>
-    <string name="setup_source_cell_desc">Registruokite ryšio bokštų informaciją vietos kontekstui.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Užregistruokite netoliese esančius mobiliųjų telefonų bokštus, su arba be vietos stebėjimo.</string>
     <string name="setup_perm_location_why">Būtina, kad galėtumėte įrašyti maršrutus ir rodyti juos žemėlapyje. Vieta lieka šiame įrenginyje – niekas nesiunčiama į serverį.</string>
     <string name="setup_perm_location_bg_why">Kad maršrutas būtų įrašomas, kai perjungiate programas arba ekranas išsijungia, „Tracker“ reikia prieigos prie jūsų vietos fone. Įrašyta vieta lieka šiame įrenginyje – niekas nesiunčiama į serverį. Kitame sistemos lange pasirinkite „Leisti visada“, kad įjungtumėte automatinį sekimą; pasirinkus „Leisti naudojant programą“, „Tracker“ veiks tik tada, kai jo ekranas atidarytas.</string>
     <string name="setup_perm_activity_why">Leidžia „Tracker“ nustatyti, ką veikiate (einate, važiuojate dviračiu, vairuojate, nejudate), todėl automatinis sekimas gali būti pristabdytas, kai nejudate, ir taupyti akumuliatoriaus energiją. Veiklos duomenys lieka šiame įrenginyje – niekas nesiunčiama į serverį.</string>
@@ -293,13 +397,17 @@
     <string name="setup_perm_grant_cell_content_description">Suteikti mobiliojo ryšio leidimą</string>
     <string name="setup_perm_granted">Leista ✓</string>
     <string name="permission_grant_in_settings">Leisti nustatymuose →</string>
-    <string name="permission_disabled_due_to_denial">%1$s išjungta, nes leidimas nebuvo suteiktas. Suteikite jį nustatymuose, kad įjungtumėte.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s yra pasirinktas, tačiau jis negali surinkti, kol nebus suteiktas leidimas.</string>
     <string name="settings_wifi_permission_required">Reikalingas Wi‑Fi / vietos leidimas. Įjunkite jungiklį, kad suteiktumėte – iki tol Wi‑Fi duomenys nerenkami, o surinkti duomenys lieka šiame įrenginyje.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Prieiga vis dar reikalinga. Jūsų pasirinkimai saugomi.</string>
     <string name="settings_cell_permission_required">Reikalingas telefono būsenos ir tikslios vietos leidimas. Įjunkite jungiklį, kad suteiktumėte – iki tol ląstelių duomenys nerenkami, o surinkti duomenys lieka šiame įrenginyje.</string>
     <string name="settings_barometer_unavailable">Šiame įrenginyje slėgio jutiklis nepasiekiamas.</string>
     <string name="settings_activity_permission_required">Reikalingas veiklos atpažinimo leidimas. Įjunkite jungiklį, kad suteiktumėte.</string>
-    <string name="settings_steps_unavailable">Šiame įrenginyje žingsnių skaitiklio jutiklis nepasiekiamas.</string>
     <string name="setup_start_exploring">Pradėti tyrinėti</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Baigiant įrengimą...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Bandyti dar kartą</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Negaliu išsaugoti įrengimo. Jūsų pasirinkimai vis dar yra čia.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Negalėjau paruošti išsaugotų duomenų. Jūsų pasirinkimai vis dar yra čia.</string>
     <string name="setup_continue">Tęsti</string>
     <string name="setup_step_indicator">%1$d veiksmas iš %2$d</string>
     <string name="setup_online_tiles_title">Internetinės žemėlapio plytelės?</string>
@@ -311,24 +419,25 @@
     <string name="setup_online_tiles_privacy">Kai ši parinktis įjungta, teikėjas gali matyti jūsų IP adresą ir įkeliamas plyteles – apytiksliai, kurią žemėlapio sritį peržiūrite. „Tracker“ niekada nesiunčia paskyros, identifikatoriaus ar vietos istorijos.</string>
     <string name="setup_online_tiles_change_later">Tai bet kada galite pakeisti pasirinkę Nustatymai → Žemėlapis → Internetinės žemėlapio plytelės.</string>
     <string name="setup_background_access_optional">Nebūtina, bet rekomenduojama. Tai bet kada galite pakeisti pasirinkę Nustatymai → Sekimas.</string>
-    <string name="background_reliability_status_exempt">Veikla fone leidžiama</string>
-    <string name="background_reliability_status_optimized">Įjungtas akumuliatoriaus optimizavimas</string>
-    <string name="background_reliability_allow_action">Leisti veiklą fone</string>
-    <string name="background_reliability_samsung_hint">„Samsung“ įrenginiai programas taip pat gali perkelti į „Miegančias programas“. Atidarykite akumuliatoriaus nustatymus, pašalinkite „Tracker“ iš miegančių programų ir nustatykite, kad jis nebūtų užmigdomas.</string>
-    <string name="background_reliability_samsung_action">Atidaryti įrenginio akumuliatoriaus nustatymus</string>
-    <string name="settings_tracebox_title">Strigčių diagnostika</string>
-    <string name="settings_tracebox_root_summary">Vietinė strigčių, ANR ir struktūrinė diagnostika</string>
     <string name="setup_background_location_title">Leisti vietovę fone automatiniam sekimui</string>
     <string name="setup_background_location_disclosure">Automatinis sekimas pradedamas, kai Tracker veikia fone, ir įrašo jūsų maršrutą net tada, kai programos ekranas neatidarytas. Vietovės duomenys lieka šiame įrenginyje. Programos vietovės nustatymuose pasirinkite „%1$s“.</string>
     <string name="setup_background_location_open_settings">Atidaryti vietovės nustatymus</string>
     <string name="setup_background_location_decline">Ne dabar</string>
     <string name="setup_background_location_manual_only">Rankinis sekimas priekiniame plane lieka pasiekiamas. Automatinis vietovės sekimas liks išjungtas, kol nebus leista vietovė fone.</string>
-    <string name="settings_ambient_user_turned_off">Sekimas išjungtas. Jūsų pasirinkimai ir išsaugoti duomenys lieka.</string>
-    <string name="setup_perm_steps_why">Leiskite prieigą prie judėjimo, kad šis įrenginys skaičiuotų žingsnius visą dieną.</string>
-    <string name="setup_perm_grant_steps_content_description">Leisti prieigą prie judėjimo žingsniams</string>
-    <string name="setup_steps_health_connect_why">Leiskite Žingsnius Health Connect, kad būtų užpildytos spragos uždarius Tracker.</string>
-    <string name="setup_steps_provider_ready">Žingsnių šaltinis įrenginyje paruoštas. Kai kuriais laikotarpiais vis tiek gali būti spragų.</string>
-    <string name="setup_steps_provider_checking">Tikrinami prieinami žingsnių šaltiniai…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Sėdos sekimo nustatymai</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android ir įrenginio politika gali sustabdyti arba sustabdyti foninį darbą. Tracker gali pranešti apie apribojimus, kuriuos Android atskleidžia, tačiau negali viršyti apribojimų arba priverstinio sustabdymo būdo.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Nustatytas pagrindinis apribojimas</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Akumuliatoriaus optimizavimas aptiktas</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nėra jokių apribojimų</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Skirties apribojimo būklė nedalyvaujama</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android pranešama, kad pagrindinė veikla yra ribojama. Kai Tracker nėra matomas, sekimas gali būti sustabdytas; programa negali atšaukti šios politikos.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android praneša, kad Tracker nėra į baterijų sąrašą. Elektros energijos valdymas gali atidėti pagrindinį darbą; leidimų sąrašas mažina apribojimus, tačiau neleidžia užtikrinti nuolatinio sekimo.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android praneša apie jokių pagrindinių apribojimų, o Tracker yra į baterijos leidimo sąrašą. Sistema vis dar gali sustabdyti programą, ir jėga sustabdyti negali būti panaikintas.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker negalėjo perskaityti visų atitinkamų Android apribojimų signalų. Nėra patvirtintos specialios prietaiso priežastys ar priemonė.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Atvira app baterijos nustatymų</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Atvira baterio optimizacijos nustatymas</string>
+    <string name="settings_tracebox_title">Strigčių diagnostika</string>
+    <string name="settings_tracebox_root_summary">Vietinė strigčių, ANR ir struktūrinė diagnostika</string>
     <string name="settings_tracking_changes_apply_live">Pakeitimai atnaujina dabartinį sekimą</string>
     <string name="settings_balance_title">Energija ir detalumas</string>
     <string name="settings_balance_custom">Pasirinktinės nuostatos · Pasirinkti balansą</string>
@@ -336,17 +445,6 @@
     <string name="settings_balance_inherit_value">Detalės · Bendras balansas: %1$s</string>
     <string name="settings_balance_inherit">Naudoti bendrą balansą</string>
     <string name="settings_balance_summary">Pasirinkite įprastą pasirinktų šaltinių kokybę. Aktyvios sesijos teikia pirmenybę dalyvaujančių šaltinių detalumui. Pasirinkus balansą pakeičiamas senasis rinkimo dažnis; šaltinių pasirinkimai, sutikimas rinkti fone ir tikslumo filtrai lieka išsaugoti.</string>
-    <string name="export_format_portable_steps_desc">Patikrinta žingsnių istorija, aprėptis ir spragos be maršruto koordinačių</string>
-    <string name="export_format_portable_ambient_steps_desc">Fone surinkti žingsniai, aktyvumo laikas, datos, aprėpties spragos ir išsaugota laiko juosta be maršruto koordinačių</string>
-    <string name="export_format_portable_activity_desc">Užfiksuoti judėjimo intervalai, patikimumas ir aprėptis be maršruto koordinačių</string>
-    <string name="export_format_portable_pressure_desc">Tiesioginiai slėgio matavimai hPa, aprėptis ir spragos be maršruto koordinačių</string>
-    <string name="export_sensitivity_portable_title">Eksportuoti užfiksuotą istoriją?</string>
-    <string name="export_sensitivity_portable_steps_message">Šiame faile yra žingsnių skaičius, laiko intervalai ir aprėpties informacija. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Šiame faile yra fone surinkti žingsniai, aktyvumo intervalai, datos, aprėpties spragos ir išsaugota laiko juosta. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
-    <string name="export_sensitivity_portable_activity_message">Šiame faile yra užfiksuoti judėjimo intervalai, laiko intervalai ir aprėpties informacija. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
-    <string name="export_sensitivity_portable_pressure_message">Šiame faile yra slėgio matavimai ir laiko intervalai, galintys atskleisti informaciją apie aplinką. Jame nėra maršruto koordinačių ar kalibruoto aukščio. Tęskite tik jei pasitikite paskirties vieta.</string>
-    <string name="settings_activity_source_summary">Visą dieną registruoja ėjimą, važiavimą dviračiu, vairavimą ir nejudrumą.</string>
-    <string name="settings_ambient_activity_ready">Veiklos įrašymas paruoštas.</string>
-    <string name="settings_ambient_pressure_ready">Oro slėgio įrašymas paruoštas.</string>
-    <string name="settings_pressure_host_unavailable">Nepavyko pradėti oro slėgio įrašymo fone.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Tęsti stebėjimą</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Negalima atnaujinti sekimo. Pabandyk dar kartą.</string>
 </resources>

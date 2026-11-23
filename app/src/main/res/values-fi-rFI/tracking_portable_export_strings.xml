@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Varmennettu askelhistoria, kattavuus ja aukot ilman reittikoordinaatteja</string>
+    <string name="export_format_portable_ambient_steps_desc">Tausta-askelmäärät, aktiivisuusaika, päivämäärät, kattavuusaukot ja tallennettu aikavyöhyke ilman reittikoordinaatteja</string>
+    <string name="export_format_portable_activity_desc">Tallennetut liikejaksot, varmuus ja kattavuus ilman reittikoordinaatteja</string>
+    <string name="export_format_portable_pressure_desc">Suorat painemittaukset hPa-yksikköinä, kattavuus ja aukot ilman reittikoordinaatteja</string>
+    <string name="export_sensitivity_portable_title">Viedäänkö tallennettu historia?</string>
+    <string name="export_sensitivity_portable_steps_message">Tämä tiedosto sisältää askelmäärät, aikavälit ja kattavuustiedot. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Tämä tiedosto sisältää tausta-askelmäärät, aktiivisuusjaksot, päivämäärät, kattavuusaukot ja tallennetun aikavyöhykkeen. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
+    <string name="export_sensitivity_portable_activity_message">Tämä tiedosto sisältää tallennetut liikejaksot, aikavälit ja kattavuustiedot. Se ei sisällä reittikoordinaatteja. Jatka vain, jos luotat kohteeseen.</string>
+    <string name="export_sensitivity_portable_pressure_message">Tämä tiedosto sisältää painemittauksia ja aikavälejä, jotka voivat paljastaa tietoja ympäristöstä. Se ei sisällä reittikoordinaatteja tai kalibroitua korkeutta. Jatka vain, jos luotat kohteeseen.</string>
+</resources>

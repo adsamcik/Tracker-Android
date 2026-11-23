@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Sigurnosna kopija prije nadogradnje je izvezena</string>
     <string name="settings_migration_backup_export_failure">Nije moguće izvesti sigurnosnu kopiju prije nadogradnje</string>
     <string name="settings_migration_backup_export_cleanup_required">Izvoz nije uspio. Izbrišite djelomično izvezenu sigurnosnu kopiju s odabranog mjesta.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Import baza podataka koji je naslijedio zahtijeva pozornost</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Vaša izvorna baza podataka je još uvijek na ovom uređaju. Ponovno probati uvoz da otvorite Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Velikost baze podataka: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Proučavanje uvoza</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Izvoz stare baze podataka</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Izbrišite stare baze podataka i počnite novo</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Izvezena baza podataka</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Ne mogu izvoziti stariju bazu podataka</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Izvoz nije uspio i nepovršena destinacija nije mogla biti uklonjena. Izbrišite ga ručno.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Skladište za bazu podataka</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Verzija %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Izvorna verzija: %1$d\nSloženje: %2$s\nImport: %3$s\nImportirani redovi: %4$d\nRedovi zadržani samo u trezoru: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Uvoz završen: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Uvoz</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Uvoz</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Import završen</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Import nije uspio</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Izbrišiti bazu podataka?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">To trajno uklanja %1$s iz ovog uređaja. Vaši v27 podaci nisu pogođeni. Čuvajte izvoznu kopiju ako vam je izvorna baza podataka kasnije potrebna.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Izbrišena baza podataka</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Ne mogu izbrisati stare baze podataka</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Prati oporavak zahtijeva pozornost</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Prikupljanje ostaje isključeno dok Tracker sigurno usklađuje svoje podatke o praćenju. Ponovo pokušajte bez brisanja povijesti.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Proučavanje oporavka</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Razvojna baza podataka treba ručna kopija</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker je pronašao neisporučenu verziju 28 razvojne baze podataka koja ne odgovara ovoj izgradnji. Tracking i baza podataka funkcije ostaju isključene, a baza podataka datoteka je ostavio nepromijenjen. Zaštita podataka aplikacije ili baze podataka prije zamjene ili popravke ove razvojne instalacije.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Baza podataka treba pažnju</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker nije mogao sigurno identificirati ili validirati ovu bazu podataka. Tracking i baza podataka funkcije ostaju isključene, a baza podataka datoteka je ostavio nepromijenjen. Kupiju se podaci aplikacije ili baza podataka prije pokušaja ručnog oporavka.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Baza podataka privremeno nije dostupna</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Tracking i baza podataka funkcije ostaju isključene dok Tracker ponovno pokušavaju sigurno. Nijedan podac nije izbrisan. Pokušajte ponovno provjeriti je li se riješila problem s privremenom zatvaranjem ili skladištenjem.</string>
     <string name="settings_delete_data_success">Svi prikupljeni podaci su izbrisani</string>
     <string name="settings_delete_data_failure">Nije moguće izbrisati sve prikupljene podatke</string>
     <string name="settings_game_goals_title">Ciljevi</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Učitavanje postavki igre…</string>
     <string name="settings_game_load_error">Nije moguće učitati postavke igre. Pokušajte ponovno.</string>
     <string name="settings_map_info_hint">Ove postavke upravljaju kvalitetom i izvedbom prikaza karte. Većina korisnika može upotrebljavati zadane vrijednosti.</string>
+    <string name="settings_map_offline_data_section">Offline podaci o karti</string>
     <string name="settings_map_online_tiles_section_title">Mrežne pločice karte</string>
     <string name="settings_map_online_tiles_enable_title">Upotrebljavaj mrežne pločice karte</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Isključeno — upotrebljava se samo ugrađena izvanmrežna osnovna karta. Nema mrežnih zahtjeva.</string>
@@ -197,9 +228,76 @@
     <string name="tracking_preset_custom_name">Prilagođeno</string>
     <string name="tracking_preset_custom_description">Ručno prilagodite svaki parametar praćenja</string>
     <string name="tracking_preset_selector_subtitle">Odaberite profil za početak, a zatim precizno prilagodite bilo koju postavku u nastavku.</string>
+    <string name="tracking_preset_change">Primjeri opcije</string>
+    <string name="tracking_preset_done">Pokaži samo odabrane</string>
     <string name="tracking_preset_customized_summary">Fino ste prilagodili praćenje. Za poništavanje odaberite prethodnu postavku.</string>
+    <string name="settings_tracking_section_start_stop">Automatsko praćenje</string>
+    <string name="settings_tracking_section_battery_detail">Kvaliteta praćenja</string>
+    <string name="settings_tracking_section_data_collected">Podaci prikupljeni</string>
     <string name="settings_tracking_section_detail">Prikupljanje lokacije</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Odlazak izvan grada (neopcionalno)</string>
     <string name="settings_tracking_section_notifications">Obavijesti</string>
+    <string name="settings_transition_detection_friendly_title">Otkrivanje kretanja na baterije</string>
+    <string name="settings_transition_detection_friendly_summary">Koristi promjene aktivnosti Android kako bi se izbjegle česte provjere pozadine. Automatski pokret može reagirati malo sporije.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatsko praćenje nije dostupno</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Vaš izbor automatskog režima je sačuvani. Ako je moguće, potrebno je odobrenje za prepoznavanje aktivnosti prije nego što se automatski pokret može aktivirati.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Odaberite što snimiti između putovanja.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi Izvanredna putovanja</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Izlazak iz ćelije</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">-Između putovanja.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Čuvano je kao uključeno. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Izvana pokrivenost putovanja je oportunistična i može sadržavati praznine u dozvoli, pružatelju, procesu, ponovnom pokretanju ili OS-u. Tracker ne tvrdi da je uvijek na prikupljanju ili izmišlja trajanje zadržavanja.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">U skladu s člankom 4. stavkom 1. stavkom 1. stavkom 1. stavkom 1. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2. stavkom 2.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Provjeravanje kolekcije...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Skupljanje je sigurno sadržano u trenutnom uvođenju.</string>
+    <string name="settings_ambient_user_turned_off">Praćenje je isključeno. Vaši odabiri i spremljeni podaci ostaju sačuvani.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Dopustite pristup broju koraka u aplikaciji Health Connect kako bi se nadopunili nedostajući podaci dok je Tracker zatvoren.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Dozvolite pristup brojanju koraka u Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Nisam mogao provjeriti pristup Health Connect. Pokušaj još jednom.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Broj koraka može se uvesti dok Tracker radi. Pristup u pozadini može smanjiti praznine u povijesti koraka.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Ne postoji pružatelj podrške za cijeli dan.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">ažuriraj Health Connect tako da Tracker može čitati brojanje koraka.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Nisam mogao provjeriti pružatelja. Pokušaj opet kasnije.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Dopustite fizičkoj aktivnosti da broji korake na ovom uređaju.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">U ovom uređaju nije dostupna snimanje koraka.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect je spreman. Neki razdoblja još uvijek mogu imati praznine.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Snimka je spremna. Neki razdoblja još uvijek mogu imati praznine.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Za bilježenje lokacije između sesija potreban je pristup lokaciji u pozadini. Postavka bilježenja tijekom sesije ostaje nepromijenjena.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi scan dozvole zahtjeva nisu ispunjeni. Davanje ih ne omogućava hvatanje lokacije.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Ne ispunjavaju se zahtjevi za dozvolu za povratne pozive na stanice. Davanje ih ne omogućava hvatanje lokacije.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasivna lokacija je spremna za pomirenje izvornog vlasnika. Obezbeđuje oportunističke točke, a ne kontinuitet ruta.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi povratne pozive rezultata skeniranja spremne su za usklađivanje izvornog vlasnika. Ne obećava se skeniranje ili probudivanje.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Vratne pozive za promjene stanice su spremne za pomirenje vlasnika izvora. Ne obećava se prisilna kadencija osvežavanja.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Tražena platforma ili pružatelj nije dostupan, tako da prikupljanje ostaje isključeno.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Uloženi; operativni status u trajanju</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Uloženi; prijavljena operativna dostupnost</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Uloženo; ne funkcionira</string>
+    <string name="settings_location_source_summary">Zapisi put, udaljenost i brzinu. Obično najveća cijena baterije.</string>
+    <string name="settings_activity_source_summary">Bilježi hodanje, vožnju bicikla, vožnju automobila i mirovanje tijekom dana.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Pratite korake tijekom dana. Putovi organizuju istu povijest koraka.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Provjeravam prikupljanje koraka.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Isključi praćenje</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Isključujući...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Sastavljanje sesija, cijeli dan snimanje i automatski pokret. Vaše izbore i sačuvani podaci ostaju.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Praćenje je isključeno. Vaši odabiri i spremljeni podaci ostaju sačuvani.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Nisam mogao isključiti praćenje. Pokušaj još jednom.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Zapisivanje tlaka zraka tijekom cijelog dana sa obavijestima o praćenju.</string>
+    <string name="settings_ambient_activity_ready">Spremno za bilježenje aktivnosti.</string>
+    <string name="settings_ambient_pressure_ready">Spremno za bilježenje tlaka zraka.</string>
+    <string name="settings_pressure_host_unavailable">Bilježenje tlaka zraka u pozadini nije se moglo pokrenuti.</string>
+    <string name="settings_wifi_source_summary">Zapisi u blizini mreža Wi-Fi kako bi se dodao lokalni kontekst. Podaci ostaju na ovom uređaju.</string>
+    <string name="settings_cell_source_summary">Zapisi u blizini ćelijskih tornjeva kako bi se dodao kontekst lokacije. Podaci ostaju na ovom uređaju.</string>
+    <string name="settings_location_source_compact">Ruta, udaljenost i brzina</string>
+    <string name="settings_activity_source_compact">Vrsta kretanja i mir</string>
+    <string name="settings_steps_source_compact">Koraka tijekom dana</string>
+    <string name="settings_barometer_source_compact">Visina i nadmorska visina</string>
+    <string name="settings_wifi_source_compact">Sljedeći članak</string>
+    <string name="settings_cell_source_compact">Konteks u blizini tornjeva</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Tehnički status</string>
+    <string name="settings_technical_status_summary">Procenjuje bateriju, dozvole i stanje prikupljanja.</string>
+    <string name="settings_technical_status_attention">Neki izvori prikupljanja trebaju pažnju. Otvoreni za detalje.</string>
+    <string name="settings_simple_source_controls_title">Koristite jednostavne kontrole</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -264,7 +362,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Automatski pratite hodanje i trčanje.</string>
     <string name="setup_auto_tracking_in_motion">U pokretu</string>
     <string name="setup_auto_tracking_in_motion_desc">Automatski pratite svako kretanje, uključujući vožnju i bicikliranje.</string>
-    <string name="setup_preset_title">Pojedinosti praćenja</string>
+    <string name="settings_auto_tracking_mode_summary">Izaberite koji pokret treba početi i zaustaviti putovanja automatski.</string>
     <string name="setup_recommended">Preporučeno</string>
     <string name="setup_what_to_collect_title">Što prikupljati</string>
     <string name="setup_what_to_collect_subtitle">Više opcija nalazi se u nastavku. Počnite istraživati bez dozvola ili ih odobrite kasnije. Podaci ostaju na ovom uređaju.</string>
@@ -273,11 +371,17 @@
     <string name="setup_source_activity">Aktivnost</string>
     <string name="setup_source_activity_desc">Otkrijte hodate li, trčite, vozite bicikl ili vozite.</string>
     <string name="setup_source_steps">Koraci</string>
-    <string name="setup_source_steps_desc">Brojite korake pomoću pedometra uređaja.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Pratite korake tijekom dana. Putovi organizuju istu povijest.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Nema direktnog senzora. Tracker će provjeriti izvor stepova na uređaju.</string>
+    <string name="setup_perm_steps_why">Dopustite pristup kretanju za brojanje koraka na ovom uređaju cijeli dan.</string>
+    <string name="setup_perm_grant_steps_content_description">Dopusti pristup kretanju za Korake</string>
+    <string name="setup_steps_health_connect_why">Dopustite Korake u Health Connectu za popunjavanje praznina kada je Tracker zatvoren.</string>
+    <string name="setup_steps_provider_ready">Izvor koraka na uređaju je spreman. Neka razdoblja još mogu imati praznine.</string>
+    <string name="setup_steps_provider_checking">Provjera dostupnih izvora koraka…</string>
     <string name="setup_source_wifi">Wi-Fi mreže</string>
-    <string name="setup_source_wifi_desc">Bilježite obližnje Wi-Fi mreže radi bolje točnosti lokacije.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Prikazi susjedne mreže Wi-Fi, s ili bez praćenja lokacije.</string>
     <string name="setup_source_cell">Bazne stanice</string>
-    <string name="setup_source_cell_desc">Bilježite podatke o baznim stanicama radi konteksta lokacije.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Zapisi u blizini mobilnih tornjeva, s ili bez praćenja lokacije.</string>
     <string name="setup_perm_location_why">Potrebno za bilježenje ruta i njihov prikaz na karti. Lokacija ostaje na ovom uređaju — ništa se ne šalje na poslužitelj.</string>
     <string name="setup_perm_location_bg_why">Da bi nastavio bilježiti vašu rutu kada promijenite aplikaciju ili se zaslon isključi, Tracker treba pristup vašoj lokaciji u pozadini. Zabilježena lokacija ostaje na ovom uređaju — ništa se ne šalje na poslužitelj. U sljedećem sistemskom upitu odaberite „Dopusti uvijek” da biste omogućili automatsko praćenje; opcija „Samo tijekom upotrebe aplikacije” omogućuje Trackeru rad samo dok je njegov zaslon otvoren.</string>
     <string name="setup_perm_activity_why">Trackeru omogućuje otkrivanje što radite (hodate, vozite bicikl, vozite, mirujete), pa se automatsko praćenje može pauzirati kada se ne krećete i štedjeti bateriju. Podaci o aktivnosti ostaju na ovom uređaju — ništa se ne šalje na poslužitelj.</string>
@@ -293,13 +397,17 @@
     <string name="setup_perm_grant_cell_content_description">Dopusti dozvolu za mobilne radijske podatke</string>
     <string name="setup_perm_granted">Dopušteno ✓</string>
     <string name="permission_grant_in_settings">Dopustite u postavkama →</string>
-    <string name="permission_disabled_due_to_denial">%1$s je onemogućen jer je dozvola odbijena. Dopustite je u postavkama da biste ga omogućili.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s je izabran, ali ne može se prikupiti dok se ne odobri odobrenje.</string>
     <string name="settings_wifi_permission_required">Potrebna je Wi-Fi/lokacijska dozvola. Uključite prekidač da biste je odobrili — do tada se Wi-Fi podaci ne bilježe, a zabilježeni podaci ostaju na ovom uređaju.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Još uvijek je potreban pristup. Vaš izbor je čuven.</string>
     <string name="settings_cell_permission_required">Potrebna je dozvola za stanje telefona i preciznu lokaciju. Uključite prekidač da biste je odobrili — do tada se podaci o baznim stanicama ne bilježe, a zabilježeni podaci ostaju na ovom uređaju.</string>
     <string name="settings_barometer_unavailable">Senzor tlaka nije dostupan na ovom uređaju.</string>
     <string name="settings_activity_permission_required">Potrebna je dozvola za prepoznavanje aktivnosti. Uključite prekidač da biste je odobrili.</string>
-    <string name="settings_steps_unavailable">Senzor brojača koraka nije dostupan na ovom uređaju.</string>
     <string name="setup_start_exploring">Počnite istraživati</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Završavanje postavke...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Pokušaj ponovno</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Nisam mogao sačuvati postavku. Vaš izbor je još uvijek ovdje.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Nisam mogao pripremiti sačuvane podatke. Vaš izbor je još uvijek ovdje.</string>
     <string name="setup_continue">Nastavi</string>
     <string name="setup_step_indicator">Korak %1$d od %2$d</string>
     <string name="setup_online_tiles_title">Mrežne pločice karte?</string>
@@ -311,24 +419,25 @@
     <string name="setup_online_tiles_privacy">Dok je uključeno, pružatelj može vidjeti vašu IP adresu i pločice koje učitavate — otprilike koje područje karte gledate. Tracker nikada ne šalje račun, identifikator ni povijest lokacija.</string>
     <string name="setup_online_tiles_change_later">Ovo možete bilo kada promijeniti u Postavkama → Karta → Mrežne pločice karte.</string>
     <string name="setup_background_access_optional">Neobvezno, ali preporučeno. Ovo možete bilo kada promijeniti u Postavkama → Praćenje.</string>
-    <string name="background_reliability_status_exempt">Dopuštena aktivnost u pozadini</string>
-    <string name="background_reliability_status_optimized">Uključena je optimizacija baterije</string>
-    <string name="background_reliability_allow_action">Dopusti aktivnost u pozadini</string>
-    <string name="background_reliability_samsung_hint">Samsung uređaji mogu aplikacije smjestiti i u „Aplikacije u stanju mirovanja”. Otvorite postavke baterije, zatim uklonite Tracker iz Aplikacija u stanju mirovanja i postavite da se ne uspavljuje.</string>
-    <string name="background_reliability_samsung_action">Otvori postavke baterije uređaja</string>
-    <string name="settings_tracebox_title">Dijagnostika rušenja</string>
-    <string name="settings_tracebox_root_summary">Lokalna dijagnostika rušenja, ANR-a i strukture</string>
     <string name="setup_background_location_title">Dopustite lokaciju u pozadini za automatsko praćenje</string>
     <string name="setup_background_location_disclosure">Automatsko praćenje pokreće se dok je Tracker u pozadini i bilježi vašu rutu čak i kada zaslon aplikacije nije otvoren. Podaci o lokaciji ostaju na ovom uređaju. U postavkama lokacije aplikacije odaberite „%1$s”.</string>
     <string name="setup_background_location_open_settings">Otvori postavke lokacije</string>
     <string name="setup_background_location_decline">Ne sada</string>
     <string name="setup_background_location_manual_only">Ručno praćenje u prvom planu ostaje dostupno. Automatsko praćenje lokacije ostat će isključeno dok se ne dopusti lokacija u pozadini.</string>
-    <string name="settings_ambient_user_turned_off">Praćenje je isključeno. Vaši odabiri i spremljeni podaci ostaju sačuvani.</string>
-    <string name="setup_perm_steps_why">Dopustite pristup kretanju za brojanje koraka na ovom uređaju cijeli dan.</string>
-    <string name="setup_perm_grant_steps_content_description">Dopusti pristup kretanju za Korake</string>
-    <string name="setup_steps_health_connect_why">Dopustite Korake u Health Connectu za popunjavanje praznina kada je Tracker zatvoren.</string>
-    <string name="setup_steps_provider_ready">Izvor koraka na uređaju je spreman. Neka razdoblja još mogu imati praznine.</string>
-    <string name="setup_steps_provider_checking">Provjera dostupnih izvora koraka…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Nastavke za praćenje pozadine</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android i uređajna politika mogu zaustaviti ili zaustaviti rad u pozadini. Tracker može izvještavati o ograničenjima koje Android otkriva, ali ne može prekidati ograničeno ili silno zaustavljeno stanje.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Otkriveno ograničenje u pozadini</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Otkrivena optimizacija baterija</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Ne otkriveno ograničenje</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Nepostojanje stanja ograničenja</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android izvještava da je aktivnost u pozadini ograničena. Pratenje može prestati kada Tracker nije vidljiv; aplikacija ne može prekidati ovu politiku.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android izvještava da Tracker nije na listi baterije. Upravljanje energijom može odgoditi rad u pozadini; dopuštenje smanjuje ograničenja, ali ne garantuje kontinuirano praćenje.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ne izvještava o ograničenju u pozadini i Tracker je na listi dozvola baterije. Sistem još uvijek može zaustaviti aplikaciju, a silno zaustavljanje se ne može prekidati.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nije mogao čitati svaki relevantan signal ograničenja Android. Ne može se potvrditi uzrok ili lijek specifičan za uređaj.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Otvorite postavke baterije aplikacije</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Otvorite postavke optimizacije baterije</string>
+    <string name="settings_tracebox_title">Dijagnostika rušenja</string>
+    <string name="settings_tracebox_root_summary">Lokalna dijagnostika rušenja, ANR-a i strukture</string>
     <string name="settings_tracking_changes_apply_live">Promjene ažuriraju trenutačno praćenje</string>
     <string name="settings_balance_title">Energija i detalji</string>
     <string name="settings_balance_custom">Prilagođene postavke · Odaberi ravnotežu</string>
@@ -336,17 +445,6 @@
     <string name="settings_balance_inherit_value">Detalji · Ukupna ravnoteža: %1$s</string>
     <string name="settings_balance_inherit">Koristi ukupnu ravnotežu</string>
     <string name="settings_balance_summary">Odaberite uobičajenu kvalitetu odabranih izvora. Aktivne sesije daju prednost detaljima za uključene izvore. Odabir ravnoteže zamjenjuje stare učestalosti prikupljanja; odabiri izvora, privola za pozadinsko prikupljanje i filtri točnosti ostaju spremljeni.</string>
-    <string name="export_format_portable_steps_desc">Provjerena povijest koraka, pokrivenost i praznine bez koordinata rute</string>
-    <string name="export_format_portable_ambient_steps_desc">Pozadinski broj koraka, vrijeme aktivnosti, datumi, praznine u pokrivenosti i spremljena vremenska zona bez koordinata rute</string>
-    <string name="export_format_portable_activity_desc">Zabilježeni intervali kretanja, pouzdanost i pokrivenost bez koordinata rute</string>
-    <string name="export_format_portable_pressure_desc">Izravna mjerenja tlaka u hPa, pokrivenost i praznine bez koordinata rute</string>
-    <string name="export_sensitivity_portable_title">Izvesti zabilježenu povijest?</string>
-    <string name="export_sensitivity_portable_steps_message">Ova datoteka sadrži broj koraka, vremenske intervale i podatke o pokrivenosti. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Ova datoteka sadrži pozadinski broj koraka, intervale aktivnosti, datume, praznine u pokrivenosti i spremljenu vremensku zonu. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
-    <string name="export_sensitivity_portable_activity_message">Ova datoteka sadrži zabilježene intervale kretanja, vremenske intervale i podatke o pokrivenosti. Ne sadrži koordinate rute. Nastavite samo ako vjerujete odredištu.</string>
-    <string name="export_sensitivity_portable_pressure_message">Ova datoteka sadrži mjerenja tlaka i vremenske intervale koji mogu otkriti informacije o okolini. Ne sadrži koordinate rute ni kalibriranu nadmorsku visinu. Nastavite samo ako vjerujete odredištu.</string>
-    <string name="settings_activity_source_summary">Bilježi hodanje, vožnju bicikla, vožnju automobila i mirovanje tijekom dana.</string>
-    <string name="settings_ambient_activity_ready">Spremno za bilježenje aktivnosti.</string>
-    <string name="settings_ambient_pressure_ready">Spremno za bilježenje tlaka zraka.</string>
-    <string name="settings_pressure_host_unavailable">Bilježenje tlaka zraka u pozadini nije se moglo pokrenuti.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Nastavi praćenje</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Nisam mogao nastaviti praćenje. Pokušaj još jednom.</string>
 </resources>

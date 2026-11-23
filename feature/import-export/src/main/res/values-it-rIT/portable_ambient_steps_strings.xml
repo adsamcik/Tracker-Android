@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Passi in background in formato portabile</string>
+    <string name="export_error_no_portable_ambient_steps">Nessuna cronologia verificata dei passi in background è disponibile per l\'esportazione.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">La cronologia dei passi in background è incompleta o non può essere verificata per l\'esportazione.</string>
+    <string name="export_error_portable_ambient_steps_retryable">L\'esportazione dei passi in background è temporaneamente non disponibile. Riprova.</string>
+    <string name="export_error_portable_ambient_steps_scope">Questa selezione di passi in background non può essere rappresentata dal formato di file portabile.</string>
+    <string name="export_error_portable_ambient_steps_write">Impossibile creare il file dei passi in background in formato portabile.</string>
+    <string name="export_ambient_steps_sensitivity_title">Esportare la cronologia dei passi in background?</string>
+    <string name="export_ambient_steps_sensitivity_message">Questo file contiene conteggi dei passi, intervalli di attività, date, lacune nella registrazione e informazioni salvate sul fuso orario che potrebbero rivelare abitudini di attività quotidiane. Non contiene coordinate del percorso. Continua solo se ritieni affidabile la destinazione.</string>
+</resources>

@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Viimeistellään istuntoa…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · osittainen</string>
     <string name="dashboard_title">Yhteenveto</string>
     <string name="dashboard_tracking_title">Seuranta</string>
     <string name="dashboard_recording">Tallennetaan</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Putki: %1$d päivää. Näytä putken tiedot napauttamalla</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Aloita putki. Näytä putken tiedot napauttamalla</string>
-    <string name="dashboard_cd_stop_tracking">Lopeta seuranta</string>
     <string name="dashboard_action_enable_location">Ota sijainnin käyttöoikeus käyttöön</string>
     <string name="dashboard_action_view_details">Näytä tiedot</string>
     <string name="dashboard_action_view_map">Näytä kartta</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Pysyvästi tallennettua askelhistoriaa valmistellaan…</string>
     <string name="dashboard_live_steps_missing">Odotetaan kelvollista askelhavaintoa</string>
     <string name="dashboard_live_steps_unavailable">Pysyvästi tallennettu askelhistoria ei ole saatavilla</string>
+    <string name="dashboard_metric_pressure">Paine</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Vaihteluväli %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Muutos %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Tallennettu aikavyöhyke: %1$s</string>
     <string name="dashboard_milestone_distance">km saavutettu!</string>
     <string name="dashboard_milestone_steps">askelta saavutettu!</string>
     <string name="dashboard_milestone_time">min seurattu!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Viimeisin istunto</string>
     <string name="dashboard_last_session_duration">Kesto</string>
     <string name="dashboard_last_session_distance">Matka</string>
-    <string name="dashboard_last_session_steps">Askeleet</string>
     <string name="dashboard_last_session_view_map">Näytä kartta</string>
     <string name="dashboard_recent_trips_title">Viimeaikainen seuranta</string>
     <string name="dashboard_recent_trips_empty">Ei viimeaikaisia seurantaistuntoja. Aloita seuranta nähdäksesi ne täällä.</string>
     <string name="dashboard_recent_history_loading">Ladataan viimeaikaista seurantaa…</string>
     <string name="dashboard_recent_history_unavailable">Viimeaikainen seuranta ei ole käytettävissä</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s Historia ei ole käytettävissä</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Lähteen lähiaikojen valtuutus ei ole käytettävissä</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Käytetty lähde-todistuksen kuva ei ole käytettävissä</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Rajoitettujen lähteiden historia ei päässyt turvallisesti loppuun</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Säilytetty lähteen historia epäonnistunut koskemattomuuden tarkistaminen</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Elämän historiaa ei voitu tarkistaa</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Sijainti</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Tukiasema</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Aktiivisuus</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Askeleet</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Paine</string>
     <string name="dashboard_recent_steps_title">Askelten seuranta</string>
     <string name="dashboard_recent_steps_available">Askelhistoria on käytettävissä</string>
     <string name="dashboard_recent_steps_materializing">Valmistellaan askelhistoriaa…</string>
     <string name="dashboard_recent_steps_partial">Osittainen askelhistoria</string>
+    <string name="dashboard_recent_pressure_title">Paineistunto</string>
+    <string name="dashboard_recent_pressure_available">Painehistoria saatavilla</string>
+    <string name="dashboard_recent_pressure_materializing">Painehistoria: valmistellaan…</string>
+    <string name="dashboard_recent_pressure_partial">Osittainen painehistoria</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Painehistoria poistettu</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Paineen historiaa ei voitu tarkistaa</string>
+    <string name="dashboard_recent_pressure_unavailable">Painehistoria ei saatavilla</string>
+    <string name="dashboard_recent_pressure_failed">Painehistoria: valmistelu epäonnistui</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · vaihteluväli %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Muutos %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Ei tallennettua kattavuutta</string>
+    <string name="dashboard_pressure_coverage_complete">Täysi kattavuus</string>
+    <string name="dashboard_pressure_coverage_partial">Osittainen kattavuus</string>
+    <string name="dashboard_pressure_coverage_unknown">Kattavuus ei saatavilla</string>
+    <string name="dashboard_recent_activity_title">Aktiivisuusistunto</string>
+    <string name="dashboard_recent_activity_ready">Aktiivisuushistoria saatavilla</string>
+    <string name="dashboard_recent_activity_materializing">Aktiivisuushistoria: valmistellaan…</string>
+    <string name="dashboard_recent_activity_partial">Osittainen aktiivisuushistoria</string>
+    <string name="dashboard_recent_activity_unavailable">Aktiivisuushistoria ei saatavilla</string>
+    <string name="dashboard_recent_activity_failed">Aktiivisuushistoria: vahvistaminen epäonnistui</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktiivinen aika %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi kokous</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Sellainen istunto</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Vangittu Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Saatua kännykkäradio</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Tämän istunnon lähteet</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Paikkakunta ei ole havaittu tässä istunnossa. Reitti, etäisyys, nopeus ja korkeus eivät ole käytettävissä.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Tarkistettu historia %1$s ei ole käytettävissä.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Tämä laitteen avulla</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Tuotu säilytetty todiste</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Valmistelen radiohistoriaa.</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Osittain säilytetty radiohistoria</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Säilytetty radiohistoria</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Radiohistoria ei ole käytettävissä</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Mitään päteviä tallennettuja radio-todistuksia</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Säilytetty radiohistoria poistettu</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Radiohistoriaa ei voitu tarkistaa</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Radio-historian tarkistus epäonnistui .</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Ei vahvistettua kattavuutta</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Osittainen tarkastettu kattavuus</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Täydellinen tarkastettu kattavuus</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Kattavuus ei saatavilla</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Odotetaan tallennettuja radio- havaintoja</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Ei ole saatavilla tallennettuja radio- havaintoja</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Säilytetty lähteen todisteet poistettiin</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Säilytettyjä todisteita ei voida esittää turvallisesti</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Paikka, reitti, etäisyys, nopeus ja korkeus eivät kuulu tähän lähteen historiaan.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d säilytetty skannin tulos</item>
+        <item quantity="other">%1$d säilytetty skannin tulos</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d Säilytetty radiojältö</item>
+        <item quantity="other">%1$d tallennettuja radiojältöjä</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d säilytetty toimitus</item>
+        <item quantity="other">%1$d säilytettyjä toimituksia</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d - toimitus sai osittaisia tuloksia</item>
+        <item quantity="other">%1$d - toimitukset ovat osittaisia tuloksia</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Tallennettu aktiivisuus</string>
+    <string name="dashboard_live_activity_movement">Viimeisin tallennettu liike</string>
+    <string name="dashboard_live_activity_active_time">Aktiivinen aika</string>
+    <string name="dashboard_live_activity_gaps">Tunnetut aukot: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Ei vahvistettua kattavuutta</string>
+    <string name="dashboard_activity_coverage_partial">Osittainen kattavuus</string>
+    <string name="dashboard_activity_coverage_complete">Täysi kattavuus</string>
+    <string name="dashboard_activity_still">Paikallaan</string>
+    <string name="dashboard_activity_walking">Kävely</string>
+    <string name="dashboard_activity_running">Juoksu</string>
+    <string name="dashboard_activity_cycling">Pyöräily</string>
+    <string name="dashboard_activity_vehicle">Ajoneuvossa</string>
+    <string name="dashboard_activity_on_foot">Jalan</string>
+    <string name="dashboard_activity_tilting">Kallistuminen</string>
+    <string name="dashboard_activity_unknown">Tuntematon aktiivisuus</string>
     <string name="dashboard_exploration_title">Tutkiminen</string>
     <string name="dashboard_exploration_new_today">Uutta tänään</string>
     <string name="dashboard_exploration_total_cells">Ruutuja yhteensä</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Aloita seuranta</string>
     <string name="dashboard_ring_enable_location">Ota sijainti käyttöön</string>
     <string name="dashboard_pill_start">Aloita</string>
-    <string name="dashboard_pill_stop">Lopeta</string>
     <string name="dashboard_pill_enable_location">Ota sijainti käyttöön</string>
     <string name="dashboard_insights_title">Istunnon havainnot</string>
     <string name="dashboard_cd_insight_item">Havainto: %1$s</string>
     <string name="widget_latest_achievement">Viimeisin saavutus</string>
     <string name="dashboard_latest_achievement_title">Viimeisin saavutus</string>
     <string name="dashboard_latest_achievement_empty">Jatka seurantaa avataksesi ensimmäisen saavutuksesi</string>
-    <string name="dashboard_metric_pressure">Paine</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Vaihteluväli %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Muutos %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Tallennettu aikavyöhyke: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Paineistunto</string>
-    <string name="dashboard_recent_pressure_available">Painehistoria saatavilla</string>
-    <string name="dashboard_recent_pressure_materializing">Painehistoria: valmistellaan…</string>
-    <string name="dashboard_recent_pressure_partial">Osittainen painehistoria</string>
-    <string name="dashboard_recent_pressure_unavailable">Painehistoria ei saatavilla</string>
-    <string name="dashboard_recent_pressure_failed">Painehistoria: valmistelu epäonnistui</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · vaihteluväli %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Muutos %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Ei tallennettua kattavuutta</string>
-    <string name="dashboard_pressure_coverage_complete">Täysi kattavuus</string>
-    <string name="dashboard_pressure_coverage_partial">Osittainen kattavuus</string>
-    <string name="dashboard_pressure_coverage_unknown">Kattavuus ei saatavilla</string>
-    <string name="dashboard_recent_activity_title">Aktiivisuusistunto</string>
-    <string name="dashboard_recent_activity_ready">Aktiivisuushistoria saatavilla</string>
-    <string name="dashboard_recent_activity_materializing">Aktiivisuushistoria: valmistellaan…</string>
-    <string name="dashboard_recent_activity_partial">Osittainen aktiivisuushistoria</string>
-    <string name="dashboard_recent_activity_unavailable">Aktiivisuushistoria ei saatavilla</string>
-    <string name="dashboard_recent_activity_failed">Aktiivisuushistoria: vahvistaminen epäonnistui</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktiivinen aika %2$s</string>
-    <string name="dashboard_live_activity_title">Tallennettu aktiivisuus</string>
-    <string name="dashboard_live_activity_movement">Viimeisin tallennettu liike</string>
-    <string name="dashboard_live_activity_active_time">Aktiivinen aika</string>
-    <string name="dashboard_live_activity_gaps">Tunnetut aukot: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Ei vahvistettua kattavuutta</string>
-    <string name="dashboard_activity_coverage_partial">Osittainen kattavuus</string>
-    <string name="dashboard_activity_coverage_complete">Täysi kattavuus</string>
-    <string name="dashboard_activity_still">Paikallaan</string>
-    <string name="dashboard_activity_walking">Kävely</string>
-    <string name="dashboard_activity_running">Juoksu</string>
-    <string name="dashboard_activity_cycling">Pyöräily</string>
-    <string name="dashboard_activity_vehicle">Ajoneuvossa</string>
-    <string name="dashboard_activity_on_foot">Jalan</string>
-    <string name="dashboard_activity_tilting">Kallistuminen</string>
-    <string name="dashboard_activity_unknown">Tuntematon aktiivisuus</string>
-    <string name="dashboard_finishing_session">Viimeistellään istuntoa…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Tuotettuja askeleita</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Näytä %1$d - kuvaus</item>
+        <item quantity="other">Näytä %1$d-levyt</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Piilottaa tallennus %1$d</item>
+        <item quantity="other">Piilottaa %1$d tallennuksia</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Kuvitelu %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s askeleita</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Ainakin %1$s askelta</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Vaihtoehdot eivät ole käytettävissä</string>
 </resources>

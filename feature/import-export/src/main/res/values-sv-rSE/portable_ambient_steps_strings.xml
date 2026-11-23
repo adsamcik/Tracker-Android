@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Portabla bakgrundssteg</string>
+    <string name="export_error_no_portable_ambient_steps">Ingen verifierad historik över bakgrundssteg är tillgänglig för export.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Historiken över bakgrundssteg är ofullständig eller kan inte verifieras för export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Export av bakgrundssteg är tillfälligt otillgänglig. Försök igen.</string>
+    <string name="export_error_portable_ambient_steps_scope">Det här urvalet av bakgrundssteg kan inte återges i det portabla filformatet.</string>
+    <string name="export_error_portable_ambient_steps_write">Filen med portabla bakgrundssteg kunde inte skapas.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportera historik över bakgrundssteg?</string>
+    <string name="export_ambient_steps_sensitivity_message">Den här filen innehåller stegräkningar, tidsintervall för aktivitet, datum, luckor i registreringen och sparad tidszonsinformation som kan avslöja dagliga aktivitetsmönster. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
+</resources>

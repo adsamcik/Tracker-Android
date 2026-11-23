@@ -2,6 +2,8 @@ package com.adsamcik.tracker.impexp.importer.file
 
 import android.content.Context
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import com.adsamcik.tracker.shared.base.database.AppDatabase
 import io.kotest.matchers.shouldBe
@@ -220,6 +222,122 @@ class DatabaseImportCollisionTest {
 			}
 		}
 
+	@Test
+	fun `standalone activity definitions still merge`() =
+		withStandaloneDatabase { source, targetRoom ->
+			val target = targetRoom.openHelper.writableDatabase
+			createActivityCatalog(source)
+			target.execSQL("INSERT INTO activity (id, name) VALUES (1000, 'Saved activity')")
+
+			val result = DatabaseImport().importCopiedDatabase(source, targetRoom)
+
+			result.failedCount shouldBe 0
+			result.successCount shouldBe 1
+			target.singleInt("SELECT COUNT(*) FROM activity WHERE name = 'Saved activity'") shouldBe 1
+			target.singleInt("SELECT COUNT(*) FROM activity WHERE name = 'Imported activity'") shouldBe 1
+			source.singleInt("SELECT COUNT(*) FROM activity WHERE id = 1000") shouldBe 1
+		}
+
+	@Test
+	fun `recorded Steps and derived summaries cannot be merged alongside activity definitions`() =
+		withStandaloneDatabase { source, targetRoom ->
+			val target = targetRoom.openHelper.writableDatabase
+			createActivityCatalog(source)
+			copyTableSchema(target, source, "step_interval")
+			copyTableSchema(target, source, "daily_summary")
+			source.execSQL(
+				"INSERT INTO step_interval " +
+					"(id, start_time_ms, end_time_ms, step_count, sensor_value_start, " +
+					"sensor_value_end, sensor_reset, created_at) VALUES (1, 1000, 2000, 23, 100, 123, 0, 2000)",
+			)
+			source.execSQL(
+				"INSERT INTO daily_summary " +
+					"(date_epoch_day, total_distance_m, total_steps, total_duration_ms, trip_count, " +
+					"active_tracking_ms, last_updated_ms, created_at) VALUES (20000, 123.0, 45, 60000, 1, 60000, 1000, 1000)",
+			)
+			target.execSQL(
+				"INSERT OR REPLACE INTO source_evidence_state " +
+					"(id, revision, collected_data_epoch, retained_from_ms, updated_at_ms) VALUES (1, 41, 7, 5000, 9000)",
+			)
+
+			val result = DatabaseImport().importCopiedDatabase(source, targetRoom)
+
+			result.failedCount shouldBe 1
+			result.errors.single() shouldBe DatabaseImportFailure.UnsupportedRawDatabase.message
+			target.singleInt("SELECT COUNT(*) FROM activity WHERE name = 'Imported activity'") shouldBe 0
+			target.singleInt("SELECT COUNT(*) FROM step_interval") shouldBe 0
+			target.singleInt("SELECT COUNT(*) FROM daily_summary") shouldBe 0
+			target.singleInt("SELECT collected_data_epoch FROM source_evidence_state WHERE id = 1") shouldBe 7
+		}
+
+	@Test
+	fun `retired history and current tracking or ledger tables reject an otherwise valid catalog`() =
+		withStandaloneDatabase { source, targetRoom ->
+			createActivityCatalog(source)
+			val target = targetRoom.openHelper.writableDatabase
+			listOf("location_data", "source_event_wal", "XP_LEDGER", "points_awarded").forEach { name ->
+				source.execSQL("CREATE TABLE $name (value TEXT NOT NULL)")
+
+				val result = DatabaseImport().importCopiedDatabase(source, targetRoom)
+
+				result.errors.single() shouldBe DatabaseImportFailure.UnsupportedRawDatabase.message
+				target.singleInt("SELECT COUNT(*) FROM activity WHERE name = 'Imported activity'") shouldBe 0
+				source.execSQL("DROP TABLE $name")
+			}
+		}
+
+	@Test
+	fun `databases with no compatible import tables fail with recovery guidance`() =
+		withStandaloneDatabase { source, targetRoom ->
+			val importer = DatabaseImport()
+			source.execSQL("CREATE TABLE unrelated (value TEXT NOT NULL)")
+
+			val unrelated = importer.importCopiedDatabase(source, targetRoom)
+			unrelated.errors.single() shouldBe DatabaseImportFailure.UnsupportedRawDatabase.message
+
+			source.execSQL("CREATE TABLE activity (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)")
+			val incompatible = importer.importCopiedDatabase(source, targetRoom)
+			incompatible.errors.single() shouldBe DatabaseImportFailure.UnsupportedRawDatabase.message
+		}
+
+	private fun createActivityCatalog(source: SupportSQLiteDatabase) {
+		source.execSQL("CREATE TABLE activity (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, iconName TEXT)")
+		source.execSQL("INSERT INTO activity (id, name) VALUES (1000, 'Imported activity')")
+	}
+
+	private fun copyTableSchema(
+		target: SupportSQLiteDatabase,
+		source: SupportSQLiteDatabase,
+		name: String,
+	) {
+		val ddl = target.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(name)).use {
+			check(it.moveToFirst())
+			it.getString(0)
+		}
+		source.execSQL(ddl)
+	}
+
+	private fun withStandaloneDatabase(block: (SupportSQLiteDatabase, AppDatabase) -> Unit) {
+		val context = ApplicationProvider.getApplicationContext<Context>()
+		val source = FrameworkSQLiteOpenHelperFactory().create(
+			SupportSQLiteOpenHelper.Configuration.builder(context)
+				.callback(object : SupportSQLiteOpenHelper.Callback(1) {
+					override fun onCreate(db: SupportSQLiteDatabase) = Unit
+
+					override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) =
+						error("Standalone test database cannot be upgraded")
+				})
+				.build(),
+		)
+		val target = AppDatabase.testDatabase(context)
+		try {
+			block(source.writableDatabase, target)
+		} finally {
+			target.close()
+			source.close()
+		}
+	}
+
 	private fun withDatabases(block: (AppDatabase, AppDatabase) -> Unit) {
 		val context = ApplicationProvider.getApplicationContext<Context>()
 		val sourceRoom = AppDatabase.testDatabase(context)
@@ -259,7 +377,7 @@ class DatabaseImportCollisionTest {
 			"z_child",
 			"blob_item",
 		),
-		rejectTrackerDatabaseBackups = false,
+		enforceTrackerImportContract = false,
 	)
 
 	private fun createParentChildSchema(

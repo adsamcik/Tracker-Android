@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">हर वर्चुअल विस्फोट त्रिज्या से उसके फ़्यूज़ खत्म होने से पहले निकलें</string>
     <string name="minigame_switchback_name">स्विचबैक</string>
     <string name="minigame_switchback_description">फ़्लो कॉम्बो बनाने के लिए तेज़ बारी-बारी के मोड़ लें</string>
-    <string name="minigame_locked">लेवल %1$d पर अनलॉक होता है</string>
     <string name="game_play_section_title">खेलें</string>
     <string name="game_progress_section_title">प्रगति</string>
     <string name="minigame_outrun_goal_line">भूत से 25–100 मी की बढ़त बनाए रखें</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! आपने अपना %2$s लक्ष्य पूरा किया!</string>
     <string name="goals_daily_goal">दैनिक</string>
     <string name="goals_weekly_goal">साप्ताहिक</string>
-    <string name="goals_monthly_goal">मासिक</string>
     <string name="game_steps_goals_title">कदम लक्ष्य</string>
     <string name="game_step_sensor_unavailable">कदम सेंसर उपलब्ध नहीं है</string>
     <string name="game_step_sensor_unavailable_detail">इस डिवाइस में कदम गिनने का सेंसर नहीं है। कदम लक्ष्य ट्रैक नहीं किए जा सकते।</string>

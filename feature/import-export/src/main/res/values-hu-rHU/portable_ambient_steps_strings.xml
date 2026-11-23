@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Hordozható háttérlépések</string>
+    <string name="export_error_no_portable_ambient_steps">Nincs exportálható, ellenőrzött háttérlépés-előzmény.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">A háttérlépés-előzmények hiányosak, vagy nem ellenőrizhetők az exportáláshoz.</string>
+    <string name="export_error_portable_ambient_steps_retryable">A háttérlépések exportálása átmenetileg nem érhető el. Próbálja újra.</string>
+    <string name="export_error_portable_ambient_steps_scope">A háttérlépések ezen kijelölése nem ábrázolható a hordozható fájlformátumban.</string>
+    <string name="export_error_portable_ambient_steps_write">Nem sikerült létrehozni a hordozható háttérlépés-fájlt.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportálja a háttérlépés-előzményeket?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ez a fájl lépésszámokat, tevékenységi időszakokat, dátumokat, rögzítési hiányokat és mentett időzóna-adatokat tartalmaz, amelyekből következtetni lehet a napi tevékenységi szokásokra. Nem tartalmaz útvonalkoordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
+</resources>

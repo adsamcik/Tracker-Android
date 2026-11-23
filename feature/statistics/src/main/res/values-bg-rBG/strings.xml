@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Статистика</string>
     <string name="stats_cell_count">Брой клетки</string>
     <string name="stats_collections">Брой обновявания</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Клетка %1$s · %2$s проби</string>
     <string name="stats_cell_signal_carrier">Оператор %1$s‑%2$s</string>
     <string name="trip_detail_title">Подробности за пътуването</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">История на източника</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">История на източника не е налична</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Тази частна селекция не е запазена, след като процесът на приложението е пресъздаден. Връщай се към неотдавнашната история и я изберете отново.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Избраният запазен източник вече не е наличен.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Ограниченият източник на историята не може да завърши безопасно.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Избраните запазени източници не са успели да проведат проверките на целостта.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Не е наличен снимката с източни доказателства, необходима за представяне на този подбор.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Изборът, издаден от източника, вече не идентифицира текущото запазено вписване.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Историята на източника е провала. Опитай да го освежиш отново.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Пътуването не е намерено</string>
     <string name="trip_detail_not_found_subtitle">Това пътуване може да е изтрито</string>
     <string name="trip_detail_error_title">Неуспешно зареждане на пътуването</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Разстояние</string>
     <string name="trip_detail_date">Дата</string>
     <string name="trip_detail_steps">Крачки</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Пълно покритие</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Най-малкото толкова · частично покритие</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Частна история · липсва надеждна информация</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Неопределено: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Вредна стойност · пълнота не потвърдена</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Да актуализирам историята...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Не са заснети за тази сесия.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Обезработена за тази сесия</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Не се поддържа</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Необходимо е разрешение.</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Ограничена от Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Не е налично</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Без квалифициращо наблюдение</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Изтрити</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">История не е налична</string>
     <string name="trip_detail_samples">Проби</string>
     <string name="trip_detail_source">Източник</string>
     <string name="trip_detail_avg_speed">Средна скорост</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Изтриване</string>
     <string name="trip_detail_cancel">Отказ</string>
     <string name="trip_detail_more_options">Още опции</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Действия, недостъпни за този записан източник</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Източник</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Произход</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Съхранявана цел</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Точно записване на сесията само от източника</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Членство в портативен източник</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Автентифицирана неизменна история на заснемането нарича това единственият заснеман източник.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Внасяният формат доказва запазеното членство на източника, а не това, че това устройство е записало доказателствата.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi сесия</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Сеанс на клетката</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Резюме за радиосъхранение</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Статус</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Обхват</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Подготвяне на запазена радиоистория</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Частично запазена радиоистория</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Съхраняване на радиоисторията</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Радио история не е налична</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Без квалифицирани радио доказателства</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Изтрити съхранени радиоистории</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Не може да се провери историята на радиото</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Проверка на целостта на историята на радиото е провала.</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Няма проверено покритие</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Частично проверено покритие</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Попълна проверявана покритие</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Покритието не е налично</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Чакаме запазени радио наблюдения.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Няма запазени радионаблюдения.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Запазените източници на доказателства бяха заличени.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Съхранявани доказателства не могат да бъдат представени безопасно.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Задръжени доставки</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Доставки с частични резултати</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Съхранявани Wi‑Fi доказателства</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Запазени резултати от сканирането</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Микс на резултати между честотата и лентата</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Запазен диапазон на сигналите</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d до %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Други ленти</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Запазвани клетъчни данни</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Съхранявани радиозаписи</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Регистрирани регистърски данни</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Микс от радиотехнологични записи</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Никаква мрежа, кула, абонент, маршрут, разстояние, скорост, височина или местоположение не са разкрити от този детайл.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Сесия с крачки</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Съхранени стъпки доказателства</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Обхват</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Без покрити интервали</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Пълен покрит интервал</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Частично покрити интервали</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Покритието не е налично</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Показва се само запазени доказателства за стъпките. Местоположението не е заснето, така че маршрутът и местоположните данни не са налични.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Сесия за активност</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Поредиците на дейност, продължителността и доверието са приблизително обобщение на запазените доказателства на устройството.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Резюме на дейността</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Статус</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Обхват</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Произход</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Известно активно време</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Известен неактивен период</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Некласифицирано време</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Известен период на пробив</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Задръжени диапазони на дейност и пропуски</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Приблизително продължителност</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Увереност</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Сигнал за преход към дейност</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Около %1$d ⁇ %2$d%% от %3$d запазени наблюдения</item>
+        <item quantity="other">Около %1$d ⁇ %2$d%% от %3$d запазени наблюдения</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Тип на доказателствата</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Рафиниран преход</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Известни пропуски</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Причина</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Приблизително продължителност</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Подготвяне на историята на дейността</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Частична история на активността</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">История на активността е налична</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">История на активността не е налична</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">История на активността не можа да бъде проверена</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Съхраняване на историята на дейността все още се подготвя; продължителността все още не се изчислява.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Само част от сесията е запазила доказателства за дейността.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Не са налични запазени продължителности на дейността.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Няма надеждни запазени резултати за дейността.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Съхранени доказателства за дейност не са успели да проведат проверките на целостта.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Няма проверено покритие</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Частично покритие</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Пълно покритие</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Заснети с това устройство.</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Внос на запазени доказателства</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Неподвижно</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Ходене</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Бягане</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Колоездене</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">В превозно средство</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Пеша</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Накланяне</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Неизвестна активност</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Преход</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Проби на рафиниране</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Класификация на пробите</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Няма доказателства, които да отговарят на изискванията</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Прекъсване на дейността на доставчика</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Промяна на разрешението</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Процес или рестартиране на устройството</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Доказателствата не отговарят на изискванията</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Заснема сесия</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Мястото не е заложено.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Заловени източници</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Избраните подробности не са налични за тази точна комбинация от източници. Маршрут, GPX, разстояние, скорост, височина и други действия, произтичащи от местоположението, остават недостъпни.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Местоположение</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Клетка</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Активност</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Крачки</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Налягане</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Източници за улавяне не потвърдени</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Тази по-стара сесия е предшестваща проверяваната история на записването. Показани са запазени подробности за пътуването и може да са непълни.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Сесия за налягане</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Налягане на въздуха</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Статус</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Последни</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Ограничен диапазон</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Първо-на-последната промяна</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Обхват</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Съхранявана зона</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Обновляване на задържаното налягане...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Частично задържано налягане</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Налягане, запазено на разположение</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Задръжено налягане изтрито</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Не може да се провери задържаното налягане</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Налягане недостъпно</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Историята на налягането е провала.</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">История не е налична</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Опитайте се отново да актуализирате историята на записаните източници за този път.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Съхраненият снимка на източника не е наличен. Опитай да го освежиш отново.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Ограниченият източник на историята не може да завърши безопасно. Опитай да го освежиш отново.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Запазената история на източника не е успела да провери целостта. Опитайте отново, след като източникът е наличен.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Физическата история не може да бъде потвърдена безопасно.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Няма запазено покритие</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Попълна запазена покритие</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Частично задържано покритие</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Покритието не е налично</string>
     <string name="ski_detail_header">Ски сесия</string>
     <string name="ski_detail_runs">Спускания</string>
     <string name="ski_detail_vertical">Денивелация</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Последно видяно</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Хронология</string>
-    <string name="history_tab_trips">Пътувания</string>
     <string name="history_tab_calendar">Календар</string>
     <string name="history_screen_title">История</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Следващ месец</string>
     <string name="history_calendar_distance">Разстояние</string>
     <string name="history_calendar_steps">Крачки</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Обновявам...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Не е заловен.</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Непълни</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Не е налично</string>
     <string name="history_calendar_trips">Пътувания</string>
     <string name="history_exploration_title">Изследване</string>
     <string name="history_exploration_cells">Клетки</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">История</string>
     <string name="history_view_trip_on_map">Показване на пътуването на картата</string>
     <string name="stats_heatmap_title">Активност</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Вносни стъпки</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Не са включени данни за маршрута и други сензори.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Сесии</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Добавете сесия</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Редактиране на сесия</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Име (необязателно)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Етикет за дейност</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Без етикет</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Начало</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Край</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Временна зона</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Прилагане на часови зони</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Използвайте часовата зона, преди да спестите.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Сесия за претоварване</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Подробности за записване</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Изключване на сесията</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Запази</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Отказ</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Да премахнем тази сесия?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Записваните данни ще останат в историята.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Дата</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Време</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Това местно време не съществува, защото часовниците се движат напред. Изберете друго време.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Този път се случва два пъти. Изберете UTC оформяне.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Краят трябва да е след началото. И двата случая трябва да са на 1 януари 1970 г. или по-късно.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Краят не може да бъде в бъдеще.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Въведете часова зона на IANA, като например Европа/Прага или UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Използвайте максимум 200 символа.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Този етикет е бил премахнат. Изберете друг етикет или никакъв.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Тази сесия е променена или събраните данни са изтрити. Претоварване преди спестяване.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Тази сесия вече не е на разположение.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Сеансите не са на разположение временно. Опитай да отвориш историята.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Няма сесии в този период.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Неименна сесия</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Записване</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Времето за записване е несигурно. Потвърдете времето, преди да промените интервала му.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Продължава от предишен ден.</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Покажи всичко.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Завърши сесията, за да редактираш времето или да я премахнеш.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Виж сесии за този ден</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Някои маркери на сесията не се показват. Изберете ден, в който ще видите сесиите.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Ден %1$d, има сесии</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Ден %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Повторен опит</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Проверете записите</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Връщаме се към сесиите.</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Сесия за износ</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Не можах да запазя файла. Опитай пак.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Изнасяна сесия</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Изнасяна сесия с пълни записи, които се простират отвъд датите.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Не можах да довърша. Опитай пак.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Да изтриеш записването?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Запазените от него показания ще бъдат изтрити завинаги.</string>
     <string name="stats_recorded_partial_value">%1$s · частично</string>
     <string name="history_activity_started">Начало: %1$s</string>
     <string name="history_activity_ended">Край: %1$s</string>

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Στατιστικά</string>
     <string name="stats_cell_count">Αριθμός κελιών</string>
     <string name="stats_collections">Αριθμός συλλογών</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Κελί %1$s · %2$s δείγματα</string>
     <string name="stats_cell_signal_carrier">Πάροχος %1$s‑%2$s</string>
     <string name="trip_detail_title">Λεπτομέρειες διαδρομής</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Ιστορία προέλευσης</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Ιστορία πηγής δεν είναι διαθέσιμη</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Αυτή η ιδιωτική επιλογή δεν διατηρήθηκε μετά την αναδημιουργία της διαδικασίας εφαρμογής. Επιστρέψτε στο πρόσφατο ιστορικό και επιλέξτε το ξανά.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Η επιλεγμένη εγγραφή της διατηρούμενης πηγής δεν είναι πλέον διαθέσιμη.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Η περιορισμένη πηγή ιστορίας δεν μπορούσε να ολοκληρωθεί με ασφάλεια.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Οι επιλεγμένες εγγραφές πηγής που διατηρήθηκαν απέτυχαν στις ελέγχους ακεραιότητας.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Η στιγμιότυπη εικόνα από την πηγή που απαιτείται για την παρουσίαση αυτής της επιλογής δεν είναι διαθέσιμη.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Η επιλογή που εκδίδεται από την πηγή δεν προσδιορίζει πλέον την τρέχουσα εγγραφή που διατηρείται.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Η ιστορική ανάγνωση της πηγής απέτυχε. Προσπάθησε ξανά να το ανανεώσεις.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Η διαδρομή δεν βρέθηκε</string>
     <string name="trip_detail_not_found_subtitle">Αυτή η διαδρομή ίσως έχει διαγραφεί</string>
     <string name="trip_detail_error_title">Αποτυχία φόρτωσης διαδρομής</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Απόσταση</string>
     <string name="trip_detail_date">Ημερομηνία</string>
     <string name="trip_detail_steps">Βήματα</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Πλήρης κάλυψη</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Τουλάχιστον αυτή η πλειοψηφία · μερική κάλυψη</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Εν μέρει ιστορικό · δεν υπάρχει αξιόπιστος αριθμός</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Μη επαληθευμένη: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Αξία κληρονομιάς · πληρότητα μη επαληθευμένη</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Αναβαθμίζοντας την ιστορία...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Δεν έχει συλληφθεί για αυτή τη συνεδρίαση.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Αποσυνδεθεί για αυτή τη συνεδρίαση</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Δεν υποστηρίζεται</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Απαιτείται άδεια</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Περιορισμένη από Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Δεν είναι διαθέσιμο</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Καμία επιλέξιμη παρατήρηση</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Διαγραφή</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Ιστορία μη διαθέσιμη</string>
     <string name="trip_detail_samples">Δείγματα</string>
     <string name="trip_detail_source">Πηγή</string>
     <string name="trip_detail_avg_speed">Μέση ταχύτητα</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Διαγραφή</string>
     <string name="trip_detail_cancel">Ακύρωση</string>
     <string name="trip_detail_more_options">Περισσότερες επιλογές</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Δράσεις που δεν είναι διαθέσιμες για αυτή την καταγεγραμμένη πηγή</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Αρχή προέλευσης</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Προέλευση</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Διατηρημένο σκοπό</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Ακριβής ηχογράφηση συνεδρίασης μόνο από την πηγή</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Μέλη φορητής πηγής</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Αληθευμένο μη μεταβλητό ιστορικό συλλήψεων ονομάζει αυτό ως την μόνη πηγή που έχει συλληφθεί.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Η εισαγόμενη μορφή αποδεικνύει τη διατηρημένη συμμετοχή στην πηγή, όχι ότι η συσκευή αυτή κατέγραψε τα στοιχεία.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi συνεδρίαση</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Συνεδρία κυττάρων</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Συνοψία διατηρημένης ραδιοφωνικής εκπομπής</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Κατάσταση</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Κάλυψη</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Προετοιμασία του ιστορικού του ραδιοφώνου</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Εν μέρει διατηρημένο ιστορικό ραδιοφώνου</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Διατηρηθεί διαθέσιμο ιστορικό ραδιοφώνου</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Ιστορικό ραδιοφώνου διαλειπόμενο</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Καμία επαρκής ραδιοεπιβεβαίωση που διατηρείται</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Διατηρημένο ιστορικό ραδιοφώνου διαγραφές</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Δεν μπορούσε να επαληθευθεί η ιστορική ραδιοφωνίας</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Αποτυχή επιβεβαίωση ακεραιότητας ιστορικού ραδιοφώνου</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Δεν υπάρχει επαληθευμένη κάλυψη</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Εν μέρει επαληθευμένη κάλυψη</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Πλήρης επαληθευμένη κάλυψη</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Η κάλυψη δεν είναι διαθέσιμη</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Περιμένω να διατηρηθούν οι ραδιοτηρητικές παρατηρήσεις.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Δεν υπάρχουν διαθέσιμες διατηρημένες ραδιοτηρητικές παρατηρήσεις.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Τα αποδεικτικά στοιχεία που διατηρήθηκαν από την πηγή διαγράφηκαν.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Τα αποδεικτικά στοιχεία που διατηρούνται δεν μπορούν να παρουσιαστούν με ασφάλεια.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Διατηρημένες παραδόσεις</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Παραδόσεις με μερικά αποτελέσματα</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Διατηρημένα στοιχεία Wi‑Fi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Διατηρημένα αποτελέσματα σαρώσεων</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Σύνθεση αποτελεσμάτων ζώνης συχνότητας</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Διατηρημένη περιοχή σήματος</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d έως %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Άλλες ζώνες</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Διατηρημένα αποδεικτικά στοιχεία κυττάρων</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Διατηρημένα ραδιοφωνικά αρχεία</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Πληροφορίες καταχωρημένου καθεστώτος</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Σύνδεσμος ραδιοτεχνολογικών αρχείων</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">ΚΑΤΑ</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">ΔΕΣΜΑ</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">ΤΔ-ΣΚΔΜΑ</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Κανένα δίκτυο, πύργος, συνδρομητής, διαδρομή, απόσταση, ταχύτητα, υψόμετρο ή ταυτότητα τοποθεσίας δεν αποκαλύπτεται από αυτή την λεπτομέρεια.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Συνεδρία βημάτων</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Αποδεικτικά στοιχεία για τη διατήρηση των βημάτων</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Κάλυψη</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Καμία καλυπτόμενη παρέμβαση</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Συμπλήρωμα καλύπτοντος διαστήματος</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Εν μέρει καλυμμένο διάστημα</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Η κάλυψη δεν είναι διαθέσιμη</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Μόνο τα αποδεικτικά στοιχεία του Steps είναι αποδεικνυόμενα. Η τοποθεσία δεν καταγράφηκε, οπότε δεν είναι διαθέσιμες οι μετρήσεις της διαδρομής και της τοποθεσίας.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Συνεδρία δραστηριότητας</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Οι ζώνες δραστηριότητας, η διάρκεια και η εμπιστοσύνη αποτελούν κατά προσέγγιση συνοπτικές πληροφορίες σχετικά με τα αποδεικτικά στοιχεία που διατηρούνται στην συσκευή.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Συνοπτική δραστηριότητα</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Κατάσταση</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Κάλυψη</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Προέλευση</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Γνωστό ενεργό χρόνο</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Γνωστό χρόνο αδράνειας</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Ακατηγοριοποιημένο χρόνο</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Γνωστό χρόνο διαλείμματος</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Διατηρημένες ζώνες δραστηριότητας και κενά</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Περίπου διάρκεια</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Βεβαιότητα</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Σημείωση μετάβασης δραστηριότητας</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Περίπου %1$d ⁇ %2$d%% από την παρατήρηση %3$d</item>
+        <item quantity="other">Περίπου %1$d ⁇ %2$d%% από τις %3$d παρατηρήσεις που διατηρήθηκαν</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Τύπος αποδείξεων</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Τελειωμένη μετάβαση</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Γνωστό χάσμα</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Ο λόγος</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Περίπου διάρκεια</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Προετοιμασία ιστορικού δραστηριοτήτων</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Μερικό ιστορικό δραστηριότητας</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Ιστορικό δραστηριότητας διαθέσιμο</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Ιστορικό δραστηριότητας μη διαθέσιμο</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Δεν ήταν δυνατό να επαληθευτεί το ιστορικό δραστηριότητας</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Διατηρούνται τα ιστορικά δραστηριοτήτων που παρασκευάζονται ακόμα· δεν έχει ακόμη διαπιστωθεί η διάρκεια.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Μόνο μέρος της συνεδρίασης έχει διατηρήσει στοιχεία δραστηριότητας.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Δεν υπάρχουν διατηρημένες διάρκειες δραστηριότητας.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Δεν υπάρχουν διαθέσιμα αξιόπιστα διατηρημένα αποτελέσματα δραστηριότητας.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Διατηρημένα αποδεικτικά στοιχεία Δραστηριότητας αποτυγχάνουν σε ελέγχους ακεραιότητας.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Δεν υπάρχει επαληθευμένη κάλυψη</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Μερική κάλυψη</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Πλήρης κάλυψη</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Καταλήφθηκε σε αυτή τη συσκευή.</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Εισαγόμενα αποδεικτικά στοιχεία</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Ακίνητος</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Περπάτημα</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Τρέξιμο</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Ποδηλασία</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Σε όχημα</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Με τα πόδια</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Κλίση</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Άγνωστη δραστηριότητα</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Μεταβολή</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Καθαρισμός από δείγμα</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Κατάταξη από δείγμα</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Καμία αποδεικτική απόδειξη που διατηρείται</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Διακοπή του παρόχου δραστηριότητας</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Αλλαγή εξουσιοδότησης</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Επανακίνηση διαδικασίας ή συσκευής</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Οι αποδείξεις δεν ήταν κατάλληλες</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Συνελήφθη συνεδρίαση</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Η τοποθεσία δεν έχει καταγραφεί.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Πηγές που συνελήφθησαν</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Η επιλεγμένη λεπτομέρεια δεν είναι ακόμη διαθέσιμη για τον ακριβή συνδυασμό των πηγών. Ο δρόμος, GPX, απόσταση, ταχύτητα, υψόμετρο και άλλες ενέργειες που προέρχονται από τοποθεσία παραμένουν μη διαθέσιμες.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Τοποθεσία</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Δίκτυο κινητής</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Δραστηριότητα</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Βήματα</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Ατμοσφαιρική πίεση</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Πηγές συλλογής μη επαληθευμένες</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Αυτή η παλαιότερη συνεδρία είναι παλαιότερη από την επαληθεύσιμη ιστορία συλλήψεων. Οι λεπτομέρειες του ταξιδιού που διατηρούνται εμφανίζονται και ενδέχεται να είναι ελλιπείς.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Συνεδρία πίεσης</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Η πίεση του αέρα</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Κατάσταση</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Τελευταία</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Κρατημένο εύρος</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Πρώτη προς τελευταία αλλαγή</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Κάλυψη</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Ζώνη αποθήκευσης</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Αναβαθμίζοντας τη διατηρημένη πίεση...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Εν μέρει διατηρημένη πίεση</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Διαθέσιμη διατηρημένη πίεση</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Διατηρημένη πίεση αφαιρείται</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Η διατηρημένη πίεση δεν μπορούσε να επαληθευθεί</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Η πίεση δεν διατίθεται</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Η ιστορία της πίεσης απέτυχε</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Ιστορία μη διαθέσιμη</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Δοκιμάστε ξανά να ανανεώσετε το ιστορικό των καταγεγραμμένων πηγών για αυτό το ταξίδι.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Η διατηρημένη φωτογραφία από την πηγή δεν είναι διαθέσιμη. Προσπάθησε ξανά να το ανανεώσεις.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Η περιορισμένη πηγή ιστορίας δεν μπορούσε να ολοκληρωθεί με ασφάλεια. Προσπάθησε ξανά να το ανανεώσεις.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Διατηρημένο ιστορικό πηγής απέτυχε σε έλεγχο ακεραιότητας. Δοκιμάστε ξανά όταν η πηγή είναι διαθέσιμη.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Η φυσική ιστορία δεν μπορούσε να επαληθευτεί με ασφάλεια.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Δεν υπάρχει αποθηκευμένη κάλυψη</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Συνολική διατηρημένη κάλυψη</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Εν μέρει διατηρημένη κάλυψη</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Η κάλυψη δεν είναι διαθέσιμη</string>
     <string name="ski_detail_header">Συνεδρία σκι</string>
     <string name="ski_detail_runs">Διαδρομές</string>
     <string name="ski_detail_vertical">Υψομετρική</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Εντοπίστηκε τελευταία φορά</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Χρονολόγιο</string>
-    <string name="history_tab_trips">Διαδρομές</string>
     <string name="history_tab_calendar">Ημερολόγιο</string>
     <string name="history_screen_title">Ιστορικό</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Επόμενος μήνας</string>
     <string name="history_calendar_distance">Απόσταση</string>
     <string name="history_calendar_steps">Βήματα</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Ενημερώνω...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Δεν συνελήφθη.</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Ατελείωτες</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Δεν είναι διαθέσιμο</string>
     <string name="history_calendar_trips">Διαδρομές</string>
     <string name="history_exploration_title">Εξερεύνηση</string>
     <string name="history_exploration_cells">Κελιά</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Ιστορικό</string>
     <string name="history_view_trip_on_map">Προβολή διαδρομής στον χάρτη</string>
     <string name="stats_heatmap_title">Δραστηριότητα</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Εισαγόμενα Βήματα</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Δεν περιλαμβάνονται τα δεδομένα διαδρομής και άλλων αισθητήρων.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Συνεδρίες</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Προσθήκη συνεδρίασης</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Τροποποίηση συνεδρίασης</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Όνομα (επιαιρετικό)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Ετικέτα δραστηριότητας</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Χωρίς ετικέτα</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Έναρξη</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Λήξη</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Χρονική ζώνη</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Εφαρμόστε ζώνη ώρας</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Εφαρμόστε τη ζώνη ώρας πριν αποθηκεύσετε.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Επαναφορτισμός</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Πληροφορίες καταγραφής</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Αφαίρεση συνεδρίασης</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Αποθηκεύστε</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Ακύρωση</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Να αφαιρέσω αυτή τη συνεδρίαση;</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Τα καταγεγραμμένα δεδομένα θα παραμείνουν στην ιστορία.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Ημερομηνία</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Χρόνος</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Αυτό το τοπικό χρόνο δεν υπάρχει επειδή τα ρολόγια προχωρούν μπροστά. Διάλεξε άλλη ώρα.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Αυτή τη φορά συμβαίνει δύο φορές. Επιλέξτε την αντιστάθμιση UTC.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Το τέλος πρέπει να είναι μετά την αρχή. Και οι δύο φορές πρέπει να είναι την 1η Ιανουαρίου 1970 ή μετά.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Το τέλος δεν μπορεί να είναι στο μέλλον.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Εισάγετε ζώνη ώρας της IANA, όπως η Ευρώπη/Πράγκα ή η UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Χρησιμοποιήστε τουλάχιστον 200 χαρακτήρες.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Αυτή η ετικέτα αφαιρέθηκε. Επιλέξτε άλλη ετικέτα ή καμία ετικέτα.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Αυτή η συνεδρία έχει αλλάξει ή έχουν διαγραφεί τα δεδομένα που συλλέγονται. Περαιτέρω φόρτωση πριν αποθηκεύσεις.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Αυτή η συνεδρίαση δεν είναι πλέον διαθέσιμη.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Οι συνεδρίες δεν είναι προσωρινά διαθέσιμες. Προσπάθησε να ξανανοίξεις την Ιστορία.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Καμία συνεδρίαση σε αυτή την περίοδο.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Άνομη συνεδρίαση</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Γίνεται καταγραφή</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Η ώρα της ηχογράφησης είναι αβέβαιη. Επιβεβαιώστε την ώρα πριν αλλάξετε το διάστημα.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Συνέχισε από μια προηγούμενη μέρα</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Δείξε τα όλα.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Τελειώστε τη συνεδρίαση για να επεξεργαστείτε την ώρα της ή να την αφαιρέσετε.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Δείτε τις συνεδρίες για σήμερα</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Ορισμένα σημεία συνεδρίασης δεν εμφανίζονται. Επιλέξτε μια ημέρα για να δείτε τις συνεδρίες.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Ημέρα %1$d, έχει συνεδριάσεις</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Ημέρα %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Δοκιμή ξανά</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Ανακαλύψτε τις εγγραφές</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Επιστροφή στις συνεδρίες</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Εξαγωγική σύνοδος</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Δεν μπόρεσα να σώσω το αρχείο. Δοκίμασε ξανά.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Εκτελεστή συνεδρίασης</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Συνεδρίαση που εξάγεται με πλήρη καταγραφή που εκτείνεται πέραν των ημερομηνιών της.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Δεν μπορούσα να τελειώσω. Δοκίμασε ξανά.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Να διαγράψεις την ηχογράφηση;</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Οι αποθηκευμένες ανάλυσεις θα διαγραφούν μόνιμα.</string>
     <string name="stats_recorded_partial_value">%1$s · μερικώς</string>
     <string name="history_activity_started">Έναρξη: %1$s</string>
     <string name="history_activity_ended">Λήξη: %1$s</string>

@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Afslutter session…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · delvist</string>
     <string name="dashboard_title">Oversigt</string>
     <string name="dashboard_tracking_title">Sporing</string>
     <string name="dashboard_recording">Registrerer</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Serie: %1$d dage. Tryk for at se seriedetaljer</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Start en serie. Tryk for at se seriedetaljer</string>
-    <string name="dashboard_cd_stop_tracking">Stop sporing</string>
     <string name="dashboard_action_enable_location">Slå placeringstilgang til</string>
     <string name="dashboard_action_view_details">Se detaljer</string>
     <string name="dashboard_action_view_map">Se kort</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Forbereder permanent gemt skridthistorik…</string>
     <string name="dashboard_live_steps_missing">Venter på en gyldig skridtobservation</string>
     <string name="dashboard_live_steps_unavailable">Permanent gemt skridthistorik er ikke tilgængelig</string>
+    <string name="dashboard_metric_pressure">Tryk</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Interval %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Ændring %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Gemt tidszone: %1$s</string>
     <string name="dashboard_milestone_distance">km nået!</string>
     <string name="dashboard_milestone_steps">skridt nået!</string>
     <string name="dashboard_milestone_time">min. registreret!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Seneste session</string>
     <string name="dashboard_last_session_duration">Varighed</string>
     <string name="dashboard_last_session_distance">Afstand</string>
-    <string name="dashboard_last_session_steps">Skridt</string>
     <string name="dashboard_last_session_view_map">Se kort</string>
     <string name="dashboard_recent_trips_title">Seneste sporing</string>
     <string name="dashboard_recent_trips_empty">Ingen seneste sporingssessioner. Start sporing for at se dem her.</string>
     <string name="dashboard_recent_history_loading">Indlæser seneste sporing…</string>
     <string name="dashboard_recent_history_unavailable">Seneste sporing er ikke tilgængelig</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s Historie er ikke tilgængelig</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Kildeopdateringsmyndighed er ikke tilgængelig</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Den bevarede kilde-bevis snapshot er ikke tilgængelig</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Den begrænsede kilde historie læsning kunne ikke afslutte sikkert</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Fejl med integritetskontrol af opbevaret kildehistorie</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Det er ikke muligt at bekræfte, at de er medlemmer af den fysiske historie.</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Placering</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Mobil</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Aktivitet</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Skridt</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Tryk</string>
     <string name="dashboard_recent_steps_title">Skridtsession</string>
     <string name="dashboard_recent_steps_available">Skridthistorik er tilgængelig</string>
     <string name="dashboard_recent_steps_materializing">Forbereder skridthistorik…</string>
     <string name="dashboard_recent_steps_partial">Delvis skridthistorik</string>
+    <string name="dashboard_recent_pressure_title">Tryksession</string>
+    <string name="dashboard_recent_pressure_available">Trykhistorik tilgængelig</string>
+    <string name="dashboard_recent_pressure_materializing">Forbereder trykhistorik…</string>
+    <string name="dashboard_recent_pressure_partial">Delvis trykhistorik</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Udgået trykhistorie</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Det var ikke muligt at kontrollere trykhistorien</string>
+    <string name="dashboard_recent_pressure_unavailable">Trykhistorik utilgængelig</string>
+    <string name="dashboard_recent_pressure_failed">Trykhistorik kunne ikke forberedes</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · interval %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Ændring %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Ingen gemt dækning</string>
+    <string name="dashboard_pressure_coverage_complete">Fuld dækning</string>
+    <string name="dashboard_pressure_coverage_partial">Delvis dækning</string>
+    <string name="dashboard_pressure_coverage_unknown">Dækning utilgængelig</string>
+    <string name="dashboard_recent_activity_title">Aktivitetssession</string>
+    <string name="dashboard_recent_activity_ready">Aktivitetshistorik tilgængelig</string>
+    <string name="dashboard_recent_activity_materializing">Forbereder aktivitetshistorik…</string>
+    <string name="dashboard_recent_activity_partial">Delvis aktivitetshistorik</string>
+    <string name="dashboard_recent_activity_unavailable">Aktivitetshistorik utilgængelig</string>
+    <string name="dashboard_recent_activity_failed">Aktivitetshistorik kunne ikke verificeres</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktiv %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi møde</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Cellebesøg</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Fanget Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Optaget mobilradio</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Kilder i denne session</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Lokation er ikke optaget i denne session. Ruten, afstanden, hastigheden og højde er ikke tilgængelige.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Verificeret historie %1$s er ikke tilgængelig.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Optaget på denne enhed</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Import af bevismateriale</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">At forberede radiohistorien...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Delvist bevaret radiohistorie</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Redigeret radiohistorie tilgængelig</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Radiohistorie ikke tilgængelig</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Ingen kvalificerede radiobevarede beviser</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Fjernet opbevaret radiohistorie</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Radiohistorik kunne ikke verificeres</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Funkshistorie integritetskontrol mislykkedes</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Ingen verificeret dækning</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Delvist verificeret dækning</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Fuldt verificeret dækning</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Dækning utilgængelig</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Venter på bevarede radioobservationer</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Der er ingen bevarede radioobservationer</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">De bevarede beviser blev slettet</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Indholdte beviser kan ikke fremlægges sikkert</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Lokation, rute, afstand, hastighed og højde er ikke en del af denne kildehistorie.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d bevaret scanresultat</item>
+        <item quantity="other">%1$d bevarede scanresultater</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d bevarede radioregister</item>
+        <item quantity="other">%1$d bevarede radiooptegnelser</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d tilbageholdt levering</item>
+        <item quantity="other">%1$d tilbageholdte leveringer</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d levering har delvis resultater</item>
+        <item quantity="other">%1$d leverancer har delvis resultater</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Registreret aktivitet</string>
+    <string name="dashboard_live_activity_movement">Seneste registrerede bevægelse</string>
+    <string name="dashboard_live_activity_active_time">Aktiv tid</string>
+    <string name="dashboard_live_activity_gaps">Kendte huller: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Ingen verificeret dækning</string>
+    <string name="dashboard_activity_coverage_partial">Delvis dækning</string>
+    <string name="dashboard_activity_coverage_complete">Fuld dækning</string>
+    <string name="dashboard_activity_still">Står stille</string>
+    <string name="dashboard_activity_walking">Gang</string>
+    <string name="dashboard_activity_running">Løb</string>
+    <string name="dashboard_activity_cycling">Cykling</string>
+    <string name="dashboard_activity_vehicle">I køretøj</string>
+    <string name="dashboard_activity_on_foot">Til fods</string>
+    <string name="dashboard_activity_tilting">Vipper</string>
+    <string name="dashboard_activity_unknown">Ukendt aktivitet</string>
     <string name="dashboard_exploration_title">Udforskning</string>
     <string name="dashboard_exploration_new_today">Nye i dag</string>
     <string name="dashboard_exploration_total_cells">Felter i alt</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Start sporing</string>
     <string name="dashboard_ring_enable_location">Slå placering til</string>
     <string name="dashboard_pill_start">Start</string>
-    <string name="dashboard_pill_stop">Stop</string>
     <string name="dashboard_pill_enable_location">Slå placering til</string>
     <string name="dashboard_insights_title">Sessionsindsigter</string>
     <string name="dashboard_cd_insight_item">Indblik: %1$s</string>
     <string name="widget_latest_achievement">Seneste præstation</string>
     <string name="dashboard_latest_achievement_title">Seneste præstation</string>
     <string name="dashboard_latest_achievement_empty">Fortsæt med at spore for at låse op for din første præstation</string>
-    <string name="dashboard_metric_pressure">Tryk</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Interval %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Ændring %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Gemt tidszone: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Tryksession</string>
-    <string name="dashboard_recent_pressure_available">Trykhistorik tilgængelig</string>
-    <string name="dashboard_recent_pressure_materializing">Forbereder trykhistorik…</string>
-    <string name="dashboard_recent_pressure_partial">Delvis trykhistorik</string>
-    <string name="dashboard_recent_pressure_unavailable">Trykhistorik utilgængelig</string>
-    <string name="dashboard_recent_pressure_failed">Trykhistorik kunne ikke forberedes</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · interval %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Ændring %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Ingen gemt dækning</string>
-    <string name="dashboard_pressure_coverage_complete">Fuld dækning</string>
-    <string name="dashboard_pressure_coverage_partial">Delvis dækning</string>
-    <string name="dashboard_pressure_coverage_unknown">Dækning utilgængelig</string>
-    <string name="dashboard_recent_activity_title">Aktivitetssession</string>
-    <string name="dashboard_recent_activity_ready">Aktivitetshistorik tilgængelig</string>
-    <string name="dashboard_recent_activity_materializing">Forbereder aktivitetshistorik…</string>
-    <string name="dashboard_recent_activity_partial">Delvis aktivitetshistorik</string>
-    <string name="dashboard_recent_activity_unavailable">Aktivitetshistorik utilgængelig</string>
-    <string name="dashboard_recent_activity_failed">Aktivitetshistorik kunne ikke verificeres</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktiv %2$s</string>
-    <string name="dashboard_live_activity_title">Registreret aktivitet</string>
-    <string name="dashboard_live_activity_movement">Seneste registrerede bevægelse</string>
-    <string name="dashboard_live_activity_active_time">Aktiv tid</string>
-    <string name="dashboard_live_activity_gaps">Kendte huller: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Ingen verificeret dækning</string>
-    <string name="dashboard_activity_coverage_partial">Delvis dækning</string>
-    <string name="dashboard_activity_coverage_complete">Fuld dækning</string>
-    <string name="dashboard_activity_still">Står stille</string>
-    <string name="dashboard_activity_walking">Gang</string>
-    <string name="dashboard_activity_running">Løb</string>
-    <string name="dashboard_activity_cycling">Cykling</string>
-    <string name="dashboard_activity_vehicle">I køretøj</string>
-    <string name="dashboard_activity_on_foot">Til fods</string>
-    <string name="dashboard_activity_tilting">Vipper</string>
-    <string name="dashboard_activity_unknown">Ukendt aktivitet</string>
-    <string name="dashboard_finishing_session">Afslutter session…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Indførte skridt</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Vis optagelse %1$d</item>
+        <item quantity="other">Vis %1$d optagelser</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Skjul optagelsen %1$d</item>
+        <item quantity="other">Skjul %1$d optagelser</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Optagelse %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s trin</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Mindst %1$s trin</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Trin ikke tilgængelig</string>
 </resources>

@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Prenosljivi koraki v ozadju</string>
+    <string name="export_error_no_portable_ambient_steps">Za izvoz ni na voljo preverjene zgodovine korakov v ozadju.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Zgodovina korakov v ozadju je nepopolna ali je ni mogoče preveriti za izvoz.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Izvoz korakov v ozadju začasno ni na voljo. Poskusite znova.</string>
+    <string name="export_error_portable_ambient_steps_scope">Tega izbora korakov v ozadju ni mogoče predstaviti v prenosljivi obliki datoteke.</string>
+    <string name="export_error_portable_ambient_steps_write">Datoteke prenosljivih korakov v ozadju ni bilo mogoče ustvariti.</string>
+    <string name="export_ambient_steps_sensitivity_title">Izvoziti zgodovino korakov v ozadju?</string>
+    <string name="export_ambient_steps_sensitivity_message">Ta datoteka vsebuje število korakov, časovna obdobja aktivnosti, datume, vrzeli v beleženju in shranjene podatke o časovnem pasu, ki lahko razkrijejo vzorce dnevne aktivnosti. Ne vsebuje koordinat poti. Nadaljujte le, če zaupate cilju.</string>
+</resources>

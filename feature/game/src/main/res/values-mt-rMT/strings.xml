@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Aħrab minn kull raġġ virtwali ta’ splużjoni qabel jiskadi l-fjus tiegħu</string>
     <string name="minigame_switchback_name">Dawriet żigżag</string>
     <string name="minigame_switchback_description">Agħmel dawriet qawwija alternati biex tibni kombinazzjoni ta’ fluss</string>
-    <string name="minigame_locked">Jinfetaħ fil-livell %1$d</string>
     <string name="game_play_section_title">Ilgħab</string>
     <string name="game_progress_section_title">Avvanz</string>
     <string name="minigame_outrun_goal_line">Żomm vantaġġ ta’ 25–100 m fuq il-fantażma</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Laħaqt il-mira %2$s tiegħek!</string>
     <string name="goals_daily_goal">ta’ kuljum</string>
     <string name="goals_weekly_goal">ta’ kull ġimgħa</string>
-    <string name="goals_monthly_goal">ta’ kull xahar</string>
     <string name="game_steps_goals_title">Miri ta’ passi</string>
     <string name="game_step_sensor_unavailable">Is-sensur tal-passi mhux disponibbli</string>
     <string name="game_step_sensor_unavailable_detail">Dan it-tagħmir m’għandux sensur tal-għadd tal-passi. Il-miri tal-passi ma jistgħux jiġu traċċati.</string>

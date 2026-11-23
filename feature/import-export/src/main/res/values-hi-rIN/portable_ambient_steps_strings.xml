@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">पोर्टेबल पृष्ठभूमि कदम</string>
+    <string name="export_error_no_portable_ambient_steps">निर्यात के लिए सत्यापित पृष्ठभूमि कदमों का कोई इतिहास उपलब्ध नहीं है।</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">पृष्ठभूमि कदमों का इतिहास अधूरा है या निर्यात के लिए सत्यापित नहीं किया जा सकता।</string>
+    <string name="export_error_portable_ambient_steps_retryable">पृष्ठभूमि कदमों का निर्यात फ़िलहाल उपलब्ध नहीं है। फिर से कोशिश करें।</string>
+    <string name="export_error_portable_ambient_steps_scope">पृष्ठभूमि कदमों के इस चयन को पोर्टेबल फ़ाइल प्रारूप में प्रस्तुत नहीं किया जा सकता।</string>
+    <string name="export_error_portable_ambient_steps_write">पोर्टेबल पृष्ठभूमि कदमों की फ़ाइल नहीं बनाई जा सकी।</string>
+    <string name="export_ambient_steps_sensitivity_title">पृष्ठभूमि कदमों का इतिहास निर्यात करें?</string>
+    <string name="export_ambient_steps_sensitivity_message">इस फ़ाइल में कदमों की संख्या, गतिविधि की समय अवधियाँ, तारीखें, रिकॉर्डिंग में अंतराल और सहेजे गए समय-क्षेत्र का संदर्भ शामिल है, जिनसे दैनिक गतिविधि के पैटर्न का पता चल सकता है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी आगे बढ़ें जब आपको गंतव्य पर भरोसा हो।</string>
+</resources>

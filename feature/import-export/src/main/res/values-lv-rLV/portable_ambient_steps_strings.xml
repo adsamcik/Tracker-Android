@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Pārnesamie fona soļi</string>
+    <string name="export_error_no_portable_ambient_steps">Eksportēšanai nav pieejama pārbaudīta fona soļu vēsture.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Fona soļu vēsture ir nepilnīga vai to nevar pārbaudīt eksportēšanai.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Fona soļu eksportēšana īslaicīgi nav pieejama. Mēģiniet vēlreiz.</string>
+    <string name="export_error_portable_ambient_steps_scope">Šo fona soļu atlasi nevar attēlot pārnesamajā faila formātā.</string>
+    <string name="export_error_portable_ambient_steps_write">Neizdevās izveidot pārnesamo fona soļu failu.</string>
+    <string name="export_ambient_steps_sensitivity_title">Eksportēt fona soļu vēsturi?</string>
+    <string name="export_ambient_steps_sensitivity_message">Šis fails satur soļu skaitu, aktivitātes laika intervālus, datumus, ierakstīšanas pārtraukumus un saglabātu laika joslas kontekstu, kas var atklāt ikdienas aktivitāšu paradumus. Tas nesatur maršrutu koordinātas. Turpiniet tikai tad, ja uzticaties galamērķim.</string>
+</resources>

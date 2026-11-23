@@ -14,7 +14,6 @@
     <string name="coordinates_title">Comhordanáidí</string>
     <string name="description_settings">Cnaipe socruithe</string>
     <string name="description_tracking_start">Cnaipe tosaithe rianaithe</string>
-    <string name="description_tracking_stop">Cnaipe stoptha rianaithe</string>
     <string name="description_tracking_start_no_permission">Tosaigh rianú — cead riachtanach</string>
     <string name="description_points_today">Pointí tuillte inniu: %s</string>
     <string name="description_copy">Cóipeáil luach</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Fad ama seisiúin</string>
     <string name="duration_value">fad ama %s</string>
     <string name="error_nothing_to_track">Cumasaigh rogha rianaithe amháin ar a laghad (suíomh, céimeanna nó gníomhaíocht)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Cuir seirbhísí suíomh ar bun chun úsáid a bhaint as an foinse rianú atá cumhdaithe.</string>
     <string name="hint_customize_notification_show_in_content">Taispeáin in ábhar an fhógra</string>
     <string name="hint_customize_notification_show_in_title">Taispeáin i dteideal an fhógra</string>
     <string name="horizontal_accuracy_title">Cruinneas cothrománach</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tá Tracker ag tosú — suíomh in úsáid</string>
     <string name="notification_starting_without_location">Tá Tracker ag tosú</string>
-    <string name="notification_stop">Stad</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stad ar feadh %d nóiméad</string>
     <string name="notification_stop_til_recharge">Stad go dtí athluchtú</string>
-    <string name="stop_tracking_dialog_title">Stad rianú?</string>
     <string name="stop_tracking_dialog_message">Tá rianú uathoibríoch ar siúl agus d’fhéadfadh sé seisiún nua a thosú arís go luath mura ndéanann tú ach stopadh.</string>
     <string name="notification_tracker_active_ticker">Ag taifeadadh do bhealaigh — suíomh in úsáid</string>
     <string name="notification_tracker_active_without_location">Rianú gan suíomh</string>
     <string name="notification_tracking_active">Rianú</string>
     <string name="notification_tracking_start_failed_title">Níorbh fhéidir rianú a thosú</string>
     <string name="notification_tracking_start_failed_text">Oscail an aip chun ceadanna a athbhreithniú agus rianú a atosú.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Rannpháirtíocht</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Ní bhaintear aon sonraí ar fáil go dtí go gcomhlíonfar an aisghabháil.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Rannpháirtíocht</string>
     <string name="settings_activity_enabled_title">Gníomhaíocht</string>
     <string name="settings_cell_enabled_title">Cill</string>
     <string name="settings_disabled_recharge_summary">Díchumasaítear rianú uathoibríoch go dtí go nascann do ghuthán le luchtóir</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Suíomh</string>
     <string name="settings_notification_customize_summary">Athraigh cad ba chóir a thaispeáint san fhógra rianaithe agus cén t-ord.</string>
     <string name="settings_notification_customize_title">Saincheap fógra</string>
+    <string name="settings_notification_move_up">Bog suas</string>
+    <string name="settings_notification_move_down">Bog síos</string>
+    <string name="settings_notification_load_failed">Níorbh fhéidir socruithe fógraí a lódáil.</string>
+    <string name="settings_notification_save_failed">Níor sábháladh na hathruithe.</string>
+    <string name="settings_notification_retry">Bain triail eile as</string>
     <string name="settings_notification_styled_summary">Úsáid dath stíle d’aip le haghaidh fógraí.</string>
     <string name="settings_notification_styled_title">Fógraí daite</string>
     <string name="ski_notification_title">Staitisticí sciála</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Líon céimeanna</string>
     <string name="settings_tracking_min_distance_title">Fad íosta idir nuashonruithe</string>
     <string name="settings_tracking_min_time_title">Moill íosta idir nuashonruithe</string>
-    <string name="settings_tracking_notice_summary">Tiocfaidh athruithe i bhfeidhm nuair a atosóidh tú rianú</string>
     <string name="settings_tracking_required_accuracy_title">Cruinneas suímh riachtanach</string>
     <string name="settings_tracking_title">Rianú</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Tosaigh rianú</string>
     <string name="shortcut_start_tracking_long">Tosaigh rianú suímh</string>
-    <string name="shortcut_stop_tracking">Stad rianú</string>
-    <string name="shortcut_stop_tracking_long">Stad rianú suímh</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Críochnaigh an seisiún</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Cuir deireadh leis an seisiún reatha</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Múch an rianú</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Stop gach rianú agus gach tosú uathoibríoch</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Gníomhaíochtaí rianú</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Stop tús uathoibríoch</string>
     <string name="speed_title">Luas</string>
     <string name="speed_value">luas %s</string>
     <string name="battery_title">Ceallra</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d nóiméad rianaithe</item>
         <item quantity="other">%1$d nóiméad rianaithe</item>
     </plurals>
-    <string name="insight_exploration_title">Taiscéalaí!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">D’aimsigh tú %1$d limistéar nua</item>
         <item quantity="other">D’aimsigh tú %1$d limistéar nua</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Téigh siar</string>
     <string name="insight_distance_title">Fad clúdaithe</string>
     <string name="insight_distance_desc">Chlúdaigh tú %1$s sa seisiún seo.</string>
-    <string name="insight_steps_title">Céimeanna taifeadta</string>
-    <string name="insight_steps_desc">%1$s céimeanna sa seisiún seo — lean ort!</string>
     <string name="tracker_measurement_partial">Páirteach</string>
 </resources>

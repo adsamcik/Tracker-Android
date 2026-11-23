@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Aizbēdziet no katra virtuālā sprādziena rādiusa, pirms izdeg deglis</string>
     <string name="minigame_switchback_name">Serpentīns</string>
     <string name="minigame_switchback_description">Veiciet asus pārmaiņus pagriezienus, lai veidotu plūsmas kombināciju</string>
-    <string name="minigame_locked">Atbloķējas %1$d. līmenī</string>
     <string name="game_play_section_title">Spēlēt</string>
     <string name="game_progress_section_title">Gaita</string>
     <string name="minigame_outrun_goal_line">Saglabājiet 25–100 m pārsvaru pār spoku</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Jūs sasniedzāt savu %2$s mērķi!</string>
     <string name="goals_daily_goal">dienas</string>
     <string name="goals_weekly_goal">nedēļas</string>
-    <string name="goals_monthly_goal">mēneša</string>
     <string name="game_steps_goals_title">Soļu mērķi</string>
     <string name="game_step_sensor_unavailable">Soļu sensors nav pieejams</string>
     <string name="game_step_sensor_unavailable_detail">Šai ierīcei nav soļu skaitītāja sensora. Soļu mērķus nevar izsekot.</string>

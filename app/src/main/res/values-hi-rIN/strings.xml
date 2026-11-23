@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">अपग्रेड-पूर्व बैकअप निर्यात हुआ</string>
     <string name="settings_migration_backup_export_failure">अपग्रेड-पूर्व बैकअप निर्यात नहीं हो सका</string>
     <string name="settings_migration_backup_export_cleanup_required">निर्यात विफल हुआ। चुने गए स्थान से आंशिक रूप से निर्यात किया बैकअप हटाएँ।</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">विरासत डेटाबेस आयात पर ध्यान देने की आवश्यकता है</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">आपका मूल डेटाबेस अभी भी इस डिवाइस पर है। आयात को Tracker खोलने के लिए पुनः प्रयास करें।</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">विरासत डेटाबेस का आकारः %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">पुनः आयात का प्रयास</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">निर्यात विरासत डेटाबेस</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">पुराने डेटाबेस को मिटाएँ और नया प्रारंभ करें</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">निर्यात किया गया विरासत डेटाबेस</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">पुराने डेटाबेस को निर्यात नहीं किया जा सका</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">निर्यात विफल रहा और अपूर्ण गंतव्य को हटाया नहीं जा सका। इसे मैन्युअल रूप से हटा दें।</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">विरासत डेटाबेस वॉल्ट</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">संस्करण %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">स्रोत संस्करणः %1$d\n भंडारणः %2$s\nआयातः %3$s\nआयातित पंक्तियाँः %4$d\n केवल गोदाम में रखे गए पंक्तियाँः %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">आयात पूरा हुआः %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">आयातित नहीं</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">आयात</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">आयात पूर्ण</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">आयात विफल</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">विरासत डेटाबेस को हटा दें?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">यह इस उपकरण से %1$s को स्थायी रूप से हटा देता है। आपका v27 डेटा प्रभावित नहीं है. यदि आपको बाद में मूल डेटाबेस की आवश्यकता हो सकती है तो निर्यात की गई प्रति को रखें।</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">विरासत डेटाबेस हटाया गया</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">पुराने डेटाबेस को नहीं हटा सका</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">पुनर्प्राप्ति को ट्रैक करने के लिए ध्यान देने की आवश्यकता है</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">संग्रह बंद रहता है जबकि Tracker सुरक्षित रूप से अपने ट्रैकिंग डेटा संगत करता है। इतिहास को हटाए बिना पुनः प्रयास करें।</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">पुनः प्राप्ति का प्रयास करें</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">विकास डेटाबेस को मैनुअल बैकअप की आवश्यकता है</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker ने एक अनशिप संस्करण 28 विकास डेटाबेस पाया जो इस बिल्ड से मेल नहीं खाता है। ट्रैकिंग और डेटाबेस सुविधाएँ बंद रहती हैं, और डेटाबेस फ़ाइल अपरिवर्तित छोड़ दी गई है। इस विकास स्थापना को बदलने या मरम्मत करने से पहले ऐप डेटा या डेटाबेस का बैकअप लें।</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">डेटाबेस को ध्यान देने की आवश्यकता है</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker इस डेटाबेस को सुरक्षित रूप से पहचान या सत्यापित नहीं कर सका। ट्रैकिंग और डेटाबेस सुविधाएँ बंद रहती हैं, और डेटाबेस फ़ाइल अपरिवर्तित छोड़ दी गई है। मैनुअल रिकवरी का प्रयास करने से पहले ऐप डेटा या डेटाबेस का बैकअप लें।</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">डेटाबेस अस्थायी रूप से अनुपलब्ध है</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Tracker सुरक्षित रूप से पुनः प्रयास करते समय ट्रैकिंग और डेटाबेस सुविधाएं बंद रहेंगी। कोई डेटा हटाया नहीं गया। यह जांचने के लिए अब पुनः प्रयास करें कि क्या अस्थायी लॉक या भंडारण समस्या ठीक हो गई है।</string>
     <string name="settings_delete_data_success">सारा एकत्रित डेटा हटा दिया गया</string>
     <string name="settings_delete_data_failure">सारा एकत्रित डेटा हटाया नहीं जा सका</string>
     <string name="settings_game_goals_title">लक्ष्य</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">खेल सेटिंग लोड हो रही हैं…</string>
     <string name="settings_game_load_error">खेल सेटिंग लोड नहीं हो सकीं। कृपया फिर कोशिश करें।</string>
     <string name="settings_map_info_hint">ये सेटिंग मानचित्र दृश्य गुणवत्ता और प्रदर्शन नियंत्रित करती हैं। अधिकांश उपयोगकर्ता डिफ़ॉल्ट मान उपयोग कर सकते हैं।</string>
+    <string name="settings_map_offline_data_section">ऑफ़लाइन मानचित्र डेटा</string>
     <string name="settings_map_online_tiles_section_title">ऑनलाइन मानचित्र टाइलें</string>
     <string name="settings_map_online_tiles_enable_title">ऑनलाइन मानचित्र टाइलें उपयोग करें</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">बंद — केवल शामिल ऑफ़लाइन आधार-मानचित्र उपयोग होता है। कोई नेटवर्क अनुरोध नहीं।</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">कस्टम</string>
     <string name="tracking_preset_custom_description">हर ट्रैकिंग पैरामीटर मैन्युअल रूप से समायोजित करें</string>
     <string name="tracking_preset_selector_subtitle">शुरू करने के लिए एक प्रोफ़ाइल चुनें, फिर नीचे की किसी भी सेटिंग को ठीक करें।</string>
+    <string name="tracking_preset_change">विकल्पों की तुलना करें</string>
+    <string name="tracking_preset_done">केवल चयनित दिखाएँ</string>
     <string name="tracking_preset_customized_summary">आपने ट्रैकिंग को बारीकी से समायोजित किया है। रीसेट करने के लिए ऊपर प्रीसेट चुनें।</string>
+    <string name="settings_tracking_section_start_stop">स्वचालित ट्रैकिंग</string>
+    <string name="settings_tracking_section_battery_detail">ट्रैकिंग की गुणवत्ता</string>
+    <string name="settings_tracking_section_data_collected">एकत्रित आंकड़े</string>
     <string name="settings_tracking_section_detail">स्थान संग्रह</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">बाहरी यात्राएं (वैकल्पिक)</string>
     <string name="settings_tracking_section_notifications">सूचनाएँ</string>
+    <string name="settings_transition_detection_friendly_title">बैटरी-कुशल गति का पता लगाने</string>
+    <string name="settings_transition_detection_friendly_summary">बार-बार पृष्ठभूमि जांच से बचने के लिए Android गतिविधि परिवर्तनों का उपयोग करता है। स्वचालित स्टार्ट्स थोड़ी धीमी प्रतिक्रिया दे सकते हैं।</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">स्वचालित ट्रैकिंग उपलब्ध नहीं है</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">आपका स्वचालित मोड विकल्प सहेजा गया है। स्वचालित स्टार्ट करने से पहले गतिविधि पहचान अनुमति की आवश्यकता होती है।</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">यात्राओं के बीच क्या रिकॉर्ड करना है चुनें।</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi बाहरी यात्राएं</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">सेल के बाहर यात्राएं</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">यात्राओं के बीच.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">चालू के रूप में सहेजा गया। %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">आउटडोर-ट्रिप कवरेज अवसरवादी है और इसमें अनुमति, प्रदाता, प्रक्रिया, रीबूट या ओएस रिक्तियां हो सकती हैं। Tracker हमेशा जमा करने का दावा नहीं करता है या भंडारण अवधि का आविष्कार नहीं करता है।</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">संग्रह बंद रहता है क्योंकि उत्पाद प्रतिधारण नीति अभी तक उपलब्ध नहीं है।</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">संग्रह की जांच...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">वर्तमान रोलआउट द्वारा संग्रह सुरक्षित रूप से निहित है।</string>
+    <string name="settings_ambient_user_turned_off">ट्रैकिंग बंद है। आपकी पसंद और सहेजा गया डेटा सुरक्षित हैं।</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Health Connect में कदमों की संख्या का ऐक्सेस दें, ताकि Tracker बंद होने पर भी कदमों के इतिहास में छूटा डेटा जोड़ा जा सके।</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Health Connect में चरण गणना तक पहुंच की अनुमति दें</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Health Connect पहुँच की जांच नहीं कर सका। फिर से कोशिश करो.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Tracker चालू होने पर कदमों की संख्या इंपोर्ट की जा सकती है। बैकग्राउंड ऐक्सेस से कदमों के इतिहास में छूटा डेटा कम हो सकता है।</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">कोई समर्थित पूरे दिन चरण प्रदाता उपलब्ध नहीं है।</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">अद्यतन Health Connect ताकि Tracker कदम गिनती पढ़ सकते हैं।</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">चरण प्रदाता की जांच नहीं कर सका। बाद में पुनः प्रयास करें।</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">इस डिवाइस पर कदमों की गिनती करने के लिए शारीरिक गतिविधि की अनुमति दें।</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">इस डिवाइस पर कदम रिकॉर्डिंग उपलब्ध नहीं है।</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect तैयार है। कुछ पीरियड्स में अभी भी अंतराल हो सकते हैं।</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">चरण रिकॉर्डिंग तैयार है। कुछ पीरियड्स में अभी भी अंतराल हो सकते हैं।</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">सेशन के बीच लोकेशन रिकॉर्ड करने के लिए बैकग्राउंड में लोकेशन का ऐक्सेस चाहिए। सेशन के दौरान रिकॉर्डिंग की आपकी सेटिंग नहीं बदलेगी।</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi स्कैन अनुमति आवश्यकताओं को पूरा नहीं किया गया है। उन्हें देने से स्थान कैप्चर सक्षम नहीं होता है।</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s सेल बैक कॉल अनुमति आवश्यकताओं को पूरा नहीं किया गया है। उन्हें देने से स्थान कैप्चर सक्षम नहीं होता है।</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">निष्क्रिय स्थान स्रोत-स्वामी मेलमिलाप के लिए तैयार है। यह अवसरवादी बिंदु प्रदान करता है, मार्ग निरंतरता नहीं।</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi स्कैन परिणाम कॉलबैक स्रोत-स्वामी संगम के लिए तैयार हैं। कोई स्कैन या जागने का वादा नहीं किया गया है।</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">समयशीर्षक योग्य सेल परिवर्तन कॉलबैक स्रोत-स्वामी मेल के लिए तैयार हैं। जबरन ताज़ा करने का कोई क्रम नहीं वादा किया जाता है।</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">आवश्यक मंच या प्रदाता अनुपलब्ध है, इसलिए संग्रह बंद रहता है।</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">सहेजा गया; परिचालन स्थिति लंबित</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">सहेजे गए; परिचालन उपलब्धता रिपोर्ट की गई</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">सहेजे गए; परिचालन में नहीं</string>
+    <string name="settings_location_source_summary">अपने मार्ग, दूरी और गति को रिकॉर्ड करें। आमतौर पर सबसे बड़ी बैटरी लागत।</string>
+    <string name="settings_activity_source_summary">पूरे दिन पैदल चलना, साइकिल चलाना, गाड़ी चलाना और स्थिर रहना रिकॉर्ड करता है।</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">दिन भर कदमों का पता चलता है। यात्राएं उसी चरण के इतिहास को व्यवस्थित करती हैं।</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">चरण संग्रह की जाँच.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">ट्रैकिंग बंद करें</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">बंद हो रहा है ...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">सत्र बंद, पूरे दिन रिकॉर्डिंग और स्वचालित स्टार्ट। आपके विकल्प और सहेजे गए डेटा बने रहें।</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">ट्रैकिंग बंद है। आपकी पसंद और सहेजा गया डेटा सुरक्षित हैं।</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">ट्रैकिंग को बंद नहीं कर सका। फिर से कोशिश करो.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">एक ट्रैकिंग अधिसूचना के साथ पूरे दिन वायु दबाव रिकॉर्ड करें।</string>
+    <string name="settings_ambient_activity_ready">गतिविधि रिकॉर्ड करने के लिए तैयार है।</string>
+    <string name="settings_ambient_pressure_ready">वायुदाब रिकॉर्ड करने के लिए तैयार है।</string>
+    <string name="settings_pressure_host_unavailable">बैकग्राउंड में वायुदाब रिकॉर्ड करना शुरू नहीं हो सका।</string>
+    <string name="settings_wifi_source_summary">स्थानीय संदर्भ जोड़ने के लिए पास के Wi-Fi नेटवर्क रिकॉर्ड करें। डेटा इस डिवाइस पर रहता है।</string>
+    <string name="settings_cell_source_summary">स्थान संदर्भ जोड़ने के लिए पास के सेल टावरों को रिकॉर्ड करें। डेटा इस डिवाइस पर रहता है।</string>
+    <string name="settings_location_source_compact">मार्ग, दूरी और गति</string>
+    <string name="settings_activity_source_compact">आंदोलन का प्रकार और स्थिरता</string>
+    <string name="settings_steps_source_compact">दिन भर में कदम</string>
+    <string name="settings_barometer_source_compact">ऊंचाई और ऊंचाई</string>
+    <string name="settings_wifi_source_compact">निकटवर्ती नेटवर्क संदर्भ</string>
+    <string name="settings_cell_source_compact">निकटवर्ती टावर का संदर्भ</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">तकनीकी स्थिति</string>
+    <string name="settings_technical_status_summary">बैटरी अनुमान, अनुमति, और संग्रह की स्थिति।</string>
+    <string name="settings_technical_status_attention">कुछ संग्रह स्रोतों पर ध्यान देने की आवश्यकता है। विवरण के लिए खुला.</string>
+    <string name="settings_simple_source_controls_title">सरल नियंत्रण का प्रयोग करें</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">चलने और दौड़ने को अपने-आप ट्रैक करें।</string>
     <string name="setup_auto_tracking_in_motion">गतिमान</string>
     <string name="setup_auto_tracking_in_motion_desc">वाहन चलाने और साइकिल चलाने सहित हर गति को अपने-आप ट्रैक करें।</string>
-    <string name="setup_preset_title">ट्रैकिंग विवरण</string>
+    <string name="settings_auto_tracking_mode_summary">यह चुनें कि किस आंदोलन को शुरू करना चाहिए और स्वचालित रूप से यात्रा को रोकें।</string>
     <string name="setup_recommended">अनुशंसित</string>
     <string name="setup_what_to_collect_title">क्या एकत्र करें</string>
     <string name="setup_what_to_collect_subtitle">अधिक विकल्प नीचे हैं। अनुमति के बिना खोज शुरू करें या उन्हें बाद में दें। डेटा इसी डिवाइस पर रहता है।</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">गतिविधि</string>
     <string name="setup_source_activity_desc">पता करें कि आप चल रहे, दौड़ रहे, साइकिल चला रहे या वाहन चला रहे हैं।</string>
     <string name="setup_source_steps">कदम</string>
-    <string name="setup_source_steps_desc">डिवाइस पेडोमीटर से अपने कदम गिनें।</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">पूरे दिन कदमों का पालन करें। यात्राएं एक ही इतिहास का आयोजन करती हैं।</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">कोई सीधा कदम सेंसर नहीं। Tracker डिवाइस पर एक चरण स्रोत की जांच करेगा।</string>
+    <string name="setup_perm_steps_why">इस डिवाइस पर पूरे दिन कदम गिनने के लिए गति संबंधी अनुमति दें।</string>
+    <string name="setup_perm_grant_steps_content_description">कदमों के लिए गति संबंधी अनुमति दें</string>
+    <string name="setup_steps_health_connect_why">Tracker बंद होने पर छूटे हुए कदम जोड़ने के लिए Health Connect में कदमों की अनुमति दें।</string>
+    <string name="setup_steps_provider_ready">डिवाइस पर कदमों का एक स्रोत तैयार है। कुछ समयावधियों में अब भी डेटा छूट सकता है।</string>
+    <string name="setup_steps_provider_checking">कदमों के उपलब्ध स्रोत जाँचे जा रहे हैं…</string>
     <string name="setup_source_wifi">WiFi नेटवर्क</string>
-    <string name="setup_source_wifi_desc">स्थान सटीकता सुधारने के लिए आस-पास के WiFi नेटवर्क लॉग करें।</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">स्थान ट्रैकिंग के साथ या उसके बिना निकटवर्ती Wi-Fi नेटवर्क रिकॉर्ड करें।</string>
     <string name="setup_source_cell">सेल टावर</string>
-    <string name="setup_source_cell_desc">स्थान संदर्भ के लिए सेल टावर जानकारी लॉग करें।</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">स्थान ट्रैकिंग के साथ या बिना पास के सेल टावरों को रिकॉर्ड करें।</string>
     <string name="setup_perm_location_why">आपके मार्ग रिकॉर्ड करने और मानचित्र पर दिखाने के लिए आवश्यक। स्थान इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता।</string>
     <string name="setup_perm_location_bg_why">ऐप बदलने या स्क्रीन बंद होने पर भी आपका मार्ग रिकॉर्ड रखने के लिए Tracker को पृष्ठभूमि में आपके स्थान की अनुमति चाहिए। रिकॉर्ड किया गया स्थान इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता। अगली सिस्टम सूचना में स्वचालित ट्रैकिंग सक्षम करने के लिए "हर समय अनुमति दें" चुनें; "ऐप इस्तेमाल करते समय" चुनने से Tracker केवल खुली स्क्रीन पर काम करेगा।</string>
     <string name="setup_perm_activity_why">Tracker को पता करने देता है कि आप क्या कर रहे हैं (चलना, साइकिल चलाना, वाहन चलाना या स्थिर रहना), ताकि स्वचालित ट्रैकिंग आपके न चलने पर रुक सके और बैटरी बचा सके। गतिविधि डेटा इसी डिवाइस पर रहता है — किसी सर्वर को नहीं भेजा जाता।</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">सेल रेडियो अनुमति दें</string>
     <string name="setup_perm_granted">अनुमति दी गई ✓</string>
     <string name="permission_grant_in_settings">सेटिंग में अनुमति दें →</string>
-    <string name="permission_disabled_due_to_denial">अनुमति अस्वीकार होने के कारण %1$s अक्षम है। सक्षम करने के लिए सेटिंग में अनुमति दें।</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s का चयन किया गया है लेकिन अनुमति दी जाने तक संग्रह नहीं किया जा सकता है।</string>
     <string name="settings_wifi_permission_required">Wi-Fi/स्थान अनुमति चाहिए। अनुमति देने के लिए टॉगल चालू करें — तब तक कोई Wi-Fi डेटा रिकॉर्ड नहीं होगा, और रिकॉर्ड किया डेटा इसी डिवाइस पर रहेगा।</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">प्रवेश अभी भी आवश्यक है। आपके विकल्प सुरक्षित हैं।</string>
     <string name="settings_cell_permission_required">फ़ोन स्थिति और सटीक स्थान अनुमति चाहिए। अनुमति देने के लिए टॉगल चालू करें — तब तक कोई सेल डेटा रिकॉर्ड नहीं होगा, और रिकॉर्ड किया डेटा इसी डिवाइस पर रहेगा।</string>
     <string name="settings_barometer_unavailable">इस डिवाइस पर दबाव सेंसर उपलब्ध नहीं है।</string>
     <string name="settings_activity_permission_required">गतिविधि पहचान अनुमति चाहिए। अनुमति देने के लिए टॉगल चालू करें।</string>
-    <string name="settings_steps_unavailable">इस डिवाइस पर कदम गिनने का सेंसर उपलब्ध नहीं है।</string>
     <string name="setup_start_exploring">खोज शुरू करें</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">पूरा सेटअप...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">फिर कोशिश करें</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">सेटअप को सहेज नहीं सका। आपके विकल्प अभी भी यहां हैं।</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">सहेजे गए डेटा को तैयार नहीं कर सका। आपके विकल्प अभी भी यहां हैं।</string>
     <string name="setup_continue">जारी रखें</string>
     <string name="setup_step_indicator">चरण %1$d / %2$d</string>
     <string name="setup_online_tiles_title">ऑनलाइन मानचित्र टाइलें?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">सक्षम होने पर प्रदाता आपका IP पता और लोड की गई टाइलें देख सकता है — लगभग मानचित्र का वह क्षेत्र जिसे आप देख रहे हैं। Tracker कभी खाता, पहचानकर्ता या स्थान इतिहास नहीं भेजता।</string>
     <string name="setup_online_tiles_change_later">इसे कभी भी सेटिंग → मानचित्र → ऑनलाइन मानचित्र टाइलें में बदल सकते हैं।</string>
     <string name="setup_background_access_optional">वैकल्पिक, पर अनुशंसित। इसे कभी भी सेटिंग → ट्रैकिंग में बदल सकते हैं।</string>
-    <string name="background_reliability_status_exempt">पृष्ठभूमि गतिविधि की अनुमति है</string>
-    <string name="background_reliability_status_optimized">बैटरी अनुकूलन चालू है</string>
-    <string name="background_reliability_allow_action">पृष्ठभूमि गतिविधि की अनुमति दें</string>
-    <string name="background_reliability_samsung_hint">Samsung डिवाइस ऐप को "स्लीपिंग ऐप" में भी डाल सकते हैं। बैटरी सेटिंग खोलें, फिर Tracker को स्लीपिंग ऐप से हटाएँ और इसे स्लीप में न डालने के लिए सेट करें।</string>
-    <string name="background_reliability_samsung_action">डिवाइस बैटरी सेटिंग खोलें</string>
-    <string name="settings_tracebox_title">क्रैश निदान</string>
-    <string name="settings_tracebox_root_summary">स्थानीय क्रैश, ANR और संरचनात्मक निदान</string>
     <string name="setup_background_location_title">स्वचालित ट्रैकिंग के लिए बैकग्राउंड स्थान की अनुमति दें</string>
     <string name="setup_background_location_disclosure">Tracker के बैकग्राउंड में होने पर स्वचालित ट्रैकिंग शुरू होती है और ऐप की स्क्रीन खुली न होने पर भी आपका मार्ग रिकॉर्ड करती है। स्थान डेटा इसी डिवाइस पर रहता है। ऐप की स्थान सेटिंग में “%1$s” चुनें।</string>
     <string name="setup_background_location_open_settings">स्थान सेटिंग खोलें</string>
     <string name="setup_background_location_decline">अभी नहीं</string>
     <string name="setup_background_location_manual_only">फ़ोरग्राउंड में मैन्युअल ट्रैकिंग उपलब्ध रहेगी। बैकग्राउंड स्थान की अनुमति मिलने तक स्वचालित स्थान ट्रैकिंग बंद रहेगी।</string>
-    <string name="settings_ambient_user_turned_off">ट्रैकिंग बंद है। आपकी पसंद और सहेजा गया डेटा सुरक्षित हैं।</string>
-    <string name="setup_perm_steps_why">इस डिवाइस पर पूरे दिन कदम गिनने के लिए गति संबंधी अनुमति दें।</string>
-    <string name="setup_perm_grant_steps_content_description">कदमों के लिए गति संबंधी अनुमति दें</string>
-    <string name="setup_steps_health_connect_why">Tracker बंद होने पर छूटे हुए कदम जोड़ने के लिए Health Connect में कदमों की अनुमति दें।</string>
-    <string name="setup_steps_provider_ready">डिवाइस पर कदमों का एक स्रोत तैयार है। कुछ समयावधियों में अब भी डेटा छूट सकता है।</string>
-    <string name="setup_steps_provider_checking">कदमों के उपलब्ध स्रोत जाँचे जा रहे हैं…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">पृष्ठभूमि ट्रैकिंग सेटिंग्स</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android और डिवाइस नीति पृष्ठभूमि कार्य को रोक सकती है या रोक सकती है। Tracker Android द्वारा उजागर किए गए प्रतिबंधों की रिपोर्ट कर सकता है, लेकिन यह प्रतिबंधित या बल-बंद स्थिति को रद्द नहीं कर सकता है।</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">पृष्ठभूमि प्रतिबंध का पता चला</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">बैटरी अनुकूलन का पता लगाया गया</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">कोई प्रतिबंध नहीं पाया गया</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">प्रतिबंध राज्य अनुपलब्ध</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android रिपोर्ट करता है कि पृष्ठभूमि गतिविधि प्रतिबंधित है। जब Tracker दिखाई नहीं देता है तो ट्रैकिंग बंद हो सकती है; ऐप इस नीति को रद्द नहीं कर सकता है।</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android रिपोर्ट करता है कि Tracker बैटरी अनुमति सूची में नहीं है। बिजली प्रबंधन पृष्ठभूमि कार्य में देरी कर सकता है; अनुमति सूची प्रतिबंधों को कम करता है लेकिन निरंतर ट्रैकिंग की गारंटी नहीं देता है।</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android में कोई पृष्ठभूमि प्रतिबंध नहीं है और Tracker बैटरी अनुमतियों की सूची में है। सिस्टम अभी भी ऐप को रोक सकता है, और फोर्स स्टॉप को ओवरराइड नहीं किया जा सकता है।</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker सभी प्रासंगिक Android प्रतिबंध संकेतों को नहीं पढ़ सका। किसी भी उपकरण विशिष्ट कारण या उपाय की पुष्टि नहीं की जा सकती है।</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">ऐप बैटरी सेटिंग्स खोलें</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">बैटरी अनुकूलन सेटिंग्स खोलें</string>
+    <string name="settings_tracebox_title">क्रैश निदान</string>
+    <string name="settings_tracebox_root_summary">स्थानीय क्रैश, ANR और संरचनात्मक निदान</string>
     <string name="settings_tracking_changes_apply_live">बदलाव मौजूदा ट्रैकिंग पर लागू होते हैं</string>
     <string name="settings_balance_title">ऊर्जा और विवरण</string>
     <string name="settings_balance_custom">कस्टम सेटिंग · संतुलन चुनें</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">विवरण · कुल संतुलन: %1$s</string>
     <string name="settings_balance_inherit">कुल संतुलन इस्तेमाल करें</string>
     <string name="settings_balance_summary">चुने गए स्रोतों की सामान्य गुणवत्ता चुनें। चालू सत्र शामिल स्रोतों के विवरण को प्राथमिकता देते हैं। संतुलन चुनने से डेटा संग्रह की पुरानी दरें बदलेंगी; स्रोतों की पसंद, बैकग्राउंड की सहमति और सटीकता के फ़िल्टर सुरक्षित रहेंगे।</string>
-    <string name="export_format_portable_steps_desc">सत्यापित कदमों का इतिहास, कवरेज और छूटा डेटा, बिना मार्ग के निर्देशांक</string>
-    <string name="export_format_portable_ambient_steps_desc">बैकग्राउंड के कदम, गतिविधि का समय, तारीखें, कवरेज में छूटा डेटा और सहेजा गया समय क्षेत्र, बिना मार्ग के निर्देशांक</string>
-    <string name="export_format_portable_activity_desc">दर्ज किए गए गति अंतराल, भरोसे का स्तर और कवरेज, बिना मार्ग के निर्देशांक</string>
-    <string name="export_format_portable_pressure_desc">hPa में सीधे दबाव के माप, कवरेज और छूटा डेटा, बिना मार्ग के निर्देशांक</string>
-    <string name="export_sensitivity_portable_title">दर्ज किया गया इतिहास निर्यात करें?</string>
-    <string name="export_sensitivity_portable_steps_message">इस फ़ाइल में कदमों की गिनती, समयावधियाँ और कवरेज की जानकारी है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">इस फ़ाइल में बैकग्राउंड के कदम, गतिविधि की समयावधियाँ, तारीखें, कवरेज में छूटा डेटा और सहेजा गया समय क्षेत्र है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
-    <string name="export_sensitivity_portable_activity_message">इस फ़ाइल में दर्ज किए गए गति अंतराल, समयावधियाँ और कवरेज की जानकारी है। इसमें मार्ग के निर्देशांक नहीं हैं। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
-    <string name="export_sensitivity_portable_pressure_message">इस फ़ाइल में दबाव के माप और समयावधियाँ हैं जिनसे आसपास के वातावरण की जानकारी मिल सकती है। इसमें मार्ग के निर्देशांक या कैलिब्रेट की गई ऊँचाई नहीं है। केवल तभी जारी रखें जब आपको गंतव्य पर भरोसा हो।</string>
-    <string name="settings_activity_source_summary">पूरे दिन पैदल चलना, साइकिल चलाना, गाड़ी चलाना और स्थिर रहना रिकॉर्ड करता है।</string>
-    <string name="settings_ambient_activity_ready">गतिविधि रिकॉर्ड करने के लिए तैयार है।</string>
-    <string name="settings_ambient_pressure_ready">वायुदाब रिकॉर्ड करने के लिए तैयार है।</string>
-    <string name="settings_pressure_host_unavailable">बैकग्राउंड में वायुदाब रिकॉर्ड करना शुरू नहीं हो सका।</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">ट्रैकिंग फिर शुरू करें</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">ट्रैकिंग को फिर से शुरू नहीं किया जा सका। फिर से कोशिश करो.</string>
 </resources>

@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Резервното копие отпреди надграждането е експортирано</string>
     <string name="settings_migration_backup_export_failure">Резервното копие отпреди надграждането не можа да бъде експортирано</string>
     <string name="settings_migration_backup_export_cleanup_required">Експортирането е неуспешно. Изтрийте частично експортираното резервно копие от избраното местоположение.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Вносът на наследствена база данни се нуждае от внимание</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Оригиналната ти база данни е все още на това устройство. Опитайте отново да отворите Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Размер на базата данни: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Отново изпробване на вноса</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">База данни за износ</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Изтрийте старата база данни и започнете отначало</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Изнасяна база данни за наследство</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Не можах да изнасям старата база данни</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Износът се провали и непълното местоназначение не може да бъде премахнато. Изтрийте го ръчно.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Сандър за база данни</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Версия %1$d %2$s %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Източник: %1$d\nСпазване: %2$s\nИмпорт: %3$s\nИмпортени редове: %4$d\n Редове, запазени само в трезора: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Завършен внос: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Не внасяни</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Внос</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Импортът е завършен</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Импортът не е успял</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Да изтриете старата база данни?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Това за постоянно премахва %1$s от устройството. Вашите данни за V27 не са засегнати. Съхранявайте експортираното копие, ако по-късно имате нужда от оригиналната база данни.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Изтрита база данни</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Не можах да изтрия старата база данни</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Следяването на възстановяването изисква внимание</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Събирането остава изключено, докато Tracker безопасно съгласува данните си за проследяване. Опитайте отново, без да изтриете историята.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Опитайте отново да проследите възстановяването</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Базата данни за разработване се нуждае от ръчна резервна копие</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker откри неизпратена база данни за разработване на версия 28, която не съответства на тази сграда. Функциите за проследяване и база данни остават изключени, а файлът за базата данни е останал непроменен. Запишете данните на приложението или базата данни преди да замените или поправите тази инсталация.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Базата данни се нуждае от внимание</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker не може да идентифицира или да валидира безопасно тази база данни. Функциите за проследяване и база данни остават изключени, а файлът за базата данни е останал непроменен. Запишете данните на приложението или базата данни преди да се опитате ръчно възстановяване.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">База данни временно не е достъпна</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Функциите за проследяване и база данни остават изключени, докато Tracker се опитва безопасно. Не са изтрити данни. Опитайте отново да проверите дали проблемът с временно заключване или съхранение е изчистен.</string>
     <string name="settings_delete_data_success">Всички събрани данни бяха изтрити</string>
     <string name="settings_delete_data_failure">Не всички събрани данни можаха да бъдат изтрити</string>
     <string name="settings_game_goals_title">Цели</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Зареждане на настройките за игра…</string>
     <string name="settings_game_load_error">Настройките за игра не можаха да бъдат заредени. Опитайте отново.</string>
     <string name="settings_map_info_hint">Тези настройки управляват качеството и производителността на визуализацията на картата. Повечето потребители могат да използват стойностите по подразбиране.</string>
+    <string name="settings_map_offline_data_section">Данни от офлайн картите</string>
     <string name="settings_map_online_tiles_section_title">Онлайн плочки за карта</string>
     <string name="settings_map_online_tiles_enable_title">Използване на онлайн плочки за карта</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Изключено — използва се само включената офлайн базова карта. Няма мрежови заявки.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Персонализирано</string>
     <string name="tracking_preset_custom_description">Настройте ръчно всеки параметър за проследяване</string>
     <string name="tracking_preset_selector_subtitle">Изберете профил, от който да започнете, след което прецизирайте всяка настройка по-долу.</string>
+    <string name="tracking_preset_change">Сравняване на опциите</string>
+    <string name="tracking_preset_done">Покажете само избрани</string>
     <string name="tracking_preset_customized_summary">Настроили сте проследяването. Изберете предварителна настройка по-горе, за да го нулирате.</string>
+    <string name="settings_tracking_section_start_stop">Автоматично проследяване</string>
+    <string name="settings_tracking_section_battery_detail">Качество на проследяването</string>
+    <string name="settings_tracking_section_data_collected">Събрани данни</string>
     <string name="settings_tracking_section_detail">Събиране на местоположение</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Извънземни пътувания (по избор)</string>
     <string name="settings_tracking_section_notifications">Известия</string>
+    <string name="settings_transition_detection_friendly_title">Определяне на движение с ефективност на батерията</string>
+    <string name="settings_transition_detection_friendly_summary">Използва Android промени в дейностите, за да се избегне често проверка на миналото. Автоматичните стартове могат да реагират малко по-бавно.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Автоматично проследяване не е налично</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Изборът на автоматичния режим е запазен. Разрешение за разпознаване на дейност се изисква, преди автоматичното стартиране да може да работи.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Изберете какво да записвате между пътуванията.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi екскурзии на външни места</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Извън клетките пътувания</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">На път между пътуванията.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Запазени като включени. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Покритието на външни пътувания е оппортунистично и може да съдържа пропуски в разрешенията, доставчика, процеса, рестартирането или операционната система. Tracker не претендира за постоянно събиране или изобрета срок на съхранение.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Събирането остава изключено, тъй като политиката за запазване на продукта все още не е налична.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Проверявам колекцията...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Събирането е безопасно засега.</string>
+    <string name="settings_ambient_user_turned_off">Проследяването е изключено. Вашият избор и запазените данни се пазят.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Разрешете достъп до броя на стъпките в Health Connect, за да попълните пропуските в историята, когато Tracker е затворен.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Да разреши достъп до броенето на стъпки в Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Не можах да проверя достъпа Health Connect. Опитай пак.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Броят на стъпките може да се импортира, докато Tracker работи. Достъпът във фонов режим може да намали пропуските в историята на стъпките.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Не е наличен поддръжка на доставчик на стъпки през целия ден.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Актуализирайте Health Connect така, че Tracker да може да чете броенето на стъпките.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Не можах да проверя доставчика на стъпки. Опитай пак по-късно.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Дайте разрешение на физическата активност да преброи стъпките на устройството.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Записване на стъпките не е налично на това устройство.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect е готов. Някои периоди могат да имат пропуски.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Записването на стъпки е готово. Някои периоди могат да имат пропуски.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">За запис на местоположението между сесиите е необходим достъп до местоположението във фонов режим. Настройката за запис по време на сесия остава непроменена.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi Не са изпълнени изискванията за разрешение за сканиране. Даването им не позволява улавяне на местоположението.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android  ⁇ s Не са изпълнени изискванията за разрешение за връщане на обаждания на клетки. Даването им не позволява улавяне на местоположението.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Пасивното местоположение е готово за помирение между източника и собственика. Тя осигурява оппортунистични точки, а не траекторична продължителност.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Резултатите от сканирането са готови за съгласуване между източника и собственика. Не се обещава сканиране или събуждане.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Квалифицирани с часови знаци обратни обаждания за промяна на клетките са готови за помирение между източника и собственика. Не е обещано принудително освежаване.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Не е налична необходимата платформа или доставчик, така че събирането остава изключено.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Спрян; експлоатационен статус в очакване</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">За съхранение; докладвана експлоатационна наличност</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Западнат; не е в експлоатация</string>
+    <string name="settings_location_source_summary">Запишете маршрута, разстоянието и скоростта си. Обикновено най-високата цена на батерията.</string>
+    <string name="settings_activity_source_summary">Записва ходене, колоездене, шофиране и покой през целия ден.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Следи стъпки през целия ден. Пътуванията организират същата история.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Проверявам събирането на стъпки.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Изключване на проследяването</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Изключвам...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Стъпване на сесии, записване цял ден и автоматично стартиране. Вашите избори и запазените данни остават.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Проследяването е изключено. Вашият избор и запазените данни се пазят.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Не можах да изключа проследяването. Опитай пак.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Записване на въздушното налягане през целия ден с уведомление за проследяване.</string>
+    <string name="settings_ambient_activity_ready">Готово за записване на активност.</string>
+    <string name="settings_ambient_pressure_ready">Готово за записване на атмосферното налягане.</string>
+    <string name="settings_pressure_host_unavailable">Записването на атмосферното налягане във фонов режим не можа да започне.</string>
+    <string name="settings_wifi_source_summary">Записване на близки Wi-Fi мрежи за добавяне на локален контекст. Данните остават на това устройство.</string>
+    <string name="settings_cell_source_summary">Записване на близки клетъчни кули за добавяне на контекст на местоположението. Данните остават на това устройство.</string>
+    <string name="settings_location_source_compact">Маршрут, разстояние и скорост</string>
+    <string name="settings_activity_source_compact">Тип на движение и тишина</string>
+    <string name="settings_steps_source_compact">Крачки през деня</string>
+    <string name="settings_barometer_source_compact">Височина и височина</string>
+    <string name="settings_wifi_source_compact">Контекст на близката мрежа</string>
+    <string name="settings_cell_source_compact">Контекст на близката кула</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Технически състояние</string>
+    <string name="settings_technical_status_summary">Оценка на батерията, разрешения и състояние на събирането.</string>
+    <string name="settings_technical_status_attention">Някои източници на колекции се нуждаят от внимание. Отворена за подробности.</string>
+    <string name="settings_simple_source_controls_title">Използвайте прости контролни устройства</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Автоматично проследявайте ходенето и бягането.</string>
     <string name="setup_auto_tracking_in_motion">В движение</string>
     <string name="setup_auto_tracking_in_motion_desc">Автоматично проследявайте всяко движение, включително шофиране и колоездене.</string>
-    <string name="setup_preset_title">Подробност на проследяването</string>
+    <string name="settings_auto_tracking_mode_summary">Изберете кое движение трябва да започне и спира пътуванията автоматично.</string>
     <string name="setup_recommended">Препоръчително</string>
     <string name="setup_what_to_collect_title">Какво да се събира</string>
     <string name="setup_what_to_collect_subtitle">Още опции има по-долу. Започнете да разглеждате без разрешения или ги предоставете по-късно. Данните остават на това устройство.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Активност</string>
     <string name="setup_source_activity_desc">Разпознавайте дали ходите, бягате, карате колело или шофирате.</string>
     <string name="setup_source_steps">Крачки</string>
-    <string name="setup_source_steps_desc">Бройте крачките си чрез крачкомера на устройството.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Следи стъпките през целия ден. Пътуванията организират същата история.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Няма директно сензор за стъпки. Tracker ще провери дали има стъпков източник на устройството.</string>
+    <string name="setup_perm_steps_why">Разрешете достъп до движението за броене на стъпки на това устройство през целия ден.</string>
+    <string name="setup_perm_grant_steps_content_description">Разрешаване на достъп до движението за Стъпки</string>
+    <string name="setup_steps_health_connect_why">Разрешете Стъпки в Health Connect за попълване на пропуските, когато Tracker е затворен.</string>
+    <string name="setup_steps_provider_ready">Източник за стъпки на устройството е готов. Някои периоди все още може да имат пропуски.</string>
+    <string name="setup_steps_provider_checking">Проверка на наличните източници за стъпки…</string>
     <string name="setup_source_wifi">WiFi мрежи</string>
-    <string name="setup_source_wifi_desc">Записвайте близките WiFi мрежи, за да подобрите точността на местоположението.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Записване на близките мрежи Wi-Fi, с или без проследяване на местоположението.</string>
     <string name="setup_source_cell">Клетъчни кули</string>
-    <string name="setup_source_cell_desc">Записвайте информация за клетъчните кули за контекст на местоположението.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Записване на близките клетъчни кули, с или без проследяване на местоположението.</string>
     <string name="setup_perm_location_why">Необходимо е за записване на маршрутите ви и показването им на картата. Местоположението остава на това устройство — нищо не се изпраща до сървър.</string>
     <string name="setup_perm_location_bg_why">За да продължи да записва маршрута ви, когато превключите приложенията или екранът се изключи, Tracker се нуждае от достъп до местоположението ви във фонов режим. Записаното местоположение остава на това устройство — нищо не се изпраща до сървър. При следващия системен прозорец изберете „Разрешаване през цялото време“, за да активирате автоматичното проследяване; „Само докато използвате приложението“ позволява на Tracker да работи само когато екранът му е отворен.</string>
     <string name="setup_perm_activity_why">Позволява на Tracker да установи какво правите (ходене, колоездене, шофиране, неподвижност), така че автоматичното проследяване да може да спира, когато не се движите, и да пести батерия. Данните за активността остават на това устройство — нищо не се изпраща до сървър.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Предоставяне на разрешение за клетъчна мрежа</string>
     <string name="setup_perm_granted">Разрешено ✓</string>
     <string name="permission_grant_in_settings">Разрешаване в настройките →</string>
-    <string name="permission_disabled_due_to_denial">%1$s е изключено, защото разрешението е отказано. Разрешете го в настройките, за да го включите.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s е избран, но не може да се събере, докато не бъде предоставено разрешение.</string>
     <string name="settings_wifi_permission_required">Изисква разрешение за Wi-Fi/местоположение. Включете превключвателя, за да го предоставите — дотогава не се записват Wi-Fi данни, а записаните данни остават на това устройство.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Достъпът все още е необходим. Изборът ти е запазен.</string>
     <string name="settings_cell_permission_required">Изисква разрешение за състоянието на телефона и точно местоположение. Включете превключвателя, за да го предоставите — дотогава не се записват клетъчни данни, а записаните данни остават на това устройство.</string>
     <string name="settings_barometer_unavailable">Сензорът за налягане не е наличен на това устройство.</string>
     <string name="settings_activity_permission_required">Изисква разрешение за разпознаване на активност. Включете превключвателя, за да го предоставите.</string>
-    <string name="settings_steps_unavailable">Сензорът за броене на крачки не е наличен на това устройство.</string>
     <string name="setup_start_exploring">Започнете да разглеждате</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Завършване на уреждането...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Повторен опит</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Не можах да запазя настройката. Твоите избори все още са тук.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Не можах да подготвя запазените данни. Твоите избори все още са тук.</string>
     <string name="setup_continue">Продължаване</string>
     <string name="setup_step_indicator">Стъпка %1$d от %2$d</string>
     <string name="setup_online_tiles_title">Онлайн плочки за карта?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Докато е включено, доставчикът може да вижда IP адреса ви и кои плочки зареждате — приблизително коя област от картата разглеждате. Tracker никога не изпраща акаунт, идентификатор или история на местоположенията ви.</string>
     <string name="setup_online_tiles_change_later">Можете да промените това по всяко време в Настройки → Карта → Онлайн плочки за карта.</string>
     <string name="setup_background_access_optional">По избор, но се препоръчва. Можете да промените това по всяко време в Настройки → Проследяване.</string>
-    <string name="background_reliability_status_exempt">Разрешена е активност във фонов режим</string>
-    <string name="background_reliability_status_optimized">Оптимизацията на батерията е включена</string>
-    <string name="background_reliability_allow_action">Разрешаване на активност във фонов режим</string>
-    <string name="background_reliability_samsung_hint">Устройствата Samsung може също да поставят приложенията в „Спящи приложения“. Отворете настройките за батерията, премахнете Tracker от „Спящи приложения“ и го задайте да не бъде поставян в режим на заспиване.</string>
-    <string name="background_reliability_samsung_action">Отваряне на настройките за батерията на устройството</string>
-    <string name="settings_tracebox_title">Диагностика при сривове</string>
-    <string name="settings_tracebox_root_summary">Локална диагностика на сривове, ANR и структура</string>
     <string name="setup_background_location_title">Разрешете местоположението във фонов режим за автоматично проследяване</string>
     <string name="setup_background_location_disclosure">Автоматичното проследяване започва, докато Tracker е във фонов режим, и записва маршрута ви дори когато екранът му не е отворен. Местоположението остава на това устройство. В настройките за местоположение на приложението изберете „%1$s“.</string>
     <string name="setup_background_location_open_settings">Отваряне на настройките за местоположение</string>
     <string name="setup_background_location_decline">Не сега</string>
     <string name="setup_background_location_manual_only">Ръчното проследяване на преден план остава достъпно. Автоматичното проследяване на местоположението ще остане изключено, докато местоположението във фонов режим не бъде разрешено.</string>
-    <string name="settings_ambient_user_turned_off">Проследяването е изключено. Вашият избор и запазените данни се пазят.</string>
-    <string name="setup_perm_steps_why">Разрешете достъп до движението за броене на стъпки на това устройство през целия ден.</string>
-    <string name="setup_perm_grant_steps_content_description">Разрешаване на достъп до движението за Стъпки</string>
-    <string name="setup_steps_health_connect_why">Разрешете Стъпки в Health Connect за попълване на пропуските, когато Tracker е затворен.</string>
-    <string name="setup_steps_provider_ready">Източник за стъпки на устройството е готов. Някои периоди все още може да имат пропуски.</string>
-    <string name="setup_steps_provider_checking">Проверка на наличните източници за стъпки…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Настройки за проследяване на фона</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android и политиката на устройството могат да спрет или да спрат работата на фона. Tracker може да съобщи за ограниченията, които Android разкрива, но не може да отмени ограничено или принудително спряно състояние.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Открито ограничение на фона</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Оптимизация на батерията</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Не е установено ограничение</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Състояние на ограничение не е налично</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android съобщава, че задната дейност е ограничена. Следването може да спре, когато Tracker не е видимо; приложението не може да отмени тази политика.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android съобщава, че Tracker не е включен в списъка с батериите. Управлението на електроенергията може да забави работата на фона; разрешителното включване намалява ограниченията, но не гарантира непрекъснато проследяване.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android не съобщава за ограничение на фона и Tracker е в списъка с разрешения за батерии. Системата все още може да спре приложението, а принудителното спиране не може да бъде отменено.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker не може да прочете всички съответни ограничителни сигнали от Android. Не могат да бъдат потвърдени специфични за устройството причини или средства за лечение.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Отворете настройките на батерията на приложението</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Отворете настройките за оптимизация на батерията</string>
+    <string name="settings_tracebox_title">Диагностика при сривове</string>
+    <string name="settings_tracebox_root_summary">Локална диагностика на сривове, ANR и структура</string>
     <string name="settings_tracking_changes_apply_live">Промените обновяват текущото проследяване</string>
     <string name="settings_balance_title">Енергия и подробност</string>
     <string name="settings_balance_custom">Персонализирани настройки · Изберете баланс</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Подробности · Общ баланс: %1$s</string>
     <string name="settings_balance_inherit">Използване на общия баланс</string>
     <string name="settings_balance_summary">Изберете обичайното качество за избраните източници. Активните сесии предпочитат подробност за участващите източници. Избирането на баланс заменя старите честоти на събиране; изборът на източници, съгласието за фоново събиране и филтрите за точност се запазват.</string>
-    <string name="export_format_portable_steps_desc">Проверена история на стъпките, покритие и пропуски без координати на маршрута</string>
-    <string name="export_format_portable_ambient_steps_desc">Фонови бройки стъпки, време на активност, дати, пропуски и запазен контекст на часовата зона без координати на маршрута</string>
-    <string name="export_format_portable_activity_desc">Записани интервали на движение, увереност и покритие без координати на маршрута</string>
-    <string name="export_format_portable_pressure_desc">Преки измервания на налягането в hPa, покритие и пропуски без координати на маршрута</string>
-    <string name="export_sensitivity_portable_title">Да се експортира ли записаната история?</string>
-    <string name="export_sensitivity_portable_steps_message">Този файл съдържа бройки стъпки, времеви интервали и информация за покритието. Не съдържа координати на маршрута. Продължете само ако имате доверие на местоназначението.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Този файл съдържа фонови бройки стъпки, интервали на активност, дати, пропуски и запазен контекст на часовата зона. Не съдържа координати на маршрута. Продължете само ако имате доверие на местоназначението.</string>
-    <string name="export_sensitivity_portable_activity_message">Този файл съдържа записани интервали на движение, времеви интервали и информация за покритието. Не съдържа координати на маршрута. Продължете само ако имате доверие на местоназначението.</string>
-    <string name="export_sensitivity_portable_pressure_message">Този файл съдържа измервания на налягането и времеви интервали, които може да разкрият информация за средата. Не съдържа координати на маршрута или калибрирана надморска височина. Продължете само ако имате доверие на местоназначението.</string>
-    <string name="settings_activity_source_summary">Записва ходене, колоездене, шофиране и покой през целия ден.</string>
-    <string name="settings_ambient_activity_ready">Готово за записване на активност.</string>
-    <string name="settings_ambient_pressure_ready">Готово за записване на атмосферното налягане.</string>
-    <string name="settings_pressure_host_unavailable">Записването на атмосферното налягане във фонов режим не можа да започне.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Възобновяване на проследяването</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Не можах да продължим проследяването. Опитай пак.</string>
 </resources>

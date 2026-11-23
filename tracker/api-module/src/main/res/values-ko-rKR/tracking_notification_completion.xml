@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">하루 종일 위치 수집</string>
-    <string name="notification_background_location_text">상황에 맞춘 위치 수집이 켜져 있습니다. 관리하려면 Tracker를 여세요.</string>
     <string name="settings_notification_unsaved_exit">변경 사항을 저장하려면 다시 시도하거나 저장하지 않고 나가세요.</string>
     <string name="settings_notification_leave_without_saving">저장하지 않고 나가기</string>
     <string name="notification_background_collection_title">백그라운드 추적</string>

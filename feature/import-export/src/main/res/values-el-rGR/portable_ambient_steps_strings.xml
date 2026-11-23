@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Φορητά δεδομένα βημάτων παρασκηνίου</string>
+    <string name="export_error_no_portable_ambient_steps">Δεν υπάρχει επαληθευμένο ιστορικό βημάτων παρασκηνίου διαθέσιμο για εξαγωγή.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Το ιστορικό βημάτων παρασκηνίου είναι ελλιπές ή δεν μπορεί να επαληθευτεί για εξαγωγή.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Η εξαγωγή βημάτων παρασκηνίου δεν είναι προσωρινά διαθέσιμη. Δοκιμάστε ξανά.</string>
+    <string name="export_error_portable_ambient_steps_scope">Αυτή η επιλογή βημάτων παρασκηνίου δεν μπορεί να αποτυπωθεί στη φορητή μορφή αρχείου.</string>
+    <string name="export_error_portable_ambient_steps_write">Δεν ήταν δυνατή η δημιουργία του αρχείου φορητών δεδομένων βημάτων παρασκηνίου.</string>
+    <string name="export_ambient_steps_sensitivity_title">Εξαγωγή ιστορικού βημάτων παρασκηνίου;</string>
+    <string name="export_ambient_steps_sensitivity_message">Αυτό το αρχείο περιέχει μετρήσεις βημάτων, χρονικά διαστήματα δραστηριότητας, ημερομηνίες, κενά καταγραφής και αποθηκευμένες πληροφορίες ζώνης ώρας που μπορεί να αποκαλύψουν καθημερινά μοτίβα δραστηριότητας. Δεν περιέχει συντεταγμένες διαδρομής. Συνεχίστε μόνο αν εμπιστεύεστε τον προορισμό.</string>
+</resources>

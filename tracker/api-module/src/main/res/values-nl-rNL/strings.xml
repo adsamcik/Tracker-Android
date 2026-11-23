@@ -14,7 +14,6 @@
     <string name="coordinates_title">Coördinaten</string>
     <string name="description_settings">Instellingenknop</string>
     <string name="description_tracking_start">Knop Tracking starten</string>
-    <string name="description_tracking_stop">Knop Tracking stoppen</string>
     <string name="description_tracking_start_no_permission">Tracking starten — machtiging vereist</string>
     <string name="description_points_today">Vandaag verdiende punten: %s</string>
     <string name="description_copy">Waarde kopiëren</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Sessieduur</string>
     <string name="duration_value">duur %s</string>
     <string name="error_nothing_to_track">Je moet meer dan alleen tijd bijhouden</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Sluit de locatiediensten aan om de ingeschakelde opsporingsbron te gebruiken.</string>
     <string name="hint_customize_notification_show_in_content">In meldingsinhoud tonen</string>
     <string name="hint_customize_notification_show_in_title">In meldingstitel tonen</string>
     <string name="horizontal_accuracy_title">Horizontale nauwkeurigheid</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker-service starten</string>
     <string name="notification_starting_without_location">Tracker starten</string>
-    <string name="notification_stop">Stoppen</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stoppen voor %d minuten</string>
     <string name="notification_stop_til_recharge">Stoppen tot opladen</string>
-    <string name="stop_tracking_dialog_title">Tracking stoppen?</string>
     <string name="stop_tracking_dialog_message">Automatisch volgen is ingeschakeld en kan kort na alleen stoppen alweer een nieuwe sessie starten.</string>
     <string name="notification_tracker_active_ticker">Tracker is actief</string>
     <string name="notification_tracker_active_without_location">Tracking zonder locatie</string>
     <string name="notification_tracking_active">Bijhouden</string>
     <string name="notification_tracking_start_failed_title">Tracking kon niet starten</string>
     <string name="notification_tracking_start_failed_text">Open de app om machtigingen te controleren en tracking te hervatten.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Voorbereiding van tracking</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Er worden geen gegevens verzameld totdat het herstel is voltooid.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Voorbereiding van tracking</string>
     <string name="settings_activity_enabled_title">Activiteit</string>
     <string name="settings_cell_enabled_title">Cel</string>
     <string name="settings_disabled_recharge_summary">Automatisch volgen is uitgeschakeld totdat je telefoon met een oplader is verbonden</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Locatie</string>
     <string name="settings_notification_customize_summary">Wijzig wat en in welke volgorde in de trackingmelding verschijnt.</string>
     <string name="settings_notification_customize_title">Melding aanpassen</string>
+    <string name="settings_notification_move_up">Omhoog</string>
+    <string name="settings_notification_move_down">Omlaag</string>
+    <string name="settings_notification_load_failed">Meldingsinstellingen konden niet worden geladen.</string>
+    <string name="settings_notification_save_failed">Wijzigingen zijn niet opgeslagen.</string>
+    <string name="settings_notification_retry">Opnieuw proberen</string>
     <string name="settings_notification_styled_summary">Gebruik de kleur van je appstijl voor meldingen.</string>
     <string name="settings_notification_styled_title">Gekleurde meldingen</string>
     <string name="ski_notification_title">Skistatistieken</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Aantal stappen</string>
     <string name="settings_tracking_min_distance_title">Minimale afstand tussen verzamelingen</string>
     <string name="settings_tracking_min_time_title">Minimale vertraging tussen verzamelingen</string>
-    <string name="settings_tracking_notice_summary">Om technische redenen vereisen de meeste wijzigingen aan trackinginstellingen een herstart van tracking. (Als tracking actief is, stop je deze en start je opnieuw. De app sluiten en openen helpt mogelijk niet)</string>
     <string name="settings_tracking_required_accuracy_title">Vereiste locatienauwkeurigheid</string>
     <string name="settings_tracking_title">Locatietracking</string>
     <string name="settings_wifi_enabled_title">Wifi</string>
     <string name="shortcut_start_tracking">Tracking starten</string>
     <string name="shortcut_start_tracking_long">Trackingservice starten</string>
-    <string name="shortcut_stop_tracking">Tracking stoppen</string>
-    <string name="shortcut_stop_tracking_long">Trackingservice stoppen</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Sessie beëindigen</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Huidige sessie beëindigen</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Tracking uitschakelen</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Alle tracking en automatische starts uitschakelen</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Tracking-acties</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pauze automatische start</string>
     <string name="speed_title">Snelheid</string>
     <string name="speed_value">snelheid %s</string>
     <string name="battery_title">Batterij</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d minuut tracking</item>
         <item quantity="other">%1$d minuten tracking</item>
     </plurals>
-    <string name="insight_exploration_title">Verkenner!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Je hebt %1$d nieuw gebied ontdekt</item>
         <item quantity="other">Je hebt %1$d nieuwe gebieden ontdekt</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Terug navigeren</string>
     <string name="insight_distance_title">Afgelegde afstand</string>
     <string name="insight_distance_desc">Je hebt deze sessie %1$s afgelegd.</string>
-    <string name="insight_steps_title">Vastgelegde stappen</string>
-    <string name="insight_steps_desc">%1$s stappen in deze sessie — ga zo door!</string>
     <string name="tracker_measurement_partial">Gedeeltelijk</string>
 </resources>

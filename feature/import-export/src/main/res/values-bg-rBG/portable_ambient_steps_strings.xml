@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Преносими стъпки във фонов режим</string>
+    <string name="export_error_no_portable_ambient_steps">Няма налична потвърдена история на стъпките във фонов режим за експортиране.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Историята на стъпките във фонов режим е непълна или не може да бъде потвърдена за експортиране.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Експортирането на стъпки във фонов режим временно не е достъпно. Опитайте отново.</string>
+    <string name="export_error_portable_ambient_steps_scope">Този избор на стъпки във фонов режим не може да бъде представен в преносимия файлов формат.</string>
+    <string name="export_error_portable_ambient_steps_write">Файлът с преносими стъпки във фонов режим не може да бъде създаден.</string>
+    <string name="export_ambient_steps_sensitivity_title">Да се експортира ли историята на стъпките във фонов режим?</string>
+    <string name="export_ambient_steps_sensitivity_message">Този файл съдържа брой стъпки, времеви интервали на активност, дати, пропуски в записването и запазена информация за часовата зона, които могат да разкрият ежедневни модели на активност. Той не съдържа координати на маршрути. Продължете само ако имате доверие на местоназначението.</string>
+</resources>

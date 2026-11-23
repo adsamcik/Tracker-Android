@@ -1,12 +1,23 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="export_button">Exporter</string>
     <string name="export_default_file_name_range">Advention_export_data_%1$s__%2$s</string>
     <string name="export_default_file_name_all">Advention_export_data_%1$s</string>
     <string name="export_error_no_locations_in_interval">Aucune localisation trouvée dans l\'intervalle sélectionné.</string>
     <string name="export_error_no_databases">Aucune base de données d\'application n\'est disponible à l\'exportation.</string>
+    <string name="export_error_no_portable_steps">Aucun historique vérifié des pas n\'est disponible pour l\'exportation.</string>
+    <string name="export_error_portable_steps_retryable">L\'exportation des pas est temporairement indisponible. Réessayez.</string>
+    <string name="export_error_portable_steps_unverifiable">L\'historique des pas est incomplet ou ne peut pas être vérifié pour l\'exportation.</string>
+    <string name="export_error_portable_steps_write">Le fichier de pas portables n\'a pas pu être créé.</string>
+    <string name="export_error_no_portable_pressure">Aucun historique vérifié de la pression n\'est disponible pour l\'exportation.</string>
+    <string name="export_error_portable_pressure_data_pruned">L\'historique de la pression a été partiellement supprimé ou n\'est pas disponible pour l\'exportation.</string>
+    <string name="export_error_portable_pressure_unverifiable">L\'historique de la pression est incomplet ou ne peut pas être vérifié pour l\'exportation.</string>
+    <string name="export_error_portable_pressure_retryable">L\'exportation de la pression est temporairement indisponible. Réessayez.</string>
+    <string name="export_pressure_sensitivity_title">Exporter l\'historique de la pression ?</string>
+    <string name="export_pressure_sensitivity_message">Ce fichier contient des mesures de pression et des périodes pouvant révéler des informations sur l\'environnement. Il ne contient ni coordonnées d\'itinéraire ni altitude étalonnée. Continuez uniquement si vous faites confiance à la destination.</string>
     <string name="export_error_no_uri">Aucun dossier d\'exportation n\'a été sélectionné</string>
     <string name="export_error_stream_failed">Impossible de créer le flux vers le fichier %s</string>
+    <string name="export_error_partial_file_remains">L\'exportation a échoué. Le fichier inachevé n\'a pas pu être supprimé : %s</string>
     <string name="export_error_unknown">Échec de l\'exportation.</string>
     <string name="export_error_with_reason">Échec de l\'exportation : %s</string>
     <string name="export_file_name">Nom du fichier</string>
@@ -19,8 +30,13 @@
     <string name="export_share_button">Partager</string>
     <string name="export_in_progress">Exportation…</string>
     <string name="export_completed">Exportation terminée.</string>
+    <string name="export_json_whole_session_scope">Le JSON inclut les sessions complètes qui chevauchent ces dates. Certains emplacements, analyses Wi-Fi et relevés du réseau mobile peuvent donc être hors des dates choisies. Les autres sources enregistrées ne sont pas incluses.</string>
     <string name="import_notification_error_failed_open_database">Échec de l\'ouverture du fichier de base de données %s</string>
     <string name="import_notification_error_file_not_supported">Le fichier %s n\'est pas pris en charge.</string>
+    <string name="import_notification_error_database_use_exports">Impossible d’importer ce fichier SQLite. Pour importer des enregistrements, choisissez un fichier exporté depuis Tracker. Pour restaurer les données sauvegardées, choisissez une sauvegarde ZIP de la base de données de Tracker.</string>
+    <string name="import_notification_error_io">L\'importation n\'a pas pu lire la source sélectionnée. Réessayez.</string>
+    <string name="import_start_error">Impossible de démarrer l\'importation. Réessayez.</string>
+    <string name="import_cleared_error">L\'importation s\'est arrêtée car les données enregistrées ont été effacées. Sélectionnez à nouveau le fichier si vous souhaitez l\'importer.</string>
     <string name="import_notification_extracting">Extraction de %s…</string>
     <plurals name="import_notification_finished">
         <item quantity="one">Importation terminée. %d enregistrement importé avec succès.</item>
@@ -38,16 +54,27 @@
     <string name="format_kml">KML</string>
     <string name="format_json">JSON</string>
     <string name="format_database">Sauvegarde de base de données (ZIP)</string>
-    <string name="settings_import_summary">Importez un fichier de suivi ou restaurez une sauvegarde des données.</string>
-    <string name="settings_import_title">Importer</string>
+    <string name="format_portable_wifi">Wi-Fi</string>
+    <string name="format_portable_cell">Réseau mobile</string>
     <string name="export_radio_sensitivity_title">Exporter les détails des réseaux ?</string>
     <string name="export_wifi_sensitivity_message">Ce fichier contient les noms Wi-Fi et les identifiants de points d\'accès enregistrés.</string>
     <string name="export_cell_sensitivity_message">Ce fichier contient les identifiants d\'antennes et les mesures de signal enregistrés.</string>
     <string name="export_radio_no_data">Aucune donnée enregistrée pour cette source</string>
     <string name="export_include_complete_sessions">Inclure les sessions complètes</string>
+    <string name="format_portable_location">Localisation</string>
+    <string name="format_portable_steps">Pas portables</string>
+    <string name="format_portable_activity">Activité portable</string>
+    <string name="format_portable_pressure">Pression portable</string>
+    <string name="settings_import_summary">Importez un fichier de suivi ou restaurez une sauvegarde des données.</string>
+    <string name="settings_import_title">Importer</string>
     <string name="import_location_conflict_title">Remplacer les points enregistrés ?</string>
     <string name="import_location_replace">Utiliser les points du fichier</string>
     <string name="import_location_keep">Garder les points enregistrés</string>
+    <plurals name="import_location_conflict_count">
+        <item quantity="one">%d point de ce fichier diffère de sa copie enregistrée. Choisissez lequel garder. Les autres points seront importés normalement.</item>
+        <item quantity="many">%d points de ce fichier diffèrent de leurs copies enregistrées. Choisissez lesquels garder. Les autres points seront importés normalement.</item>
+        <item quantity="other">%d points de ce fichier diffèrent de leurs copies enregistrées. Choisissez lesquels garder. Les autres points seront importés normalement.</item>
+    </plurals>
     <string name="export_backup_review_title">Vérifier les sauvegardes planifiées</string>
     <string name="export_backup_review_summary">En pause jusqu\'à la vérification de la sauvegarde de données mise à jour.</string>
     <string name="export_backup_review_message">Ces planifications sauvegardent désormais toutes les données de suivi enregistrées et les fichiers nécessaires à leur restauration. Les réglages sont exclus. Reprendre ces planifications ?\n\n%1$s</string>
@@ -55,11 +82,6 @@
     <string name="import_backup_replace_title">Restaurer la sauvegarde de données ?</string>
     <string name="import_backup_replace_message">Remplacer les données enregistrées par cette sauvegarde ? Vos réglages restent inchangés. Le suivi restera désactivé jusqu\'à sa reprise.</string>
     <string name="import_backup_restore">Remplacer les données</string>
-    <plurals name="import_location_conflict_count">
-        <item quantity="one">%d point de ce fichier diffère de sa copie enregistrée. Choisissez lequel garder. Les autres points seront importés normalement.</item>
-        <item quantity="many">%d points de ce fichier diffèrent de leurs copies enregistrées. Choisissez lesquels garder. Les autres points seront importés normalement.</item>
-        <item quantity="other">%d points de ce fichier diffèrent de leurs copies enregistrées. Choisissez lesquels garder. Les autres points seront importés normalement.</item>
-    </plurals>
     <string name="export_sensitivity_portable_title">Exporter l\'historique enregistré ?</string>
     <string name="export_sensitivity_portable_steps_message">Ce fichier contient les nombres de pas, les intervalles de temps et les informations de couverture. Il ne contient pas de coordonnées d\'itinéraire. Continuez seulement si vous faites confiance à la destination.</string>
     <string name="export_sensitivity_portable_activity_message">Ce fichier contient les intervalles de mouvement enregistrés, les intervalles de temps et les informations de couverture. Il ne contient pas de coordonnées d\'itinéraire. Continuez seulement si vous faites confiance à la destination.</string>

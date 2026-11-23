@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Patikrinta žingsnių istorija, aprėptis ir spragos be maršruto koordinačių</string>
+    <string name="export_format_portable_ambient_steps_desc">Fone surinkti žingsniai, aktyvumo laikas, datos, aprėpties spragos ir išsaugota laiko juosta be maršruto koordinačių</string>
+    <string name="export_format_portable_activity_desc">Užfiksuoti judėjimo intervalai, patikimumas ir aprėptis be maršruto koordinačių</string>
+    <string name="export_format_portable_pressure_desc">Tiesioginiai slėgio matavimai hPa, aprėptis ir spragos be maršruto koordinačių</string>
+    <string name="export_sensitivity_portable_title">Eksportuoti užfiksuotą istoriją?</string>
+    <string name="export_sensitivity_portable_steps_message">Šiame faile yra žingsnių skaičius, laiko intervalai ir aprėpties informacija. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Šiame faile yra fone surinkti žingsniai, aktyvumo intervalai, datos, aprėpties spragos ir išsaugota laiko juosta. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="export_sensitivity_portable_activity_message">Šiame faile yra užfiksuoti judėjimo intervalai, laiko intervalai ir aprėpties informacija. Jame nėra maršruto koordinačių. Tęskite tik jei pasitikite paskirties vieta.</string>
+    <string name="export_sensitivity_portable_pressure_message">Šiame faile yra slėgio matavimai ir laiko intervalai, galintys atskleisti informaciją apie aplinką. Jame nėra maršruto koordinačių ar kalibruoto aukščio. Tęskite tik jei pasitikite paskirties vieta.</string>
+</resources>

@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">A frissítés előtti mentés exportálva</string>
     <string name="settings_migration_backup_export_failure">Nem sikerült exportálni a frissítés előtti mentést</string>
     <string name="settings_migration_backup_export_cleanup_required">Az exportálás sikertelen. Törölje a részben exportált mentést a kiválasztott helyről.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">A legacy adatbázis importja figyelmet igényel</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Az eredeti adatbázisod még mindig ebben a készülékben van. Próbáld meg újra megnyitni a Tracker importot.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Hagyományos adatbázis mérete: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Újrapróbálható import</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Exportálási legacy adatbázis</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Törölje a legacy adatbázist és kezdje újra</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Exportált legacy adatbázis</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Nem exportálhatták a legacy adatbázist</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">A kivitel nem sikerült, és a nem teljes rendeltetési hely nem lehetett eltávolítani. - Vedd le kézilag.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">A legacy adatbázis széf</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Szedéllet %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Forrásverzió: %1$d\nTárolási hely: %2$s\nImport: %3$s\nImportált sorok: %4$d\n Csak a szekrényben tárolt sorok: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Bevéve: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Nem importált</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Az import</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">A behozatal teljes</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Import nem sikerült</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Törölni a legacy adatbázist?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Ez véglegesen eltávolítja a %1$s-et a készülékből. A v27-es adatait nem érintik. Tartsa meg az exportált példányt, ha később szükséged lehet az eredeti adatbázisra.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">A legacy adatbázis törlés</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Nem tudom törölni a legacy adatbázist</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">A visszaszorítás nyomon követésére figyelmet kell fordítani.</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">A gyűjtés nem történik, míg a Tracker biztonságosan összeegyeztet a nyomon követési adatokat. Próbáld meg újra anélkül, hogy törölnéd a történelmet.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">A nyomkövetés visszaszorítása</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">A fejlesztési adatbázis manuális biztonsági mentésre van szüksége.</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker talált egy nem küldött verzió 28 fejlesztési adatbázist, amely nem egyezik ezzel a felépítéssel. A nyomkövetési és adatbázis funkciói leálltak, és a adatbázis fájl változatlan maradt. Takarítsa vissza az alkalmazás adatait vagy adatbázisát, mielőtt ezt a fejlesztési telepítést cserélné vagy javítaná.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Az adatbázisnak figyelmet kell fordítania</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker nem tudta biztonságosan azonosítani vagy érvényesíteni ezt a adatbázist. A nyomkövetési és adatbázis funkciói leálltak, és a adatbázis fájl változatlan maradt. Takarítsa vissza az alkalmazás adatait vagy adatbázisát, mielőtt manuális helyreállítást próbálna.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Adatbázis ideiglenesen nem elérhető</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">A nyomkövetési és adatbázis funkciók kikapcsolva maradnak, míg a Tracker biztonságosan újra próbálkozik. Egyetlen adatot sem törölték. Próbáld meg újra ellenőrizni, hogy eltávolodott-e a ideiglenes zár vagy tároló probléma.</string>
     <string name="settings_delete_data_success">Minden gyűjtött adat törölve</string>
     <string name="settings_delete_data_failure">Nem sikerült törölni minden gyűjtött adatot</string>
     <string name="settings_game_goals_title">Célok</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Játékbeállítások betöltése…</string>
     <string name="settings_game_load_error">A játékbeállítások nem tölthetők be. Próbálja újra.</string>
     <string name="settings_map_info_hint">Ezek a beállítások a térkép megjelenítési minőségét és teljesítményét szabályozzák. A legtöbb felhasználó használhatja az alapértelmezett értékeket.</string>
+    <string name="settings_map_offline_data_section">Offline térkép adatai</string>
     <string name="settings_map_online_tiles_section_title">Online térképcsempék</string>
     <string name="settings_map_online_tiles_enable_title">Online térképcsempék használata</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Ki — csak a csomagolt offline alaptérkép használatos. Nincsenek hálózati kérések.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Egyéni</string>
     <string name="tracking_preset_custom_description">Az egyes nyomkövetési paraméterek kézi beállítása</string>
     <string name="tracking_preset_selector_subtitle">Válasszon egy kiinduló profilt, majd finomhangolja az alábbi beállításokat.</string>
+    <string name="tracking_preset_change">Összehasonlítsa a lehetőségeket</string>
+    <string name="tracking_preset_done">Csak kiválasztott megjelenítés</string>
     <string name="tracking_preset_customized_summary">Finomhangolta a nyomkövetést. A visszaállításhoz válasszon fent egy előbeállítást.</string>
+    <string name="settings_tracking_section_start_stop">Automatikus nyomon követés</string>
+    <string name="settings_tracking_section_battery_detail">A nyomon követés minősége</string>
+    <string name="settings_tracking_section_data_collected">A gyűjtött adatok</string>
     <string name="settings_tracking_section_detail">Helyadatgyűjtés</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Külföldi utazások (opcionális)</string>
     <string name="settings_tracking_section_notifications">Értesítések</string>
+    <string name="settings_transition_detection_friendly_title">A akkumulátor-hatékony mozgási észlelés</string>
+    <string name="settings_transition_detection_friendly_summary">A Android tevékenységváltozásokat használja a gyakori háttérellenőrzések elkerülése érdekében. Az automatikus megkezdés egy kicsit lassabban reagálhat.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatikus nyomon követés nem elérhető</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Az automatikus mód kiválasztása mentve van. Az automatikus indítás működéséhez az aktivitásfelismerési engedély szükséges.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Válassza ki, mit rögzítsön az utazások között.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi külföldi utazások</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cél külföldre utazás</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">A utazások között.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Megtartott, mint az indulás. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">A külső utazási lefedettség opportunista, és tartalmazhat engedély, szolgáltató, folyamat, újraindítás vagy rendszerrendszer hiányosságokat. A Tracker nem állít elő, hogy a gyűjtés mindig áll rendelkezésre, és nem talál ki tartási időtartamot.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">A begyűjtés nem történik, mivel a termékmegtartási politika még nem áll rendelkezésre.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">A gyűjtemény ellenőrizése...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">A gyűjtést a jelenlegi bevezetés biztonságosan tartalmazza.</string>
+    <string name="settings_ambient_user_turned_off">A követés ki van kapcsolva. A választásai és a mentett adatok megmaradnak.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Engedélyezd a lépésszámok olvasását a Health Connectben, hogy a Tracker bezárt állapotban is pótolhassa a hiányzó adatokat.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Adjon hozzáférést a lépésszámításhoz Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Nem tudtam ellenőrizni a Health Connect hozzáférést. Próbáld meg újra!</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">A lépésszámok importálhatók, amíg a Tracker fut. A háttérbeli hozzáférés csökkentheti a lépéselőzmények hiányait.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Nincs teljes nap alatt támogatott lépcsőszolgáltató.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Felkészítse fel a Health Connect-et, hogy a Tracker-nak olvashassa a lépésszámlását.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Nem tudtam ellenőrizni a lépcsőszolgáltatót. Később próbáld meg újra.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Adjon engedélyt a fizikai aktivitásra, hogy számolja a lépéseket ezen a készüléken.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">A lépés felvétel nem áll rendelkezésre ezen a készüléken.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect kész. Egyes időszakokban még mindig lehet hiányzó időszak.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">A lépés felvétel kész. Egyes időszakokban még mindig lehet hiányzó időszak.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">A munkamenetek közötti helyadatgyűjtéshez háttérbeli helyhozzáférés szükséges. A munkamenet közbeni rögzítés beállítása változatlan marad.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">A Android ⁇ s Wi-Fi szkennelési engedélyekre vonatkozó követelmények nem teljesülnek. Ha odaadjuk, nem tudjuk elkapni a helyszínt.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Nem teljesülnek a cell- visszahívási engedélyek követelményei. Ha odaadjuk, nem tudjuk elkapni a helyszínt.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">A passzív hely készen áll a forrástulajdonos megbékélésére. Ez opportunista pontokat biztosít, nem útvonal folytonosságát.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi A szkennelési eredmények visszahívása készen áll a forrástulajdonos összeegyeztetésére. Nem ígérik meg, hogy nem lesz felderítés vagy felébresztés.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Az időjelzéssel képzett cellák visszahívása készen áll a forrástulajdonos-megegyezésre. A kényszer frissítés nem ígérkezik.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">A szükséges platform vagy szolgáltató nem áll rendelkezésre, így a gyűjtés nem történik.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Eltárolt; üzemeltetési állapot várakozása</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Megtakarított; jelentett üzemeltetési rendelkezésre állás</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Fenntartva; nem üzemeltethető</string>
+    <string name="settings_location_source_summary">Regisztráld az útvonalodat, a távolságodat és a sebességedet. Általában a legnagyobb akkumulátor költsége.</string>
+    <string name="settings_activity_source_summary">Egész nap rögzíti a gyaloglást, kerékpározást, autózást és mozdulatlanságot.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">A lépéseket nyomon követi a nap folyamán. Az utazások ugyanazt a lépés történetet rendezik.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Ellenőriztem a lépcsőgyűjtést.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Követés kikapcsolása</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Leállom...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Szünetek, egész nap felvétel és automatikus indítás. A választásaid és a mentett adatok maradnak.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">A követés ki van kapcsolva. A választásai és a mentett adatok megmaradnak.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Nem tudtam kikapcsolni a nyomkövetést. Próbáld meg újra!</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">A légnyomást a nap folyamán rögzítik a nyomon követési értesítéssel.</string>
+    <string name="settings_ambient_activity_ready">Készen áll a tevékenység rögzítésére.</string>
+    <string name="settings_ambient_pressure_ready">Készen áll a légnyomás rögzítésére.</string>
+    <string name="settings_pressure_host_unavailable">A légnyomás háttérben történő rögzítését nem sikerült elindítani.</string>
+    <string name="settings_wifi_source_summary">A közelben lévő Wi-Fi hálózatokat rögzíti a helyi kontextus hozzáadásához. Az adatok ebben a készülékben maradnak.</string>
+    <string name="settings_cell_source_summary">A közelben lévő sejttornyok rögzítése a helyszínek kontextusának hozzáadásához. Az adatok ebben a készülékben maradnak.</string>
+    <string name="settings_location_source_compact">Útvonal, távolság és sebesség</string>
+    <string name="settings_activity_source_compact">A mozgás típusa és a csend</string>
+    <string name="settings_steps_source_compact">A nap folyamán lépések</string>
+    <string name="settings_barometer_source_compact">Magasság és emelkedés</string>
+    <string name="settings_wifi_source_compact">A közelben lévő hálózati kontextus</string>
+    <string name="settings_cell_source_compact">Közel a torony körülménye</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Technikai állapot</string>
+    <string name="settings_technical_status_summary">A akkumulátor becslése, engedélyek és gyűjtési állapot.</string>
+    <string name="settings_technical_status_attention">Egyes gyűjtőforrásokra figyelmet kell fordítanunk. Nyissa meg a részleteket.</string>
+    <string name="settings_simple_source_controls_title">Használjon egyszerű vezérlőt</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">A gyaloglás és futás automatikus nyomkövetése.</string>
     <string name="setup_auto_tracking_in_motion">Mozgás közben</string>
     <string name="setup_auto_tracking_in_motion_desc">Minden mozgás automatikus nyomkövetése, beleértve a vezetést és a kerékpározást is.</string>
-    <string name="setup_preset_title">Nyomkövetés részletessége</string>
+    <string name="settings_auto_tracking_mode_summary">Válasszon ki, melyik mozgást kell indítani és automatikusan meg kell állítani a utazást.</string>
     <string name="setup_recommended">Ajánlott</string>
     <string name="setup_what_to_collect_title">Mit gyűjtsön?</string>
     <string name="setup_what_to_collect_subtitle">További beállítások alább. Kezdje felfedezni engedélyek nélkül, vagy adja meg őket később. Az adatok ezen az eszközön maradnak.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Tevékenység</string>
     <string name="setup_source_activity_desc">Gyaloglás, futás, kerékpározás vagy vezetés észlelése.</string>
     <string name="setup_source_steps">Lépések</string>
-    <string name="setup_source_steps_desc">A lépések számlálása az eszköz lépésszámlálójával.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Nyomon kövesse a lépéseket a nap folyamán. A kirándulások ugyanazt a történetet rendezik.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Nincs közvetlen lépésérzékelő. A Tracker ellenőrzi a készülékben lévő lépcsőforrásot.</string>
+    <string name="setup_perm_steps_why">Engedélyezze a mozgásadatok elérését a lépések egész napos számlálásához ezen az eszközön.</string>
+    <string name="setup_perm_grant_steps_content_description">Mozgásadatok engedélyezése a Lépésekhez</string>
+    <string name="setup_steps_health_connect_why">Engedélyezze a Lépéseket a Health Connectben a hiányok pótlásához, amikor a Tracker zárva van.</string>
+    <string name="setup_steps_provider_ready">Az eszköz egyik lépésforrása készen áll. Egyes időszakokban továbbra is lehetnek hiányok.</string>
+    <string name="setup_steps_provider_checking">Elérhető lépésforrások ellenőrzése…</string>
     <string name="setup_source_wifi">Wi-Fi-hálózatok</string>
-    <string name="setup_source_wifi_desc">A közeli Wi-Fi-hálózatok naplózása a helypontosság javításához.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">A közelben lévő Wi-Fi hálózatok rögzítése, helytárgyalással vagy anélkül.</string>
     <string name="setup_source_cell">Mobilhálózati tornyok</string>
-    <string name="setup_source_cell_desc">A cellatorony-információk naplózása a helyadatok kontextusához.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">A közelben lévő mobiltornyok rögzítése, helytárgyalással vagy anélkül.</string>
     <string name="setup_perm_location_why">Az útvonalak rögzítéséhez és térképen való megjelenítéséhez szükséges. A helyadatok ezen az eszközön maradnak — semmi sem kerül szerverre.</string>
     <string name="setup_perm_location_bg_why">Ahhoz, hogy a Tracker akkor is folytassa az útvonal rögzítését, amikor alkalmazást vált vagy a képernyő kikapcsol, szüksége van a helyadatok háttérbeli elérésére. A rögzített helyadatok ezen az eszközön maradnak — semmi sem kerül szerverre. A következő rendszerüzenetben válassza a "Mindig engedélyezés" lehetőséget az automatikus nyomkövetés bekapcsolásához; az "Engedélyezés csak az alkalmazás használata közben" csak nyitott képernyőn tartja működésben a Trackert.</string>
     <string name="setup_perm_activity_why">A Tracker így észleli, hogy mit csinál (gyalogol, kerékpározik, vezet vagy mozdulatlan), ezért az automatikus nyomkövetés megállhat, amikor nem mozog, és kímélheti az akkumulátort. A tevékenységadatok ezen az eszközön maradnak — semmi sem kerül szerverre.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Cellás rádióengedély megadása</string>
     <string name="setup_perm_granted">Engedélyezve ✓</string>
     <string name="permission_grant_in_settings">Engedélyezés a Beállításokban →</string>
-    <string name="permission_disabled_due_to_denial">%1$s letiltva, mert az engedélyt elutasították. Az engedélyezéshez nyissa meg a Beállításokat.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">A %1$s kiválasztott, de nem vehet fel, amíg engedélyt nem adnak.</string>
     <string name="settings_wifi_permission_required">Wi-Fi-/helyengedély szükséges. Az engedélyezéshez kapcsolja be — addig nem rögzül Wi-Fi-adat, és a rögzített adatok ezen az eszközön maradnak.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">A hozzáférés még mindig szükséges. A választásaid megmaradnak.</string>
     <string name="settings_cell_permission_required">Telefonállapot- és pontoshelyengedély szükséges. Az engedélyezéshez kapcsolja be — addig nem rögzül cellaadat, és a rögzített adatok ezen az eszközön maradnak.</string>
     <string name="settings_barometer_unavailable">A nyomásérzékelő nem érhető el ezen az eszközön.</string>
     <string name="settings_activity_permission_required">Tevékenységfelismerési engedély szükséges. Az engedélyezéshez kapcsolja be.</string>
-    <string name="settings_steps_unavailable">A lépésszámláló-érzékelő nem érhető el ezen az eszközön.</string>
     <string name="setup_start_exploring">Felfedezés indítása</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">A befejezés...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Újrapróbálás</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Nem menthettem meg a beállítást. A választásaid még mindig itt vannak.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Nem tudtam elkészíteni a mentett adatokat. A választásaid még mindig itt vannak.</string>
     <string name="setup_continue">Folytatás</string>
     <string name="setup_step_indicator">%1$d. lépés / %2$d</string>
     <string name="setup_online_tiles_title">Online térképcsempék?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Bekapcsolva a szolgáltató láthatja az IP-címét és a betöltött csempéket — nagyjából azt, hogy a térkép mely területét nézi. A Tracker soha nem küld el fiókadatot, azonosítót vagy helyelőzményt.</string>
     <string name="setup_online_tiles_change_later">Ezt bármikor módosíthatja a Beállítások → Térkép → Online térképcsempék pontban.</string>
     <string name="setup_background_access_optional">Nem kötelező, de ajánlott. Ezt bármikor módosíthatja a Beállítások → Nyomkövetés pontban.</string>
-    <string name="background_reliability_status_exempt">Háttértevékenység engedélyezve</string>
-    <string name="background_reliability_status_optimized">Az akkumulátor-optimalizálás be van kapcsolva</string>
-    <string name="background_reliability_allow_action">Háttértevékenység engedélyezése</string>
-    <string name="background_reliability_samsung_hint">A Samsung készülékek az alkalmazásokat az "Alvó alkalmazások" közé is helyezhetik. Nyissa meg az akkumulátor-beállításokat, majd távolítsa el a Trackert az Alvó alkalmazások közül, és állítsa be, hogy ne kerüljön alvó állapotba.</string>
-    <string name="background_reliability_samsung_action">Eszköz akkumulátor-beállításainak megnyitása</string>
-    <string name="settings_tracebox_title">Összeomlási diagnosztika</string>
-    <string name="settings_tracebox_root_summary">Helyi összeomlási, ANR- és szerkezeti diagnosztika</string>
     <string name="setup_background_location_title">Háttérbeli helyhozzáférés engedélyezése az automatikus követéshez</string>
     <string name="setup_background_location_disclosure">Az automatikus követés akkor indul el, amikor a Tracker a háttérben van, és akkor is rögzíti az útvonaladat, ha az alkalmazás képernyője nincs megnyitva. A helyadatok ezen az eszközön maradnak. Az alkalmazás helybeállításaiban válaszd a(z) „%1$s” lehetőséget.</string>
     <string name="setup_background_location_open_settings">Helybeállítások megnyitása</string>
     <string name="setup_background_location_decline">Most nem</string>
     <string name="setup_background_location_manual_only">A kézi, előtérben végzett követés továbbra is elérhető. Az automatikus helykövetés kikapcsolva marad, amíg nem engedélyezed a háttérbeli helyhozzáférést.</string>
-    <string name="settings_ambient_user_turned_off">A követés ki van kapcsolva. A választásai és a mentett adatok megmaradnak.</string>
-    <string name="setup_perm_steps_why">Engedélyezze a mozgásadatok elérését a lépések egész napos számlálásához ezen az eszközön.</string>
-    <string name="setup_perm_grant_steps_content_description">Mozgásadatok engedélyezése a Lépésekhez</string>
-    <string name="setup_steps_health_connect_why">Engedélyezze a Lépéseket a Health Connectben a hiányok pótlásához, amikor a Tracker zárva van.</string>
-    <string name="setup_steps_provider_ready">Az eszköz egyik lépésforrása készen áll. Egyes időszakokban továbbra is lehetnek hiányok.</string>
-    <string name="setup_steps_provider_checking">Elérhető lépésforrások ellenőrzése…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">A háttérkövetési beállítások</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">A Android és a készülék szabályzat a háttérmunka megállíthatja vagy megállíthatja. A Tracker bejelentheti a Android által feltüntetett korlátozásokról, de nem lehet felülírni a korlátozott vagy erőszakos megállított állapotot.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">A háttérbeli korlátozás észlelése</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Az akkumulátorok optimalizálása</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nem észlelt korlátozás</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">A korlátozási állapot nem áll rendelkezésre</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">A Android jelentése szerint a háttéraktivitás korlátozott. Ha Tracker nem látható, a nyomon követés megszűnhet; az alkalmazás nem hagyhatja el ezt a szabályzatot.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">A Android jelentése szerint a Tracker nem szerepel az akkumulátorok listájában. Az áramkezelés késleltetheti a háttérmunkait; az engedélyezési listák korlátozásokat csökkentik, de nem garantálják a folyamatos nyomon követést.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">A Android nem jelent háttérbeli korlátozást, és a Tracker a akkumulátor engedélyezési listán van. A rendszer még mindig megállíthatja az alkalmazást, és a erőállást nem lehet felülmúlni.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">A Tracker nem tudta felolvasni minden vonatkozó Android korlátozási jelet. Nem lehet megerősíteni a készülék- specifikus okot vagy gyógymódot.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Nyissa ki az alkalmazás akkumulátor beállításait</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Nyissa ki az akkumulátor optimalizációs beállításait</string>
+    <string name="settings_tracebox_title">Összeomlási diagnosztika</string>
+    <string name="settings_tracebox_root_summary">Helyi összeomlási, ANR- és szerkezeti diagnosztika</string>
     <string name="settings_tracking_changes_apply_live">A változások frissítik a jelenlegi követést</string>
     <string name="settings_balance_title">Energia és részletesség</string>
     <string name="settings_balance_custom">Egyéni beállítások · Egyensúly választása</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Részletek · Általános egyensúly: %1$s</string>
     <string name="settings_balance_inherit">Általános egyensúly használata</string>
     <string name="settings_balance_summary">Válassza ki a kijelölt források szokásos minőségét. Az aktív munkamenetek a részt vevő források részletességét részesítik előnyben. Az egyensúly kiválasztása lecseréli a korábbi gyűjtési gyakoriságokat; a forrásválasztások, a háttérgyűjtéshez adott hozzájárulás és a pontossági szűrők megmaradnak.</string>
-    <string name="export_format_portable_steps_desc">Ellenőrzött lépéselőzmények, lefedettség és hiányok útvonal-koordináták nélkül</string>
-    <string name="export_format_portable_ambient_steps_desc">Háttérben gyűjtött lépések, aktivitási idő, dátumok, lefedettségi hiányok és mentett időzóna útvonal-koordináták nélkül</string>
-    <string name="export_format_portable_activity_desc">Rögzített mozgási szakaszok, megbízhatóság és lefedettség útvonal-koordináták nélkül</string>
-    <string name="export_format_portable_pressure_desc">Közvetlen nyomásmérések hPa-ban, lefedettség és hiányok útvonal-koordináták nélkül</string>
-    <string name="export_sensitivity_portable_title">Rögzített előzmények exportálása?</string>
-    <string name="export_sensitivity_portable_steps_message">Ez a fájl lépésszámokat, időintervallumokat és lefedettségi információkat tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Ez a fájl háttérben gyűjtött lépésszámokat, aktivitási időintervallumokat, dátumokat, lefedettségi hiányokat és mentett időzónát tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
-    <string name="export_sensitivity_portable_activity_message">Ez a fájl rögzített mozgási szakaszokat, időintervallumokat és lefedettségi információkat tartalmaz. Nem tartalmaz útvonal-koordinátákat. Csak akkor folytassa, ha megbízik a célhelyben.</string>
-    <string name="export_sensitivity_portable_pressure_message">Ez a fájl nyomásméréseket és időintervallumokat tartalmaz, amelyek a környezetről árulhatnak el információkat. Nem tartalmaz útvonal-koordinátákat vagy kalibrált magasságot. Csak akkor folytassa, ha megbízik a célhelyben.</string>
-    <string name="settings_activity_source_summary">Egész nap rögzíti a gyaloglást, kerékpározást, autózást és mozdulatlanságot.</string>
-    <string name="settings_ambient_activity_ready">Készen áll a tevékenység rögzítésére.</string>
-    <string name="settings_ambient_pressure_ready">Készen áll a légnyomás rögzítésére.</string>
-    <string name="settings_pressure_host_unavailable">A légnyomás háttérben történő rögzítését nem sikerült elindítani.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Követés folytatása</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Nem tudtam folytatni a nyomon követést. Próbáld meg újra!</string>
 </resources>

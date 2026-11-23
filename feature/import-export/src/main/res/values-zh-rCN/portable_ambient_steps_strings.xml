@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">可移植后台步数数据</string>
+    <string name="export_error_no_portable_ambient_steps">没有可供导出的已验证后台步数历史记录。</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">后台步数历史记录不完整，或无法验证其是否可导出。</string>
+    <string name="export_error_portable_ambient_steps_retryable">后台步数导出暂时不可用。请重试。</string>
+    <string name="export_error_portable_ambient_steps_scope">此后台步数选区无法用可移植文件格式表示。</string>
+    <string name="export_error_portable_ambient_steps_write">无法创建可移植后台步数文件。</string>
+    <string name="export_ambient_steps_sensitivity_title">导出后台步数历史记录？</string>
+    <string name="export_ambient_steps_sensitivity_message">此文件包含步数、活动时间范围、日期、记录缺口以及已保存的时区信息，可能透露日常活动模式。它不包含路线坐标。请仅在信任目标位置时继续。</string>
+</resources>

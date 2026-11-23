@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">可攜式背景步數資料</string>
+    <string name="export_error_no_portable_ambient_steps">沒有可供匯出的已驗證背景步數歷史紀錄。</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">背景步數歷史紀錄不完整，或無法驗證是否可匯出。</string>
+    <string name="export_error_portable_ambient_steps_retryable">背景步數匯出暫時無法使用。請再試一次。</string>
+    <string name="export_error_portable_ambient_steps_scope">所選背景步數無法以可攜式檔案格式表示。</string>
+    <string name="export_error_portable_ambient_steps_write">無法建立可攜式背景步數檔案。</string>
+    <string name="export_ambient_steps_sensitivity_title">匯出背景步數歷史紀錄？</string>
+    <string name="export_ambient_steps_sensitivity_message">此檔案包含步數、活動時間範圍、日期、記錄缺口及已儲存的時區資訊，可能透露日常活動模式。它不包含路線座標。請只在信任目的地時繼續。</string>
+</resources>

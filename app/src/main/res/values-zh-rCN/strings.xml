@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">已导出升级前备份</string>
     <string name="settings_migration_backup_export_failure">无法导出升级前备份</string>
     <string name="settings_migration_backup_export_cleanup_required">导出失败。请从所选位置删除部分导出的备份。</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">遗产数据库进口需要关注</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">你的原始数据库仍然存在于这个设备上.再试打开Tracker的进口.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">遗产数据库大小: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">复试进口</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">输出传统数据库</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">删除旧数据库并重新启动</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">出口的遗产数据库</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">无法出口旧数据库</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">由于出口失败,无法移除未完整的目的地.按手动删除.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">遗产数据库库</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">版本%1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">来源版本: %1$d\n 存储: %2$s\n进口: %3$s\n进口行: %4$d\n 仅保留在保险柜中: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">进口完成: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">没有进口</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">进口</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">进口完成</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">进口失败</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">删除旧的数据库?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">这将永久删除%1$s的设备.你的v27数据没有受到影响.如果您稍后需要原始数据库,请保留出口的副本.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">遗产数据库被删除</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">无法删除旧数据库</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">追踪恢复需要注意</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">在Tracker安全地调整其跟踪数据时,收集仍然停留.再试,不要删除历史.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">再试追踪恢复</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">开发数据库需要手动备份</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker 找到了一个未发送的版本28开发数据库,不匹配这个构建.追踪和数据库功能仍然不存在,在更换或修复这个开发安装之前,备份应用程序数据或数据库.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">数据库需要注意</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker无法安全地识别或验证该数据库.追踪和数据库功能仍然不存在,在尝试手动恢复之前,备份应用程序数据或数据库.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">数据库暂时无法使用</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">在Tracker安全复试时,跟踪和数据库功能仍然关闭.没有删除任何数据.现在再试看暂时锁定或存储问题是否已清除.</string>
     <string name="settings_delete_data_success">已删除所有收集的数据</string>
     <string name="settings_delete_data_failure">无法删除所有收集的数据</string>
     <string name="settings_game_goals_title">目标</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">正在加载游戏设置…</string>
     <string name="settings_game_load_error">无法加载游戏设置。请重试。</string>
     <string name="settings_map_info_hint">这些设置控制地图可视化质量和性能。大多数用户可使用默认值。</string>
+    <string name="settings_map_offline_data_section">离线地图数据</string>
     <string name="settings_map_online_tiles_section_title">在线地图瓦片</string>
     <string name="settings_map_online_tiles_enable_title">使用在线地图瓦片</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">关闭 — 仅使用随应用提供的离线底图，不发出网络请求。</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">自定义</string>
     <string name="tracking_preset_custom_description">手动调节每个跟踪参数</string>
     <string name="tracking_preset_selector_subtitle">选择一个配置文件作为起点，然后微调下方任意设置。</string>
+    <string name="tracking_preset_change">相比选项</string>
+    <string name="tracking_preset_done">仅显示选择</string>
     <string name="tracking_preset_customized_summary">您已微调跟踪设置。选择上方预设可重置。</string>
+    <string name="settings_tracking_section_start_stop">自动追踪</string>
+    <string name="settings_tracking_section_battery_detail">追踪质量</string>
+    <string name="settings_tracking_section_data_collected">收集的数据</string>
     <string name="settings_tracking_section_detail">位置收集</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">外出旅行 (可选)</string>
     <string name="settings_tracking_section_notifications">通知</string>
+    <string name="settings_transition_detection_friendly_title">电池效率的运动检测</string>
+    <string name="settings_transition_detection_friendly_summary">使用Android活动变化以避免经常进行背景检查.自动启动可能会反应稍慢.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">自动追踪不提供</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">您的自动模式选择已保存.在自动启动之前需要活动识别许可.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">在旅行之间,选择录制什么.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi 外出旅行</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">细胞外旅行</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">在旅行之间.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">保存如上. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">外出旅行覆盖是机会性的,可能包含许可,提供商,进程,重新启动或操作系统漏洞.Tracker不要求始终收集或发明保留时间.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">由于产品保留政策尚未可用,因此收费暂停.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">检查收藏...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">目前的部署已经安全地控制了收藏.</string>
+    <string name="settings_ambient_user_turned_off">跟踪已关闭。您的选择和已保存的数据都会保留。</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">请允许 Tracker 读取 Health Connect 中的步数，以便在应用关闭时补全步数记录。</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">在Health Connect中允许访问步骤计数</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">无法检查Health Connect的访问.再试一次.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Tracker 运行时可以导入步数。允许后台访问有助于减少步数记录中的缺漏。</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">没有支持全天步骤提供商.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">更新Health Connect号,让Tracker可以读取步数.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">我无法检查步骤提供商.稍后再试一次.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">允许身体活动员在这个设备上计算步骤.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">在此设备上无法记录步骤.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect准备好了.有些周期可能仍然存在缺口.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">步骤录音准备好了.有些周期可能仍然存在缺口.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">要在会话之间记录位置，需要允许后台访问位置信息。会话内的记录设置保持不变。</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi 扫描许可要求没有得到满足.允许它们无法捕获位置.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s 没有满足电话回调权限要求.允许它们无法捕获位置.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">动态位置准备好进行源所有者和解.它提供机会性点,而不是路线连续性.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi扫描结果回调准备好进行源所有者调整.没有扫描或唤醒时间.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">具有时刻标签的移动电话回调已经准备好进行源所有者和解.没有强迫更新时间的承诺.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">需要的平台或供应商无法获得,因此收费停留.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">已保存;运营状况正在等待</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">存储;报告运营可用性</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">存储;不运行</string>
+    <string name="settings_location_source_summary">记录你的路线,距离和速度.通常是电池成本最大的.</string>
+    <string name="settings_activity_source_summary">全天记录步行、骑行、驾车和静止状态。</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">一天都跟踪脚步.旅行组织了相同的步骤历史.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">检查步骤收集.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">关闭追踪</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">关掉了...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">停止会议,整天录音和自动启动.你的选择和保存的数据仍然存在.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">跟踪已关闭。您的选择和已保存的数据都会保留。</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">我无法关闭跟踪.再试一次.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">随着跟踪通知,记录一整天的空气压力.</string>
+    <string name="settings_ambient_activity_ready">活动记录已就绪。</string>
+    <string name="settings_ambient_pressure_ready">气压记录已就绪。</string>
+    <string name="settings_pressure_host_unavailable">无法启动后台气压记录。</string>
+    <string name="settings_wifi_source_summary">记录附近的Wi-Fi网络,以添加本地语境.在这个设备上留下数据.</string>
+    <string name="settings_cell_source_summary">记录附近的电话塔,以添加位置背景.在这个设备上留下数据.</string>
+    <string name="settings_location_source_compact">路线,距离和速度</string>
+    <string name="settings_activity_source_compact">运动类型和静止</string>
+    <string name="settings_steps_source_compact">一天的步骤</string>
+    <string name="settings_barometer_source_compact">高度和高度</string>
+    <string name="settings_wifi_source_compact">附近网络环境</string>
+    <string name="settings_cell_source_compact">附近的塔的背景</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">技术状况</string>
+    <string name="settings_technical_status_summary">电池估计,许可证和收藏状态.</string>
+    <string name="settings_technical_status_attention">一些收藏来源需要注意.开放详细.</string>
+    <string name="settings_simple_source_controls_title">使用简单的控制</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">自动跟踪步行和跑步。</string>
     <string name="setup_auto_tracking_in_motion">移动时</string>
     <string name="setup_auto_tracking_in_motion_desc">自动跟踪所有移动，包括驾车和骑行。</string>
-    <string name="setup_preset_title">跟踪细节</string>
+    <string name="settings_auto_tracking_mode_summary">选择哪个运动应该自动启动和停止旅行.</string>
     <string name="setup_recommended">推荐</string>
     <string name="setup_what_to_collect_title">要收集的内容</string>
     <string name="setup_what_to_collect_subtitle">下方还有更多选项。您可先不授予权限开始探索，也可稍后授予。数据保留在此设备上。</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">活动</string>
     <string name="setup_source_activity_desc">检测您是在步行、跑步、骑行还是驾车。</string>
     <string name="setup_source_steps">步数</string>
-    <string name="setup_source_steps_desc">使用设备计步器统计步数。</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">追踪一整天的步骤.旅行是同样的历史.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">没有直接步骤传感器.Tracker将检查设备上的步骤源.</string>
+    <string name="setup_perm_steps_why">允许访问运动数据，以便在此设备上全天计步。</string>
+    <string name="setup_perm_grant_steps_content_description">允许计步访问运动数据</string>
+    <string name="setup_steps_health_connect_why">在 Health Connect 中允许步数访问，以便在 Tracker 关闭时补齐缺失数据。</string>
+    <string name="setup_steps_provider_ready">设备上的计步数据源已就绪。部分时段仍可能有缺失数据。</string>
+    <string name="setup_steps_provider_checking">正在检查可用的计步数据源…</string>
     <string name="setup_source_wifi">Wi-Fi 网络</string>
-    <string name="setup_source_wifi_desc">记录附近的 Wi-Fi 网络以提高位置精度。</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">记录附近的Wi-Fi网络,可或不可进行位置追踪.</string>
     <string name="setup_source_cell">蜂窝基站</string>
-    <string name="setup_source_cell_desc">记录蜂窝基站信息以提供位置上下文。</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">记录附近的电话塔, 随着或没有位置追踪.</string>
     <string name="setup_perm_location_why">需要此权限才能记录路线并在地图上显示。位置数据保留在此设备上 — 不会发送到服务器。</string>
     <string name="setup_perm_location_bg_why">当您切换应用或屏幕关闭时，要继续记录路线，Tracker 需要在后台访问您的位置。记录的位置保留在此设备上 — 不会发送到服务器。在下一个系统提示中，请选择“始终允许”以启用自动跟踪；选择“仅在使用应用期间允许”时，Tracker 仅会在其界面打开时工作。</string>
     <string name="setup_perm_activity_why">允许 Tracker 检测您的活动（步行、骑行、驾车、静止），从而在您不移动时暂停自动跟踪并节省电量。活动数据保留在此设备上 — 不会发送到服务器。</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">授予蜂窝网络无线电权限</string>
     <string name="setup_perm_granted">已授予 ✓</string>
     <string name="permission_grant_in_settings">在设置中允许 →</string>
-    <string name="permission_disabled_due_to_denial">由于权限被拒绝，%1$s 已禁用。请在设置中授予权限以启用。</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s已被选中,但在授权之前不能收取.</string>
     <string name="settings_wifi_permission_required">需要 Wi-Fi/位置权限。开启开关以授予权限 — 在此之前不会记录 Wi-Fi 数据，且记录的数据保留在此设备上。</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">现在还需要访问.你的选择是保留的.</string>
     <string name="settings_cell_permission_required">需要电话状态和精确位置权限。开启开关以授予权限 — 在此之前不会记录蜂窝数据，且记录的数据保留在此设备上。</string>
     <string name="settings_barometer_unavailable">此设备没有气压传感器。</string>
     <string name="settings_activity_permission_required">需要活动识别权限。开启开关以授予权限。</string>
-    <string name="settings_steps_unavailable">此设备没有计步器传感器。</string>
     <string name="setup_start_exploring">开始探索</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">完成设置...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">重试</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">无法保存设置.你的选择仍然存在.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">无法准备保存的数据.你的选择仍然存在.</string>
     <string name="setup_continue">继续</string>
     <string name="setup_step_indicator">第 %1$d 步，共 %2$d 步</string>
     <string name="setup_online_tiles_title">在线地图瓦片？</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">启用后，提供商可看到您的 IP 地址及您加载的瓦片 — 即您正在查看的大致地图区域。Tracker 绝不会发送帐户、标识符或您的位置历史记录。</string>
     <string name="setup_online_tiles_change_later">您可随时在“设置 → 地图 → 在线地图瓦片”中更改此设置。</string>
     <string name="setup_background_access_optional">此项可选，但建议开启。您可随时在“设置 → 跟踪”中更改。</string>
-    <string name="background_reliability_status_exempt">已允许后台活动</string>
-    <string name="background_reliability_status_optimized">已开启电池优化</string>
-    <string name="background_reliability_allow_action">允许后台活动</string>
-    <string name="background_reliability_samsung_hint">Samsung 设备还可能将应用放入“休眠应用”。请打开电池设置，将 Tracker 从休眠应用中移除，并将其设为不休眠。</string>
-    <string name="background_reliability_samsung_action">打开设备电池设置</string>
-    <string name="settings_tracebox_title">崩溃诊断</string>
-    <string name="settings_tracebox_root_summary">本地崩溃、ANR 和结构诊断</string>
     <string name="setup_background_location_title">允许后台位置信息以进行自动跟踪</string>
     <string name="setup_background_location_disclosure">Tracker 在后台运行时会启动自动跟踪，即使应用界面未打开也会记录您的路线。位置信息仅保留在此设备上。请在应用位置信息设置中选择“%1$s”。</string>
     <string name="setup_background_location_open_settings">打开位置信息设置</string>
     <string name="setup_background_location_decline">暂不</string>
     <string name="setup_background_location_manual_only">仍可在前台手动跟踪。在允许后台位置信息之前，自动位置跟踪将保持关闭。</string>
-    <string name="settings_ambient_user_turned_off">跟踪已关闭。您的选择和已保存的数据都会保留。</string>
-    <string name="setup_perm_steps_why">允许访问运动数据，以便在此设备上全天计步。</string>
-    <string name="setup_perm_grant_steps_content_description">允许计步访问运动数据</string>
-    <string name="setup_steps_health_connect_why">在 Health Connect 中允许步数访问，以便在 Tracker 关闭时补齐缺失数据。</string>
-    <string name="setup_steps_provider_ready">设备上的计步数据源已就绪。部分时段仍可能有缺失数据。</string>
-    <string name="setup_steps_provider_checking">正在检查可用的计步数据源…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">背景追踪设置</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android 和设备政策可以暂停或停止背景工作.Tracker可以报告Android暴露的限制,但不能取消限制或强制停止状态.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">检测到背景限制</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">检测到电池优化</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">没有检测到限制</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">限制状态不可使用</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android 报告了背景活动被限制.当Tracker不可见时,跟踪可能停止;应用程序无法取消此政策.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android报告说Tracker不在电池容许清单中.电源管理可能会延迟后台工作;允许列表减少限制,但不能保证持续跟踪.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android报告没有背景限制,Tracker是电池允许的列表.系统仍然可以停止应用程序,强制停止不能被取消.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker无法读取所有相关的Android限制信号.无法确认任何设备特定的原因或治疗方法.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">打开应用程序电池设置</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">打开电池优化设置</string>
+    <string name="settings_tracebox_title">崩溃诊断</string>
+    <string name="settings_tracebox_root_summary">本地崩溃、ANR 和结构诊断</string>
     <string name="settings_tracking_changes_apply_live">更改会应用于当前跟踪</string>
     <string name="settings_balance_title">能耗与详细程度</string>
     <string name="settings_balance_custom">自定义设置 · 选择平衡</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">详情 · 使用整体平衡：%1$s</string>
     <string name="settings_balance_inherit">使用整体平衡</string>
     <string name="settings_balance_summary">选择已选数据源的常规质量。活动会话会优先提高参与数据源的详细程度。选择平衡会替换旧的采集频率，但保留数据源选择、后台采集授权和精度筛选设置。</string>
-    <string name="export_format_portable_steps_desc">已验证的步数历史、记录范围和缺失数据，不含路线坐标</string>
-    <string name="export_format_portable_ambient_steps_desc">后台步数、活动时间、日期、记录缺口和已保存的时区信息，不含路线坐标</string>
-    <string name="export_format_portable_activity_desc">已记录的运动区间、置信度和记录范围，不含路线坐标</string>
-    <string name="export_format_portable_pressure_desc">以 hPa 为单位的直接气压测量、记录范围和缺失数据，不含路线坐标</string>
-    <string name="export_sensitivity_portable_title">导出已记录的历史？</string>
-    <string name="export_sensitivity_portable_steps_message">此文件包含步数、时间区间和记录范围信息。 不含路线坐标。仅在信任保存位置时继续。</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">此文件包含后台步数、活动时间区间、日期、记录缺口和已保存的时区信息。 不含路线坐标。仅在信任保存位置时继续。</string>
-    <string name="export_sensitivity_portable_activity_message">此文件包含已记录的运动区间、时间区间和记录范围信息。 不含路线坐标。仅在信任保存位置时继续。</string>
-    <string name="export_sensitivity_portable_pressure_message">此文件包含气压测量和时间区间，可能透露环境信息。 不含路线坐标或校准后的海拔。仅在信任保存位置时继续。</string>
-    <string name="settings_activity_source_summary">全天记录步行、骑行、驾车和静止状态。</string>
-    <string name="settings_ambient_activity_ready">活动记录已就绪。</string>
-    <string name="settings_ambient_pressure_ready">气压记录已就绪。</string>
-    <string name="settings_pressure_host_unavailable">无法启动后台气压记录。</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">恢复追踪</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">无法恢复跟踪.再试一次.</string>
 </resources>

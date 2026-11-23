@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Esci da ogni raggio di esplosione virtuale prima che la miccia scada</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Esegui curve strette alternate per creare una combo fluida</string>
-    <string name="minigame_locked">Si sblocca al livello %1$d</string>
     <string name="game_play_section_title">Gioca</string>
     <string name="game_progress_section_title">Progressi</string>
     <string name="minigame_outrun_goal_line">Mantieni un vantaggio di 25–100 m sul fantasma</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Hai raggiunto il tuo obiettivo %2$s!</string>
     <string name="goals_daily_goal">giornaliero</string>
     <string name="goals_weekly_goal">settimanale</string>
-    <string name="goals_monthly_goal">mensile</string>
     <string name="game_steps_goals_title">Obiettivi di passi</string>
     <string name="game_step_sensor_unavailable">Sensore di passi non disponibile</string>
     <string name="game_step_sensor_unavailable_detail">Questo dispositivo non dispone di un sensore contapassi. Gli obiettivi di passi non possono essere tracciati.</string>

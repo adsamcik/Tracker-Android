@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Prenosné kroky na pozadí</string>
+    <string name="export_error_no_portable_ambient_steps">Nie je dostupná overená história krokov na pozadí na export.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">História krokov na pozadí je neúplná alebo ju nemožno overiť na export.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Export krokov na pozadí je dočasne nedostupný. Skúste to znova.</string>
+    <string name="export_error_portable_ambient_steps_scope">Tento výber krokov na pozadí nemožno vyjadriť v prenosnom formáte súboru.</string>
+    <string name="export_error_portable_ambient_steps_write">Nepodarilo sa vytvoriť súbor prenosných krokov na pozadí.</string>
+    <string name="export_ambient_steps_sensitivity_title">Exportovať históriu krokov na pozadí?</string>
+    <string name="export_ambient_steps_sensitivity_message">Tento súbor obsahuje počty krokov, časové intervaly aktivity, dátumy, medzery v záznamoch a uložený kontext časového pásma, ktoré môžu odhaliť vzorce každodennej aktivity. Neobsahuje súradnice trás. Pokračujte iba vtedy, ak dôverujete cieľu.</string>
+</resources>

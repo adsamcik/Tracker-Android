@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Finalizando sesión…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · parcial</string>
     <string name="dashboard_title">Panel</string>
     <string name="dashboard_tracking_title">Seguimiento</string>
     <string name="dashboard_recording">Grabando</string>
@@ -20,7 +22,6 @@
         <item quantity="other">Racha: %1$d días. Toca para ver los detalles de la racha</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Inicia una racha. Toca para ver los detalles de la racha</string>
-    <string name="dashboard_cd_stop_tracking">Detener seguimiento</string>
     <string name="dashboard_action_enable_location">Activar acceso a la ubicación</string>
     <string name="dashboard_action_view_details">Ver detalles</string>
     <string name="dashboard_action_view_map">Ver mapa</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">Preparando el historial de pasos guardado de forma permanente…</string>
     <string name="dashboard_live_steps_missing">Esperando una observación válida de pasos</string>
     <string name="dashboard_live_steps_unavailable">El historial de pasos guardado de forma permanente no está disponible</string>
+    <string name="dashboard_metric_pressure">Presión</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Rango %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Cambio %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Zona horaria guardada: %1$s</string>
     <string name="dashboard_milestone_distance">¡km alcanzados!</string>
     <string name="dashboard_milestone_steps">¡pasos alcanzados!</string>
     <string name="dashboard_milestone_time">¡min registrados!</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">Última sesión</string>
     <string name="dashboard_last_session_duration">Duración</string>
     <string name="dashboard_last_session_distance">Distancia</string>
-    <string name="dashboard_last_session_steps">Pasos</string>
     <string name="dashboard_last_session_view_map">Ver mapa</string>
     <string name="dashboard_recent_trips_title">Seguimiento reciente</string>
     <string name="dashboard_recent_trips_empty">No hay sesiones de seguimiento recientes. Inicia el seguimiento para verlas aquí.</string>
     <string name="dashboard_recent_history_loading">Cargando seguimiento reciente…</string>
     <string name="dashboard_recent_history_unavailable">El seguimiento reciente no está disponible</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s no está disponible el historial</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Autoridad de reciencia de la fuente no está disponible</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">No está disponible la instantánea de la evidencia de la fuente retenida</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">La lectura del historial de la fuente limitada no pudo terminar con seguridad</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Historial de origen conservado no logró las verificaciones de integridad</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">No se pudo comprobar su historial físico</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Ubicación</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Red móvil</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Actividad</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Pasos</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Presión atmosférica</string>
     <string name="dashboard_recent_steps_title">Sesión de pasos</string>
     <string name="dashboard_recent_steps_available">El historial de pasos está disponible</string>
     <string name="dashboard_recent_steps_materializing">Preparando el historial de pasos…</string>
     <string name="dashboard_recent_steps_partial">Historial de pasos parcial</string>
+    <string name="dashboard_recent_pressure_title">Sesión de presión</string>
+    <string name="dashboard_recent_pressure_available">Historial de presión disponible</string>
+    <string name="dashboard_recent_pressure_materializing">Preparando historial de presión…</string>
+    <string name="dashboard_recent_pressure_partial">Historial de presión parcial</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Se suprimió el historial de presión</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">No se pudo verificar el historial de presión</string>
+    <string name="dashboard_recent_pressure_unavailable">Historial de presión no disponible</string>
+    <string name="dashboard_recent_pressure_failed">No se pudo preparar el historial de presión</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · rango %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Cambio %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Sin cobertura guardada</string>
+    <string name="dashboard_pressure_coverage_complete">Cobertura completa</string>
+    <string name="dashboard_pressure_coverage_partial">Cobertura parcial</string>
+    <string name="dashboard_pressure_coverage_unknown">Cobertura no disponible</string>
+    <string name="dashboard_recent_activity_title">Sesión de actividad</string>
+    <string name="dashboard_recent_activity_ready">Historial de actividad disponible</string>
+    <string name="dashboard_recent_activity_materializing">Preparando historial de actividad…</string>
+    <string name="dashboard_recent_activity_partial">Historial de actividad parcial</string>
+    <string name="dashboard_recent_activity_unavailable">Historial de actividad no disponible</string>
+    <string name="dashboard_recent_activity_failed">No se pudo verificar el historial de actividad</string>
+    <string name="dashboard_recent_activity_summary">%1$s · tiempo activo %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Sección Wi‑Fi</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Sesión celular</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Capturado Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Radio celular capturado</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Fuentes en esta sesión</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">La ubicación no está capturada en esta sesión. La ruta, la distancia, la velocidad y la altitud no están disponibles.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">El historial verificado %1$s no está disponible.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Capturado en este dispositivo</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Evidencias conservadas importadas</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Preparando la historia de la radio retenida...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Historia parcial de la radio retenida</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Historial de radio conservado disponible</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Historial de radio no disponible</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Ninguna prueba de radio retenida calificada</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Se suprimió el historial de radio conservado</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">No se pudo verificar el historial de la radio</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">La verificación de la integridad del historial de la radio falló</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Sin cobertura verificada</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Cobertura parcialmente verificada</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Cobertura completa y verificada</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Cobertura no disponible</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Esperando las observaciones de radio conservadas</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">No hay observaciones de radio conservadas disponibles</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Se eliminó la evidencia de origen retenida</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Las pruebas retenidas no pueden presentarse de forma segura</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">La ubicación, la ruta, la distancia, la velocidad y la altitud no forman parte de esta historia fuente.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d Resultado de exploración retenido</item>
+        <item quantity="other">%1$d Resultados de exploración retenidos</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d Registro de radio conservado</item>
+        <item quantity="other">%1$d Registros de radio conservados</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d entrega retenida</item>
+        <item quantity="other">%1$d entregas retenidas</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d la entrega tiene resultados parciales</item>
+        <item quantity="other">%1$d las entregas tienen resultados parciales</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Actividad registrada</string>
+    <string name="dashboard_live_activity_movement">Último movimiento registrado</string>
+    <string name="dashboard_live_activity_active_time">Tiempo activo</string>
+    <string name="dashboard_live_activity_gaps">Intervalos sin datos conocidos: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Sin cobertura verificada</string>
+    <string name="dashboard_activity_coverage_partial">Cobertura parcial</string>
+    <string name="dashboard_activity_coverage_complete">Cobertura completa</string>
+    <string name="dashboard_activity_still">Inmóvil</string>
+    <string name="dashboard_activity_walking">Caminar</string>
+    <string name="dashboard_activity_running">Correr</string>
+    <string name="dashboard_activity_cycling">Ciclismo</string>
+    <string name="dashboard_activity_vehicle">En vehículo</string>
+    <string name="dashboard_activity_on_foot">A pie</string>
+    <string name="dashboard_activity_tilting">Inclinado</string>
+    <string name="dashboard_activity_unknown">Actividad desconocida</string>
     <string name="dashboard_exploration_title">Exploración</string>
     <string name="dashboard_exploration_new_today">Nuevo hoy</string>
     <string name="dashboard_exploration_total_cells">Celdas totales</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">Iniciar seguimiento</string>
     <string name="dashboard_ring_enable_location">Activar ubicación</string>
     <string name="dashboard_pill_start">Iniciar</string>
-    <string name="dashboard_pill_stop">Detener</string>
     <string name="dashboard_pill_enable_location">Activar ubicación</string>
     <string name="dashboard_insights_title">Información de la sesión</string>
     <string name="dashboard_cd_insight_item">Información: %1$s</string>
     <string name="widget_latest_achievement">Último logro</string>
     <string name="dashboard_latest_achievement_title">Último logro</string>
     <string name="dashboard_latest_achievement_empty">Sigue registrando para desbloquear tu primer logro</string>
-    <string name="dashboard_metric_pressure">Presión</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Rango %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Cambio %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Zona horaria guardada: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Sesión de presión</string>
-    <string name="dashboard_recent_pressure_available">Historial de presión disponible</string>
-    <string name="dashboard_recent_pressure_materializing">Preparando historial de presión…</string>
-    <string name="dashboard_recent_pressure_partial">Historial de presión parcial</string>
-    <string name="dashboard_recent_pressure_unavailable">Historial de presión no disponible</string>
-    <string name="dashboard_recent_pressure_failed">No se pudo preparar el historial de presión</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · rango %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Cambio %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Sin cobertura guardada</string>
-    <string name="dashboard_pressure_coverage_complete">Cobertura completa</string>
-    <string name="dashboard_pressure_coverage_partial">Cobertura parcial</string>
-    <string name="dashboard_pressure_coverage_unknown">Cobertura no disponible</string>
-    <string name="dashboard_recent_activity_title">Sesión de actividad</string>
-    <string name="dashboard_recent_activity_ready">Historial de actividad disponible</string>
-    <string name="dashboard_recent_activity_materializing">Preparando historial de actividad…</string>
-    <string name="dashboard_recent_activity_partial">Historial de actividad parcial</string>
-    <string name="dashboard_recent_activity_unavailable">Historial de actividad no disponible</string>
-    <string name="dashboard_recent_activity_failed">No se pudo verificar el historial de actividad</string>
-    <string name="dashboard_recent_activity_summary">%1$s · tiempo activo %2$s</string>
-    <string name="dashboard_live_activity_title">Actividad registrada</string>
-    <string name="dashboard_live_activity_movement">Último movimiento registrado</string>
-    <string name="dashboard_live_activity_active_time">Tiempo activo</string>
-    <string name="dashboard_live_activity_gaps">Intervalos sin datos conocidos: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Sin cobertura verificada</string>
-    <string name="dashboard_activity_coverage_partial">Cobertura parcial</string>
-    <string name="dashboard_activity_coverage_complete">Cobertura completa</string>
-    <string name="dashboard_activity_still">Inmóvil</string>
-    <string name="dashboard_activity_walking">Caminar</string>
-    <string name="dashboard_activity_running">Correr</string>
-    <string name="dashboard_activity_cycling">Ciclismo</string>
-    <string name="dashboard_activity_vehicle">En vehículo</string>
-    <string name="dashboard_activity_on_foot">A pie</string>
-    <string name="dashboard_activity_tilting">Inclinado</string>
-    <string name="dashboard_activity_unknown">Actividad desconocida</string>
-    <string name="dashboard_finishing_session">Finalizando sesión…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Pasos importados</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Muestra la grabación %1$d</item>
+        <item quantity="other">Muestre las grabaciones %1$d</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Esconder la grabación %1$d</item>
+        <item quantity="other">Escondir las grabaciones %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Registro %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s pasos</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Al menos %1$s pasos</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Pasos no disponibles</string>
 </resources>

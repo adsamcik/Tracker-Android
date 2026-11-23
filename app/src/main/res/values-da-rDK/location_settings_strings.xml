@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Placering hele dagen</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Uden mellem sessionerne.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Aktiveret mellem sessioner. Tilgængeligheden afhænger af adgang og baggrundsgrænser Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Tilpasningsdygtige</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Kun passivt</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Juster placeringsopsamling til bevægelse og dine præferencer for detaljer, med en løbende meddelelse.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Brug positioner leveret af andre apps eller systemet. Lange mellemrum er mulige.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker indsamler placering mellem sessioner, justerer dens indsats til bevægelse og viser en løbende meddelelse. Dette kan bruge mere batteri end passiv samling. Dit valg er gemt, før Android beder om adgang til placering. Hvis der ikke er adgang, kan den vente, og du kan slukke for den når som helst.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Brug adaptiv placering</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Tillad adgang til placering</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Vælg adaptive placeringsdetaljer</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Lokationsdetaljer: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Lokaliseringsstyrke og detaljer</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Vælg et niveau til at indtage adaptiv placering. Balanceret er standard; live sessioner foretrækker mere detaljer. Android og din adgang kan begrænse resultatet.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Strøm først</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Favor magt</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Afbalanceret</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Detaljer</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Detaljer først</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Støtte i forbindelse med forslag</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Vælg at bruge bevægelsesindstillinger til at justere placering. Dette registrerer ingen aktivitetshistorie og kan ikke starte en session. Lokaliseringen virker stadig, hvis du nægter.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Tillad bevægelsesindslag</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Jeg kunne ikke anvende denne ændring. Prøv igen.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Adaptiv indsamling er ikke i gang endnu.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Bruger din adaptive placeringsniveau.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Adaptive Location er tilgængelig.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Anmodning om placering justeret af udstyret.</string>
+</resources>

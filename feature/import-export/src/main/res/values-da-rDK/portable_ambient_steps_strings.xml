@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="format_portable_ambient_steps">Portable baggrundsskridt</string>
+    <string name="export_error_no_portable_ambient_steps">Der er ingen verificeret historik over baggrundsskridt tilgængelig til eksport.</string>
+    <string name="export_error_portable_ambient_steps_unverifiable">Historikken over baggrundsskridt er ufuldstændig eller kan ikke verificeres til eksport.</string>
+    <string name="export_error_portable_ambient_steps_retryable">Eksport af baggrundsskridt er midlertidigt utilgængelig. Prøv igen.</string>
+    <string name="export_error_portable_ambient_steps_scope">Dette udvalg af baggrundsskridt kan ikke gengives i det portable filformat.</string>
+    <string name="export_error_portable_ambient_steps_write">Filen med portable baggrundsskridt kunne ikke oprettes.</string>
+    <string name="export_ambient_steps_sensitivity_title">Eksportér historik over baggrundsskridt?</string>
+    <string name="export_ambient_steps_sensitivity_message">Denne fil indeholder skridttal, aktivitetsperioder, datoer, huller i registreringen og gemte tidszoneoplysninger, som kan afsløre daglige aktivitetsmønstre. Den indeholder ikke rutekoordinater. Fortsæt kun, hvis du stoler på destinationen.</string>
+</resources>

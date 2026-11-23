@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistiky</string>
     <string name="stats_cell_count">Počet mobilních vysílačů</string>
     <string name="stats_collections">Počet sběrů</string>
@@ -83,6 +83,16 @@
     <string name="stats_cell_signal_tower_detail">Buňka %1$s · %2$s vzorků</string>
     <string name="stats_cell_signal_carrier">Operátor %1$s‑%2$s</string>
     <string name="trip_detail_title">Podrobnosti cesty</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Příběh zdrojů</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Příběh zdrojů není k dispozici</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Tento soukromý výběr nebyl zachován poté, co byl proces aplikace znovu vytvořen. Vraťte se k nedávné historii a vyberte ji znovu.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Vybraný zadávaný zdrojový údaj již není k dispozici.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Čtení omezených zdrojových dějinných záznamů nemohlo skončit bezpečně.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Vybraný zadávaný zdrojový údaj selhal při kontrole integrity.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Zobrazení zdrojových důkazů potřebné k prezentaci tohoto výběru není k dispozici.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Výběr vydaný podle zdroje již neidentifikuje současný zadávaný údaj.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Zpráva o zdroji zkázalo. Zkuste to znovu osvěžit.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Cesta nebyla nalezena</string>
     <string name="trip_detail_not_found_subtitle">Tato cesta mohla být smazána</string>
     <string name="trip_detail_error_title">Cestu se nepodařilo načíst</string>
@@ -91,6 +101,21 @@
     <string name="trip_detail_distance">Vzdálenost</string>
     <string name="trip_detail_date">Datum</string>
     <string name="trip_detail_steps">Kroky</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Úplné pokrytí</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Přinejmenším tak mnoho · částečné pokrytí</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Částečná historie · žádný spolehlivý počet dostupný</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Neověřené: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Hodnota dědictví · úplnost ověřená</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Aktualizace historie...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Nezachycený pro tuto schůzku</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Vypnuté pro tuto schůzku</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Nepodporované</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Chybělo oprávnění</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Omezeno systémem Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Není k dispozici</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Žádné způsobilé pozorování</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Zmazané</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Historie nedostupná</string>
     <string name="trip_detail_samples">Vzorky</string>
     <string name="trip_detail_source">Zdroj</string>
     <string name="trip_detail_avg_speed">Prům. rychlost</string>
@@ -114,6 +139,157 @@
     <string name="trip_detail_delete_confirm">Smazat</string>
     <string name="trip_detail_cancel">Zrušit</string>
     <string name="trip_detail_more_options">Další možnosti</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Akce nedostupné pro tento zachycený zdroj</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Zdrojová autorita</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Původ</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Udržovaný účel</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Přesné zaznamenávání jednání pouze z zdroje</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Členství v portálním zdroji</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Autentická nezměnitelná historie zachycení označuje toto jako jediný zachycený zdroj.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Dovozený formát dokazuje zachovalé zdrojové členství, nikoli to, že toto zařízení zaznamenalo důkazy.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Relace s Wi‑Fi</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Relace s mobilní sítí</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Uložení rádio souhrnu</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Pokrývání</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Příprava zachovaných záznamů z rozhlasových záznamů</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Částečně zachované rozhlasové záznamy</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Uložena dostupná rozhlasová historie</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Nejsou k dispozici záznamy z rozhlasu</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Žádné způsobilé radioodkazy</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Uložena historie vysílacího vysílání vymazána</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Historie rozhlasu nebyla ověřena.</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Neúspěšná kontrola integrity záznamů.</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Žádné ověřené pokrytí</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Částečně ověřené pokrytí</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Úplné ověřené pokrytí</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Pokrytí není dostupné</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Čekáme na zachované rádiové pozorování.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Nejsou k dispozici žádné zachované rádiové pozorování.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Uložení zdrojových důkazů bylo vymazáno.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Uložení důkazů nelze bezpečně předložit.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Zdržované dodávky</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Dodávky s částečnými výsledky</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Uložené údaje o Wi‑Fi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Uložení výsledků skenování</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Výsledkové směsi frekvenčního pásma</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Udržovaný rozsah signálu</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d až %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Ostatní pásma</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Uložené údaje o mobilní síti</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Udržované rozhlasové záznamy</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Záznamy o registrovaném stavu</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Mix záznamů v oblasti radiotechnologie</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Žádná síť, věž, účastník, cesta, vzdálenost, rychlost, nadmořská výška nebo totožnost umístění nejsou odhaleny tímto detailem.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Relace kroků</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Uložené údaje o krocích</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Pokrývání</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Žádný pokrytý interval</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Úplný pokrytý interval</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Částečně pokrytý interval</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Pokrytí není dostupné</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Je znázorněno pouze zachované důkazy Stepů. Poloha nebyla zachycena, takže trasa a metriky odvozené z polohy nejsou dostupné.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Relace aktivity</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Rozsah aktivity, doba trvání a důvěryhodnost jsou přibližně shromažďování evidence uložených na zařízení.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Souhrn činnosti</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Pokrývání</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Původ</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Známá aktivní doba</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Známé neaktivní doba</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Nezaklasifikovaný čas</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Známé intervalové časy</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Udržované pásma aktivity a mezery</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Přibližná doba trvání</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Jistota</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Snímek přechodu aktivity</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Přibližně %1$d ⁇ %2$d%% z %3$d zachovaných pozorování</item>
+        <item quantity="other">Přibližně %1$d ⁇ %2$d%% z %3$d zachovaných pozorování</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Typ důkazů</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Úplný přechod</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Známé mezery</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Důvod</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Přibližná doba trvání</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Připravování dějiny činnosti</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Částečná historie aktivity</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Historie aktivity je dostupná</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Historie aktivity není dostupná</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Historii aktivity se nepodařilo ověřit</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Účastní údaje o činnosti se stále připravují; zatím není stanovena doba trvání.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Pouze část zasedání si zachovala důkazy o aktivitě.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Nejsou k dispozici zadržované trvání činnosti.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Neexistuje žádný spolehlivý výsledek aktivity.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Uložení důkazů o činnosti selhaly při kontrole integrity.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Žádné ověřené pokrytí</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Částečné pokrytí</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Úplné pokrytí</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Zachytili jsme ho na tomto zařízení.</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Dovozní zadržované důkazy</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">V klidu</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Chůze</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Běh</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Jízda na kole</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Ve vozidle</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Pěšky</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Naklánění</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Neznámá aktivita</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Přechod</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Zpracování vzorku</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Vybraná klasifikace</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Žádné způsobilé důkazy</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Prerušení poskytovatele činnosti</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Změna povolení</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Opětovné spuštění procesu nebo zařízení</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Důkazy nebyly způsobilé</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Zachytěná seance</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Poloha nebyla zachycena.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Zatčené zdroje</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Vybrané detaily nejsou k dispozici pro tuto přesnou kombinaci zdrojů. Cesta, GPX, vzdálenost, rychlost, výška a další akce odvozené z lokalit zůstávají nedostupné.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Poloha</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Mobilní síť</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Aktivita</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Kroky</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Tlak</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Zdroje uchytávání ověřené</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Tato starší seance předchází ověřitelné historii zachytávání. Údaje o výletě jsou ukázány a mohou být neúplné.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Relace tlaku</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Tlak vzduchu</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Nejnovější</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Udržovaný rozsah</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">První až poslední změna</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Pokrývání</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Úložná zóna</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Aktualizace udržovaného tlaku...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Částečně udržovaný tlak</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Udržitelný tlak</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Udržovaný tlak odstraněn</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Udržovaný tlak nemohl být ověřen</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Tlak nedostupný</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Zkázalo to.</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Historie nedostupná</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Zkuste znovu obnovit záznam z tohoto výletu.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Zachráněný snímek zdrojových důkazů není k dispozici. Zkuste to znovu osvěžit.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Čtení omezených zdrojových dějinných záznamů nemohlo skončit bezpečně. Zkuste to znovu osvěžit.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Uložena historie zdrojů selhala při kontrole integrity. Zkuste znovu, až bude zdroj k dispozici.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Členství v fyzické historii nebylo možné bezpečně ověřit.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Žádné uložené pokrytí</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Úplné zachované pokrytí</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Částečně zachované pokrytí</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Pokrytí není dostupné</string>
     <string name="ski_detail_header">Lyžařská relace</string>
     <string name="ski_detail_runs">Sjezdy</string>
     <string name="ski_detail_vertical">Převýšení</string>
@@ -138,7 +314,6 @@
     <string name="wifilist_title_last_seen">Naposledy viděno</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Časová osa</string>
-    <string name="history_tab_trips">Cesty</string>
     <string name="history_tab_calendar">Kalendář</string>
     <string name="history_screen_title">Historie</string>
     <plurals name="history_trip_count">
@@ -157,6 +332,10 @@
     <string name="history_calendar_next_month">Další měsíc</string>
     <string name="history_calendar_distance">Vzdálenost</string>
     <string name="history_calendar_steps">Kroky</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Aktualizace...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Neobtavený</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Neúplné</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Není k dispozici</string>
     <string name="history_calendar_trips">Cesty</string>
     <string name="history_exploration_title">Objevování</string>
     <string name="history_exploration_cells">Buňky</string>
@@ -166,6 +345,59 @@
     <string name="history_button_label">Historie</string>
     <string name="history_view_trip_on_map">Zobrazit cestu na mapě</string>
     <string name="stats_heatmap_title">Aktivita</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Importované kroky</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Údaje o trati a dalších senzorech nejsou zahrnuty.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Relace</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Přidání zasedání</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Sedení úpravy</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Jméno (volatné)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Označení činnosti</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Žádná značka</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Začátek</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Konec</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Časová pásma</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Použijte časovou pásmu</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Před ušetřením použijte časovou pásmu.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Posedání přeplnění</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Detaily zaznamenávání</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Odstraňování</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Zachraňovat</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Zrušit</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Odebrat tuto relaci?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Zaznamenaná data zůstanou v historii.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Datum</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Čas</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Toto místní čas neexistuje, protože hodiny jdou vpřed. Vyber si jiný čas.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Tentokrát se to stane dvakrát. Vyberte svůj UTC offset.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Konec musí být po začátku. Obě případy musí být dne 1. ledna 1970 nebo později.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Konec nemůže být v budoucnosti.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Uveďte časovou pásmu IANA, jako je Evropa/Praha nebo UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Použijte maximálně 200 znaků.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Tato značka byla odstraněna. Vyberte si jinou značku nebo žádnou.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Tato seance byla změněna nebo shromážděné údaje byly odstraněny. Přeloďte, než ušetříte.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Tato seance už není k dispozici.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Relace jsou dočasně nedostupné. Zkuste znovu otevřít historii.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">V tomto období žádné sezení.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Bez jména zasedání</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Záznam</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Čas nahrávání je nejistá. Potvrďte čas před změnou intervalu.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Pokračuje od dřívějšího dne.</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Ukažte mi to.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Zastavte sezení, abyste upravil čas nebo ho odstranil.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Sledování dneška</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Některé značky sezení nejsou zobrazeny. Vyberte si den, kdy si můžete prohlížet její schůzky.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Den %1$d, má sezení</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Den %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Opakovat</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Přehled záznamů</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Zpátky na schůzky</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Exportovat relaci</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Soubor se nepodařilo uložit. Zkuste to znovu.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Relace byla exportována</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Relace byla exportována s celými záznamy, i když přesahují zvolené období.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Akci se nepodařilo dokončit. Zkuste to znovu.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Smazat tento záznam?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Uložené údaje z tohoto záznamu budou trvale smazány.</string>
     <string name="stats_recorded_partial_value">%1$s · částečně</string>
     <string name="history_activity_started">Začátek: %1$s</string>
     <string name="history_activity_ended">Konec: %1$s</string>

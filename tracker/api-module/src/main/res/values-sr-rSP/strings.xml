@@ -13,7 +13,6 @@
     <string name="collection_count_value">%d collections</string>
     <string name="description_settings">Settings button</string>
     <string name="description_tracking_start">Start tracking button</string>
-    <string name="description_tracking_stop">Stop tracking button</string>
     <string name="distance_invehicle_title">Distance in vehicle</string>
     <string name="distance_invehicle_value">in vehicle %s</string>
     <string name="distance_onfoot_title">Distance on foot</string>
@@ -41,7 +40,6 @@
         <item quantity="other">Auto tracking has been locked for %1$d minutes.</item>
     </plurals>
     <string name="notification_starting">Starting Tracker service</string>
-    <string name="notification_stop">Stop</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Stop for %d minutes</string>
     <string name="notification_stop_til_recharge">Stop till recharge</string>
     <string name="notification_tracker_active_ticker">Tracker is active</string>
@@ -57,14 +55,11 @@
     <string name="settings_notification_styled_title">Colored notifications</string>
     <string name="settings_tracking_min_distance_title">Minimum distance between collections</string>
     <string name="settings_tracking_min_time_title">Minimum delay between collections</string>
-    <string name="settings_tracking_notice_summary">Due to technical reasons, most changes to tracker settings require restart of tracking. (If tracking is active just stop it and start it again. Closing and opening app might not help)</string>
     <string name="settings_tracking_required_accuracy_title">Required location accuracy</string>
     <string name="settings_tracking_title">Tracking</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Start tracking</string>
     <string name="shortcut_start_tracking_long">Start tracking service</string>
-    <string name="shortcut_stop_tracking">Stop tracking</string>
-    <string name="shortcut_stop_tracking_long">Stop tracking service</string>
     <string name="speed_title">Speed</string>
     <string name="speed_value">speed %s</string>
     <string name="start_time_title">Session start time</string>

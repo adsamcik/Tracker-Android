@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Stair céimeanna fíoraithe, clúdach agus bearnaí gan comhordanáidí bealaigh</string>
+    <string name="export_format_portable_ambient_steps_desc">Céimeanna sa chúlra, am gníomhaíochta, dátaí, bearnaí clúdaigh agus crios ama sábháilte gan comhordanáidí bealaigh</string>
+    <string name="export_format_portable_activity_desc">Tréimhsí gluaiseachta taifeadta, muinín agus clúdach gan comhordanáidí bealaigh</string>
+    <string name="export_format_portable_pressure_desc">Tomhais dhíreacha brú in hPa, clúdach agus bearnaí gan comhordanáidí bealaigh</string>
+    <string name="export_sensitivity_portable_title">Easpórtáil an stair thaifeadta?</string>
+    <string name="export_sensitivity_portable_steps_message">Tá comhaireamh céimeanna, tréimhsí ama agus eolas clúdaigh sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Tá céimeanna sa chúlra, tréimhsí gníomhaíochta, dátaí, bearnaí clúdaigh agus crios ama sábháilte sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="export_sensitivity_portable_activity_message">Tá tréimhsí gluaiseachta taifeadta, tréimhsí ama agus eolas clúdaigh sa chomhad seo. Níl comhordanáidí bealaigh ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+    <string name="export_sensitivity_portable_pressure_message">Tá tomhais brú agus tréimhsí ama sa chomhad seo a d\'fhéadfadh eolas faoin timpeallacht a nochtadh. Níl comhordanáidí bealaigh ná airde chalabraithe ann. Ná lean ar aghaidh ach má tá muinín agat as an gceann scríbe.</string>
+</resources>

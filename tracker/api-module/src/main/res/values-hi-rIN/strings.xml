@@ -14,7 +14,6 @@
     <string name="coordinates_title">निर्देशांक</string>
     <string name="description_settings">सेटिंग बटन</string>
     <string name="description_tracking_start">ट्रैकिंग शुरू बटन</string>
-    <string name="description_tracking_stop">ट्रैकिंग रोकें बटन</string>
     <string name="description_tracking_start_no_permission">ट्रैकिंग शुरू करें — अनुमति चाहिए</string>
     <string name="description_points_today">आज अर्जित अंक: %s</string>
     <string name="description_copy">मान कॉपी करें</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">सत्र अवधि</string>
     <string name="duration_value">अवधि %s</string>
     <string name="error_nothing_to_track">कम से कम एक ट्रैकिंग विकल्प सक्षम करें (स्थान, कदम या गतिविधि)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">सक्षम ट्रैकिंग स्रोत का उपयोग करने के लिए स्थान सेवाएँ चालू करें।</string>
     <string name="hint_customize_notification_show_in_content">सूचना सामग्री में दिखाएँ</string>
     <string name="hint_customize_notification_show_in_title">सूचना शीर्षक में दिखाएँ</string>
     <string name="horizontal_accuracy_title">क्षैतिज सटीकता</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker शुरू हो रहा है — स्थान उपयोग में है</string>
     <string name="notification_starting_without_location">Tracker शुरू हो रहा है</string>
-    <string name="notification_stop">रोकें</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">%d मिनट के लिए रोकें</string>
     <string name="notification_stop_til_recharge">रीचार्ज तक रोकें</string>
-    <string name="stop_tracking_dialog_title">ट्रैकिंग रोकें?</string>
     <string name="stop_tracking_dialog_message">स्वचालित ट्रैकिंग चालू है और केवल रोकने पर यह जल्द ही नया सत्र फिर शुरू कर सकती है।</string>
     <string name="notification_tracker_active_ticker">आपका मार्ग रिकॉर्ड हो रहा है — स्थान उपयोग में है</string>
     <string name="notification_tracker_active_without_location">स्थान के बिना ट्रैकिंग</string>
     <string name="notification_tracking_active">ट्रैकिंग</string>
     <string name="notification_tracking_start_failed_title">ट्रैकिंग शुरू नहीं हो सकी</string>
     <string name="notification_tracking_start_failed_text">अनुमतियों की समीक्षा और ट्रैकिंग फिर शुरू करने के लिए ऐप खोलें।</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">ट्रैकिंग की तैयारी</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">रिकवरी पूरी होने तक कोई डेटा एकत्र नहीं किया जाता है।</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">ट्रैकिंग की तैयारी</string>
     <string name="settings_activity_enabled_title">गतिविधि</string>
     <string name="settings_cell_enabled_title">सेल</string>
     <string name="settings_disabled_recharge_summary">आपका फ़ोन चार्जर से जुड़ने तक स्वचालित ट्रैकिंग अक्षम है</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">स्थान</string>
     <string name="settings_notification_customize_summary">ट्रैकिंग सूचना में क्या और किस क्रम में दिखे, बदलें।</string>
     <string name="settings_notification_customize_title">सूचना अनुकूलित करें</string>
+    <string name="settings_notification_move_up">ऊपर ले जाएँ</string>
+    <string name="settings_notification_move_down">नीचे ले जाएँ</string>
+    <string name="settings_notification_load_failed">सूचना सेटिंग लोड नहीं हो सकीं।</string>
+    <string name="settings_notification_save_failed">बदलाव सहेजे नहीं गए।</string>
+    <string name="settings_notification_retry">फिर कोशिश करें</string>
     <string name="settings_notification_styled_summary">सूचनाओं के लिए ऐप शैली का रंग उपयोग करें।</string>
     <string name="settings_notification_styled_title">रंगीन सूचनाएँ</string>
     <string name="ski_notification_title">स्की आँकड़े</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">कदम संख्या</string>
     <string name="settings_tracking_min_distance_title">अपडेट के बीच न्यूनतम दूरी</string>
     <string name="settings_tracking_min_time_title">अपडेट के बीच न्यूनतम विलंब</string>
-    <string name="settings_tracking_notice_summary">ट्रैकिंग फिर शुरू करने पर बदलाव लागू होंगे</string>
     <string name="settings_tracking_required_accuracy_title">आवश्यक स्थान सटीकता</string>
     <string name="settings_tracking_title">ट्रैकिंग</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">ट्रैकिंग शुरू करें</string>
     <string name="shortcut_start_tracking_long">स्थान ट्रैकिंग शुरू करें</string>
-    <string name="shortcut_stop_tracking">ट्रैकिंग रोकें</string>
-    <string name="shortcut_stop_tracking_long">स्थान ट्रैकिंग रोकें</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">सेशन पूरा करें</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">मौजूदा सेशन पूरा करें</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">ट्रैकिंग बंद करें</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">सभी ट्रैकिंग और अपने-आप शुरू होने वाले सेशन बंद करें</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">ट्रैकिंग क्रियाएँ</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">स्वचालित स्टार्ट्स को रोकें</string>
     <string name="speed_title">गति</string>
     <string name="speed_value">गति %s</string>
     <string name="battery_title">बैटरी</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d मिनट की ट्रैकिंग</item>
         <item quantity="other">%1$d मिनट की ट्रैकिंग</item>
     </plurals>
-    <string name="insight_exploration_title">खोजकर्ता!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">आपने %1$d नया क्षेत्र खोजा</item>
         <item quantity="other">आपने %1$d नए क्षेत्र खोजे</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">पीछे जाएँ</string>
     <string name="insight_distance_title">तय की गई दूरी</string>
     <string name="insight_distance_desc">आपने इस सत्र में %1$s तय की।</string>
-    <string name="insight_steps_title">रिकॉर्ड किए कदम</string>
-    <string name="insight_steps_desc">इस सत्र में %1$s कदम — जारी रखें!</string>
     <string name="tracker_measurement_partial">आंशिक</string>
 </resources>

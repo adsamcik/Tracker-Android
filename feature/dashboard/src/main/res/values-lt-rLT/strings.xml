@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">Seansas baigiamas…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · daliniai duomenys</string>
     <string name="dashboard_title">Skydelis</string>
     <string name="dashboard_tracking_title">Sekimas</string>
     <string name="dashboard_recording">Įrašoma</string>
@@ -21,7 +23,6 @@
         <item quantity="other">Serija: %1$d dienų. Palieskite, kad peržiūrėtumėte serijos informaciją</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">Pradėkite seriją. Palieskite, jei norite peržiūrėti serijos informaciją</string>
-    <string name="dashboard_cd_stop_tracking">Sustabdyti sekimą</string>
     <string name="dashboard_action_enable_location">Įjungti prieigą prie vietos</string>
     <string name="dashboard_action_view_details">Peržiūrėti išsamią informaciją</string>
     <string name="dashboard_action_view_map">Peržiūrėti žemėlapį</string>
@@ -43,6 +44,11 @@
     <string name="dashboard_live_steps_materializing">Ruošiama visam laikui išsaugota žingsnių istorija…</string>
     <string name="dashboard_live_steps_missing">Laukiama tinkamo žingsnių stebėjimo</string>
     <string name="dashboard_live_steps_unavailable">Visam laikui išsaugota žingsnių istorija nepasiekiama</string>
+    <string name="dashboard_metric_pressure">Slėgis</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">Diapazonas %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">Pokytis %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">Išsaugota laiko juosta: %1$s</string>
     <string name="dashboard_milestone_distance">km pasiekta!</string>
     <string name="dashboard_milestone_steps">žingsnių pasiekta!</string>
     <string name="dashboard_milestone_time">min. sekimo!</string>
@@ -64,16 +70,106 @@
     <string name="dashboard_last_session_title">Paskutinė sesija</string>
     <string name="dashboard_last_session_duration">Trukmė</string>
     <string name="dashboard_last_session_distance">Atstumas</string>
-    <string name="dashboard_last_session_steps">Žingsniai</string>
     <string name="dashboard_last_session_view_map">Peržiūrėti žemėlapį</string>
     <string name="dashboard_recent_trips_title">Naujausias sekimas</string>
     <string name="dashboard_recent_trips_empty">Nėra naujausių sekimo seansų. Pradėkite sekti, kad juos matytumėte čia.</string>
     <string name="dashboard_recent_history_loading">Įkeliamas naujausias sekimas…</string>
     <string name="dashboard_recent_history_unavailable">Naujausias sekimas nepasiekiamas</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s istorija nepasiekiama</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">Šaltinio duomenų atrankos institucija nepasiekiama</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">Negalima išsaugoti šaltinio įrodymų nuotraukos</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">Skirti ribotas šaltinio istorija negalėjo baigti saugiai</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">Išsaugotas šaltinio istorija nepavyko patikrinti vientisumo</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">Fizinės istorijos nereiškia, kad jie buvo</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">Vieta</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">Ląstelė</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">Veikla</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">Žingsniai</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">Slėgis</string>
     <string name="dashboard_recent_steps_title">Žingsnių seansas</string>
     <string name="dashboard_recent_steps_available">Žingsnių istorija pasiekiama</string>
     <string name="dashboard_recent_steps_materializing">Ruošiama žingsnių istorija…</string>
     <string name="dashboard_recent_steps_partial">Dalinė žingsnių istorija</string>
+    <string name="dashboard_recent_pressure_title">Slėgio sesija</string>
+    <string name="dashboard_recent_pressure_available">Slėgio istorija pasiekiama</string>
+    <string name="dashboard_recent_pressure_materializing">Ruošiama slėgio istorija…</string>
+    <string name="dashboard_recent_pressure_partial">Dalinė slėgio istorija</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">Ištrinta slėgio istorija</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">Neįmanoma patikrinti slėgio istorijos</string>
+    <string name="dashboard_recent_pressure_unavailable">Slėgio istorija nepasiekiama</string>
+    <string name="dashboard_recent_pressure_failed">Nepavyko paruošti slėgio istorijos</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · diapazonas %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">Pokytis %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">Nėra išsaugotos aprėpties</string>
+    <string name="dashboard_pressure_coverage_complete">Visa aprėptis</string>
+    <string name="dashboard_pressure_coverage_partial">Dalinė aprėptis</string>
+    <string name="dashboard_pressure_coverage_unknown">Aprėptis nepasiekiama</string>
+    <string name="dashboard_recent_activity_title">Veiklos sesija</string>
+    <string name="dashboard_recent_activity_ready">Veiklos istorija pasiekiama</string>
+    <string name="dashboard_recent_activity_materializing">Ruošiama veiklos istorija…</string>
+    <string name="dashboard_recent_activity_partial">Dalinė veiklos istorija</string>
+    <string name="dashboard_recent_activity_unavailable">Veiklos istorija nepasiekiama</string>
+    <string name="dashboard_recent_activity_failed">Nepavyko patikrinti veiklos istorijos</string>
+    <string name="dashboard_recent_activity_summary">%1$s · aktyvus laikas %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi posėdis</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">Celių sesija</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">Užkaptuotas Wi‑Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">Užfiksuotas mobiliojo ryšio radijas</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">Šio posėdžio šaltiniai</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">Šioje sesijoje nėra užfiksuota vieta. Kelio, atstumo, greičio ir aukščio nėra.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">Nėra patvirtintos %1$s istorijos.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">Užfiksuota šiuo prietaisu.</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">Importuoti saugomi įrodymai</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">Pasirinkti radijo istoriją...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">Iš dalies išsaugotas radijo istorija</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">Laikoma radijo istorija</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">Radijo istorija nepasiekiama</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">Nėra kvalifikuotų radijo įrodymų</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">Ištrintas saugomas radijo istorija</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">Radijo istorijos negalima patikrinti.</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">Radijo istorijos vientisumo patikrinimas nepavyko</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">Nėra patikrintos aprėpties</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">Iš dalies patikrintas draudimas</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">Visapusiškas patikrintas draudimas</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">Aprėptis nepasiekiama</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">Laukiant išsaugotų radijo stebėjimo</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">Nėra išsaugotų radijo stebėjimo duomenų</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">Laikoma šaltinio įrodymai buvo ištrinti.</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Negalima saugiai pateikti saugomų įrodymų</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Vietos, maršrutas, atstumas, greitis ir aukštis nėra šio šaltinio istorijos dalis.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d išsaugotas skenerio rezultatas</item>
+        <item quantity="other">%1$d išsaugoti skanų rezultatai</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d saugomas radijo įrašas</item>
+        <item quantity="other">%1$d saugomi radijo įrašai</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d sulaikytas pristatymas</item>
+        <item quantity="other">%1$d sulaikyti pristatymai</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d pristatymo rezultatai yra daliniai</item>
+        <item quantity="other">%1$d pristatymo rezultatai yra daliniai</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">Įrašyta veikla</string>
+    <string name="dashboard_live_activity_movement">Paskutinis įrašytas judėjimas</string>
+    <string name="dashboard_live_activity_active_time">Aktyvus laikas</string>
+    <string name="dashboard_live_activity_gaps">Žinomos spragos: %1$d</string>
+    <string name="dashboard_activity_coverage_none">Nėra patikrintos aprėpties</string>
+    <string name="dashboard_activity_coverage_partial">Dalinė aprėptis</string>
+    <string name="dashboard_activity_coverage_complete">Visa aprėptis</string>
+    <string name="dashboard_activity_still">Nejudama</string>
+    <string name="dashboard_activity_walking">Ėjimas pėsčiomis</string>
+    <string name="dashboard_activity_running">Bėgimas</string>
+    <string name="dashboard_activity_cycling">Važiavimas dviračiu</string>
+    <string name="dashboard_activity_vehicle">Transporto priemonėje</string>
+    <string name="dashboard_activity_on_foot">Pėsčiomis</string>
+    <string name="dashboard_activity_tilting">Pakreipta</string>
+    <string name="dashboard_activity_unknown">Nežinoma veikla</string>
     <string name="dashboard_exploration_title">Tyrinėjimas</string>
     <string name="dashboard_exploration_new_today">Nauja šiandien</string>
     <string name="dashboard_exploration_total_cells">Iš viso langelių</string>
@@ -151,51 +247,23 @@
     <string name="dashboard_ring_start_tracking">Pradėti sekimą</string>
     <string name="dashboard_ring_enable_location">Įjungti vietą</string>
     <string name="dashboard_pill_start">Pradėti</string>
-    <string name="dashboard_pill_stop">Sustabdyti</string>
     <string name="dashboard_pill_enable_location">Įjungti vietą</string>
     <string name="dashboard_insights_title">Sesijos įžvalgos</string>
     <string name="dashboard_cd_insight_item">Įžvalga: %1$s</string>
     <string name="widget_latest_achievement">Naujausias pasiekimas</string>
     <string name="dashboard_latest_achievement_title">Naujausias pasiekimas</string>
     <string name="dashboard_latest_achievement_empty">Tęskite sekimą, kad atrakintumėte pirmą pasiekimą</string>
-    <string name="dashboard_metric_pressure">Slėgis</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">Diapazonas %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">Pokytis %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">Išsaugota laiko juosta: %1$s</string>
-    <string name="dashboard_recent_pressure_title">Slėgio sesija</string>
-    <string name="dashboard_recent_pressure_available">Slėgio istorija pasiekiama</string>
-    <string name="dashboard_recent_pressure_materializing">Ruošiama slėgio istorija…</string>
-    <string name="dashboard_recent_pressure_partial">Dalinė slėgio istorija</string>
-    <string name="dashboard_recent_pressure_unavailable">Slėgio istorija nepasiekiama</string>
-    <string name="dashboard_recent_pressure_failed">Nepavyko paruošti slėgio istorijos</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · diapazonas %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">Pokytis %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">Nėra išsaugotos aprėpties</string>
-    <string name="dashboard_pressure_coverage_complete">Visa aprėptis</string>
-    <string name="dashboard_pressure_coverage_partial">Dalinė aprėptis</string>
-    <string name="dashboard_pressure_coverage_unknown">Aprėptis nepasiekiama</string>
-    <string name="dashboard_recent_activity_title">Veiklos sesija</string>
-    <string name="dashboard_recent_activity_ready">Veiklos istorija pasiekiama</string>
-    <string name="dashboard_recent_activity_materializing">Ruošiama veiklos istorija…</string>
-    <string name="dashboard_recent_activity_partial">Dalinė veiklos istorija</string>
-    <string name="dashboard_recent_activity_unavailable">Veiklos istorija nepasiekiama</string>
-    <string name="dashboard_recent_activity_failed">Nepavyko patikrinti veiklos istorijos</string>
-    <string name="dashboard_recent_activity_summary">%1$s · aktyvus laikas %2$s</string>
-    <string name="dashboard_live_activity_title">Įrašyta veikla</string>
-    <string name="dashboard_live_activity_movement">Paskutinis įrašytas judėjimas</string>
-    <string name="dashboard_live_activity_active_time">Aktyvus laikas</string>
-    <string name="dashboard_live_activity_gaps">Žinomos spragos: %1$d</string>
-    <string name="dashboard_activity_coverage_none">Nėra patikrintos aprėpties</string>
-    <string name="dashboard_activity_coverage_partial">Dalinė aprėptis</string>
-    <string name="dashboard_activity_coverage_complete">Visa aprėptis</string>
-    <string name="dashboard_activity_still">Nejudama</string>
-    <string name="dashboard_activity_walking">Ėjimas pėsčiomis</string>
-    <string name="dashboard_activity_running">Bėgimas</string>
-    <string name="dashboard_activity_cycling">Važiavimas dviračiu</string>
-    <string name="dashboard_activity_vehicle">Transporto priemonėje</string>
-    <string name="dashboard_activity_on_foot">Pėsčiomis</string>
-    <string name="dashboard_activity_tilting">Pakreipta</string>
-    <string name="dashboard_activity_unknown">Nežinoma veikla</string>
-    <string name="dashboard_finishing_session">Seansas baigiamas…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Importiniai žingsniai</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Parodykite įrašą %1$d</item>
+        <item quantity="other">Parodykite %1$d įrašus</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">Paslėpti įrašą %1$d</item>
+        <item quantity="other">Paslėpkite įrašus %1$d</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Įrašymas %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s žingsniai</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">Ne mažiau kaip %1$s žingsniai</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">Paskutiniai žingsniai</string>
 </resources>

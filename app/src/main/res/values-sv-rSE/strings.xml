@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Säkerhetskopian före uppgraderingen har exporterats</string>
     <string name="settings_migration_backup_export_failure">Kunde inte exportera säkerhetskopian före uppgraderingen</string>
     <string name="settings_migration_backup_export_cleanup_required">Exporten misslyckades. Ta bort den delvis exporterade säkerhetskopian från den valda platsen.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Importen av databaser som är äldre kräver uppmärksamhet</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Din ursprungliga databas finns fortfarande på den här enheten. Försök att öppna Tracker igen.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Arvdatabasens storlek: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Återförsök med import</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Exporterad databas</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Ta bort den gamla databasen och starta på nytt</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Exporterad databas</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Kunde inte exportera den gamla databasen</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Exporten misslyckades och den ofullständiga destinationen kunde inte flyttas. Ta bort den manuellt.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Legacy databas vault</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Version %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Källversion: %1$d\n Lagring: %2$s\nImport: %3$s\nImporterade rader: %4$d\nRåar som endast lagras i skåpet: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Import avslutad: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Inte importerad</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Import</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Import är färdig</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Import misslyckats</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Ta bort den gamla databasen?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">Detta tar %1$s permanent bort från enheten. Dina v27-data påverkas inte. Bevara den exporterade kopien om du senare behöver den ursprungliga databasen.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Deleted legacy database</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Kunde inte radera den gamla databasen</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Spårning av återhämtning kräver uppmärksamhet</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Samlingen förblir avstängd medan Tracker säkert samlar sina spårningsuppgifter. Försök igen utan att radera historien.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Återförsök återhämtning</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Utvecklingsdatabasen behöver en manuell säkerhetskopiering</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker hittade en out-shipped version 28 utvecklingsdatabas som inte matchar denna build. Spårnings- och databasfunktioner är avstängda, och databasfilen har lämnats oförändrad. Backa in appdata eller databas innan du byter ut eller reparerar den här utvecklingsinstallationen.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Databasen behöver uppmärksamhet</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker kunde inte säkert identifiera eller validera denna databas. Spårnings- och databasfunktioner är avstängda, och databasfilen har lämnats oförändrad. Skapa säkerhetskopiering av appdata eller databas innan du försöker manuellt återställa.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Databasen är tillfälligt otillgänglig</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Spårnings- och databasfunktioner stängs av medan Tracker återförsäkras säkert. Inga uppgifter raderades. Försök nu igen att kontrollera om problem med den tillfälliga låsningen eller lagringen har löst sig.</string>
     <string name="settings_delete_data_success">Alla insamlade data har raderats</string>
     <string name="settings_delete_data_failure">Kunde inte radera alla insamlade data</string>
     <string name="settings_game_goals_title">Mål</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Läser in spelinställningar…</string>
     <string name="settings_game_load_error">Spelinställningarna kunde inte läsas in. Försök igen.</string>
     <string name="settings_map_info_hint">De här inställningarna styr kartans visualiseringskvalitet och prestanda. De flesta användare kan använda standardvärdena.</string>
+    <string name="settings_map_offline_data_section">Offline kartadata</string>
     <string name="settings_map_online_tiles_section_title">Onlinekartbrickor</string>
     <string name="settings_map_online_tiles_enable_title">Använd onlinekartbrickor</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Av — endast den medföljande offlinebaskartan används. Inga nätverksförfrågningar.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Anpassad</string>
     <string name="tracking_preset_custom_description">Justera varje spårningsparameter manuellt</string>
     <string name="tracking_preset_selector_subtitle">Välj en profil att börja med och finjustera sedan valfri inställning nedan.</string>
+    <string name="tracking_preset_change">Jämför alternativ</string>
+    <string name="tracking_preset_done">Visa endast utvalda</string>
     <string name="tracking_preset_customized_summary">Du har finjusterat spårningen. Välj en förinställning ovan för att återställa.</string>
+    <string name="settings_tracking_section_start_stop">Automatisk spårning</string>
+    <string name="settings_tracking_section_battery_detail">Spårningskvalitet</string>
+    <string name="settings_tracking_section_data_collected">Uppgifter som samlats in</string>
     <string name="settings_tracking_section_detail">Platsinsamling</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Utlandsresor (valfri)</string>
     <string name="settings_tracking_section_notifications">Aviseringar</string>
+    <string name="settings_transition_detection_friendly_title">Batterieffektiva rörelsedetection</string>
+    <string name="settings_transition_detection_friendly_summary">Använder Android ändringar i aktiviteten för att undvika frekventa bakgrundskontroll. Automatiska starter kan reagera lite långsammare.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Det finns ingen automatisk spårning.</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Ditt automatiskt läget val är sparat. Tillstånd för upptäckt av aktivitet krävs innan automatisk start kan fungera.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Välj vad du ska spela in mellan resor.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi utomhusresor</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Cells utomhusresa</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Med mellan resor.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Spara som på. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Utomhusomslag är opportunistiskt och kan innehålla tillstånd, leverantör, process, omstart eller operativsystem. Tracker hävdar inte att insamlingen alltid är på eller uppfinner en lagringsperiod.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Insamling avstängs eftersom produktbevarningspolicyn ännu inte är tillgänglig.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Jag kollar in...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Samlingen är säker i den nuvarande utbyggnaden.</string>
+    <string name="settings_ambient_user_turned_off">Spårningen är avstängd. Dina val och sparade data behålls.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Tillåt åtkomst till stegräkningen i Health Connect så att Tracker kan fylla i luckor i steghistoriken även när appen är stängd.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Tillåt åtkomst till steg räkningar i Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Jag kunde inte kontrollera Health Connect. Försök igen.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Antalet steg kan importeras medan Tracker körs. Bakgrundsåtkomst kan minska luckor i steghistoriken.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Det finns ingen stödjande heldagsstadsleverantör tillgänglig.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Uppdatera Health Connect så att Tracker kan läsa steg räkningar.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Jag kunde inte kontrollera provdöraren. Försök igen senare.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Ge den fysiska aktiviteten tillstånd att räkna steg på den här enheten.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Inregistrering av steg är inte tillgänglig på denna enhet.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect är redo. Vissa perioder kan fortfarande ha brister.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Steginspelning är klar. Vissa perioder kan fortfarande ha brister.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Platsåtkomst i bakgrunden behövs för att registrera platser mellan sessioner. Din inställning för registrering under sessioner ändras inte.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android  ⁇ s Wi-Fi Skanderingstillståndskrav är inte uppfyllda. Att ge dem tillåtelse gör det inte möjligt att fånga plats.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Cells callback behörighetskrav är inte uppfyllda. Att ge dem tillåtelse gör det inte möjligt att fånga plats.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passiv Lokation är redo för försoning mellan källägaren. Det ger opportunistiska poäng, inte rutten kontinuitet.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Callbacks från skanningsresultatet är redo för försoning mellan källägare och källan. Ingen skanning eller vakningskandens lovas.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Tidsstemplar-kvalificerade celländringssamtal är redo för försoning mellan källan och ägaren. Ingen tvångsuppfriskningskadens lovas.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Den nödvändiga plattformen eller leverantören är inte tillgänglig, så insamlingen stannar utanför.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Avspärrat; operationell status i utväg</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Skapade på; rapporterad driftstillgänglighet</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Spara på; inte i drift</string>
+    <string name="settings_location_source_summary">Registrera vägen, avståndet och hastigheten. Vanligtvis den största batterikostnaden.</string>
+    <string name="settings_activity_source_summary">Registrerar gång, cykling, bilkörning och stillhet under hela dagen.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Han spårar steg hela dagen. Resor organiserar samma steg historia.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Jag kontrollerar stegsamlingen.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Stäng av spårning</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Stäng av...</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Stanna sessioner, hela dagen spela in och automatiskt starta. Dina val och sparat data stannar kvar.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Spårningen är avstängd. Dina val och sparade data behålls.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Jag kunde inte stänga av spårningen. Försök igen.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Uppteckna lufttrycket under hela dagen med ett meddelande om spårning.</string>
+    <string name="settings_ambient_activity_ready">Redo att registrera aktivitet.</string>
+    <string name="settings_ambient_pressure_ready">Redo att registrera lufttryck.</string>
+    <string name="settings_pressure_host_unavailable">Registrering av lufttryck i bakgrunden kunde inte starta.</string>
+    <string name="settings_wifi_source_summary">Registrera Wi-Fi nätverk i närheten för att lägga till lokal sammanhang. Data stannar på enheten.</string>
+    <string name="settings_cell_source_summary">Registrera celltorn i närheten för att lägga till platskontext. Data stannar på enheten.</string>
+    <string name="settings_location_source_compact">Ruten, avstånd och hastighet</string>
+    <string name="settings_activity_source_compact">rörelse och stillhet</string>
+    <string name="settings_steps_source_compact">Steg under dagen</string>
+    <string name="settings_barometer_source_compact">Höjd och höjd</string>
+    <string name="settings_wifi_source_compact">Närliggande nätverkskontext</string>
+    <string name="settings_cell_source_compact">Kontext i närliggande torn</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Teknisk status</string>
+    <string name="settings_technical_status_summary">Batteriets beräkning, tillstånd och insamlingsstatus.</string>
+    <string name="settings_technical_status_attention">Vissa insamlingskällor behöver uppmärksamhet. Öppna för detaljer.</string>
+    <string name="settings_simple_source_controls_title">Använd enkla kontroller</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Spåra promenader och löpning automatiskt.</string>
     <string name="setup_auto_tracking_in_motion">I rörelse</string>
     <string name="setup_auto_tracking_in_motion_desc">Spåra alla rörelser automatiskt, inklusive bilkörning och cykling.</string>
-    <string name="setup_preset_title">Spårningsdetaljer</string>
+    <string name="settings_auto_tracking_mode_summary">Välj vilken rörelse som ska starta och avbryta resor automatiskt.</string>
     <string name="setup_recommended">Rekommenderas</string>
     <string name="setup_what_to_collect_title">Vad ska samlas in</string>
     <string name="setup_what_to_collect_subtitle">Fler alternativ finns nedan. Börja utforska utan behörigheter eller bevilja dem senare. Data stannar på enheten.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Aktivitet</string>
     <string name="setup_source_activity_desc">Upptäck om du går, springer, cyklar eller kör.</string>
     <string name="setup_source_steps">Steg</string>
-    <string name="setup_source_steps_desc">Räkna dina steg med enhetens stegräknare.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Spåra steg hela dagen. Utflykter organiserar samma historia.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Ingen direktstegssensor. Tracker kommer att kontrollera om det finns en stegkälla på enheten.</string>
+    <string name="setup_perm_steps_why">Tillåt åtkomst till rörelse för att räkna steg på den här enheten hela dagen.</string>
+    <string name="setup_perm_grant_steps_content_description">Tillåt rörelseåtkomst för Steg</string>
+    <string name="setup_steps_health_connect_why">Tillåt Steg i Health Connect för att fylla luckor när Tracker är stängt.</string>
+    <string name="setup_steps_provider_ready">En stegkälla på enheten är klar. Vissa perioder kan fortfarande ha luckor.</string>
+    <string name="setup_steps_provider_checking">Kontrollerar tillgängliga stegkällor…</string>
     <string name="setup_source_wifi">Wi-Fi-nätverk</string>
-    <string name="setup_source_wifi_desc">Logga närliggande Wi-Fi-nätverk för att förbättra platsnoggrannheten.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Registrera närliggande nätverk Wi-Fi, med eller utan platsspårning.</string>
     <string name="setup_source_cell">Mobilmaster</string>
-    <string name="setup_source_cell_desc">Logga information om mobilmaster för platskontext.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Registrera närliggande celltorn, med eller utan platsspårning.</string>
     <string name="setup_perm_location_why">Krävs för att registrera dina rutter och visa dem på kartan. Platsen stannar på enheten — inget skickas till en server.</string>
     <string name="setup_perm_location_bg_why">För att fortsätta registrera din rutt när du byter app eller skärmen släcks behöver Tracker komma åt din plats i bakgrunden. Den registrerade platsen stannar på enheten — inget skickas till en server. Välj ”Tillåt alltid” i nästa systemdialog för att aktivera automatisk spårning; ”Tillåt endast medan appen används” gör att Tracker bara fungerar när skärmen är öppen.</string>
     <string name="setup_perm_activity_why">Låter Tracker upptäcka vad du gör (går, cyklar, kör eller är stilla) så att automatisk spårning kan pausas när du inte rör dig och spara batteri. Aktivitetsdata stannar på enheten — inget skickas till en server.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Bevilja behörighet för mobilradio</string>
     <string name="setup_perm_granted">Beviljad ✓</string>
     <string name="permission_grant_in_settings">Tillåt i Inställningar →</string>
-    <string name="permission_disabled_due_to_denial">%1$s är inaktiverad eftersom behörigheten nekades. Bevilja den i Inställningar för att aktivera.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s är markerad men kan inte samlas in förrän tillstånd beviljats.</string>
     <string name="settings_wifi_permission_required">Kräver Wi-Fi-/platsbehörighet. Slå på för att bevilja — inga Wi-Fi-data registreras förrän dess, och registrerade data stannar på enheten.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Tillträde behövs fortfarande. Dina val är bevarade.</string>
     <string name="settings_cell_permission_required">Kräver behörighet för telefonstatus och exakt plats. Slå på för att bevilja — inga celldata registreras förrän dess, och registrerade data stannar på enheten.</string>
     <string name="settings_barometer_unavailable">Trycksensorn är inte tillgänglig på den här enheten.</string>
     <string name="settings_activity_permission_required">Kräver behörighet för aktivitetsigenkänning. Slå på för att bevilja.</string>
-    <string name="settings_steps_unavailable">Stegräknarsensorn är inte tillgänglig på den här enheten.</string>
     <string name="setup_start_exploring">Börja utforska</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Slutställning...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Försök igen</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Jag kunde inte spara inställningen. Dina val är kvar.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Jag kunde inte förbereda sparat data. Dina val är kvar.</string>
     <string name="setup_continue">Fortsätt</string>
     <string name="setup_step_indicator">Steg %1$d av %2$d</string>
     <string name="setup_online_tiles_title">Onlinekartbrickor?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">När detta är aktiverat kan leverantören se din IP-adress och vilka kartbrickor du läser in — ungefär vilket område på kartan du tittar på. Tracker skickar aldrig ett konto, en identifierare eller din platshistorik.</string>
     <string name="setup_online_tiles_change_later">Du kan ändra detta när som helst i Inställningar → Karta → Onlinekartbrickor.</string>
     <string name="setup_background_access_optional">Valfritt, men rekommenderas. Du kan ändra detta när som helst i Inställningar → Spårning.</string>
-    <string name="background_reliability_status_exempt">Bakgrundsaktivitet tillåten</string>
-    <string name="background_reliability_status_optimized">Batterioptimering är på</string>
-    <string name="background_reliability_allow_action">Tillåt bakgrundsaktivitet</string>
-    <string name="background_reliability_samsung_hint">Samsung-enheter kan också placera appar i ”Sovande appar”. Öppna batteriinställningarna, ta bort Tracker från Sovande appar och ange att den inte ska försättas i viloläge.</string>
-    <string name="background_reliability_samsung_action">Öppna enhetens batteriinställningar</string>
-    <string name="settings_tracebox_title">Kraschdiagnostik</string>
-    <string name="settings_tracebox_root_summary">Lokal krasch-, ANR- och strukturdiagnostik</string>
     <string name="setup_background_location_title">Tillåt plats i bakgrunden för automatisk spårning</string>
     <string name="setup_background_location_disclosure">Automatisk spårning startar när Tracker körs i bakgrunden och registrerar din rutt även när appens skärm inte är öppen. Platsdata stannar på den här enheten. Välj ”%1$s” i appens platsinställningar.</string>
     <string name="setup_background_location_open_settings">Öppna platsinställningar</string>
     <string name="setup_background_location_decline">Inte nu</string>
     <string name="setup_background_location_manual_only">Manuell spårning i förgrunden är fortfarande tillgänglig. Automatisk platsspårning förblir avstängd tills plats i bakgrunden tillåts.</string>
-    <string name="settings_ambient_user_turned_off">Spårningen är avstängd. Dina val och sparade data behålls.</string>
-    <string name="setup_perm_steps_why">Tillåt åtkomst till rörelse för att räkna steg på den här enheten hela dagen.</string>
-    <string name="setup_perm_grant_steps_content_description">Tillåt rörelseåtkomst för Steg</string>
-    <string name="setup_steps_health_connect_why">Tillåt Steg i Health Connect för att fylla luckor när Tracker är stängt.</string>
-    <string name="setup_steps_provider_ready">En stegkälla på enheten är klar. Vissa perioder kan fortfarande ha luckor.</string>
-    <string name="setup_steps_provider_checking">Kontrollerar tillgängliga stegkällor…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Inställningar för bakgrundsspårning</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android och enhetens policy kan pausa eller stoppa bakgrundsarbete. Tracker kan rapportera begränsningar Android exponerar, men kan inte överträda begränsade eller tvärstoppade tillstånd.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Begränsning i bakgrunden upptäckt</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Batterioptimering upptäckt</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Inga begränsningar upptäcktes</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Begränsningsstatus inte tillgänglig</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android rapporterar att bakgrundsaktiviteten är begränsad. Spårningen kan avbrytas när Tracker inte är synlig. Appen kan inte överträda denna policy.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android rapporterar att Tracker inte finns på batterilistan. Strömhanteringen kan fördröja bakgrundsarbetet. Tillståndslistan minskar begränsningar men garanterar inte kontinuerlig spårning.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android rapporterar ingen bakgrundsbegränsning och Tracker finns på batterilistan. Systemet kan fortfarande stoppa appen, och force-stop kan inte övervägas.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker kunde inte läsa alla relevanta Android begränsningssignaler. Det kan inte bekräftas någon enhetsspecifik orsak eller botemedel.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Öppna inställningar för appbatteri</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Öppna inställningar för batterioptimering</string>
+    <string name="settings_tracebox_title">Kraschdiagnostik</string>
+    <string name="settings_tracebox_root_summary">Lokal krasch-, ANR- och strukturdiagnostik</string>
     <string name="settings_tracking_changes_apply_live">Ändringar uppdaterar den pågående spårningen</string>
     <string name="settings_balance_title">Energi och detaljer</string>
     <string name="settings_balance_custom">Anpassade inställningar · Välj balans</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Detaljer · Övergripande balans: %1$s</string>
     <string name="settings_balance_inherit">Använd övergripande balans</string>
     <string name="settings_balance_summary">Välj den vanliga kvaliteten för dina valda källor. Aktiva sessioner prioriterar detaljer för deltagande källor. En vald balans ersätter tidigare insamlingsfrekvenser; källval, samtycke till bakgrundsinsamling och noggrannhetsfilter bevaras.</string>
-    <string name="export_format_portable_steps_desc">Verifierad steghistorik, täckning och luckor utan ruttkoordinater</string>
-    <string name="export_format_portable_ambient_steps_desc">Bakgrundssteg, aktivitetstid, datum, täckningsluckor och sparad tidszon utan ruttkoordinater</string>
-    <string name="export_format_portable_activity_desc">Registrerade rörelseintervall, tillförlitlighet och täckning utan ruttkoordinater</string>
-    <string name="export_format_portable_pressure_desc">Direkta tryckmätningar i hPa, täckning och luckor utan ruttkoordinater</string>
-    <string name="export_sensitivity_portable_title">Exportera registrerad historik?</string>
-    <string name="export_sensitivity_portable_steps_message">Den här filen innehåller stegantal, tidsintervall och täckningsinformation. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Den här filen innehåller bakgrundssteg, aktivitetsintervall, datum, täckningsluckor och sparad tidszon. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
-    <string name="export_sensitivity_portable_activity_message">Den här filen innehåller registrerade rörelseintervall, tidsintervall och täckningsinformation. Den innehåller inga ruttkoordinater. Fortsätt bara om du litar på destinationen.</string>
-    <string name="export_sensitivity_portable_pressure_message">Den här filen innehåller tryckmätningar och tidsintervall som kan avslöja information om omgivningen. Den innehåller inga ruttkoordinater eller kalibrerad höjd. Fortsätt bara om du litar på destinationen.</string>
-    <string name="settings_activity_source_summary">Registrerar gång, cykling, bilkörning och stillhet under hela dagen.</string>
-    <string name="settings_ambient_activity_ready">Redo att registrera aktivitet.</string>
-    <string name="settings_ambient_pressure_ready">Redo att registrera lufttryck.</string>
-    <string name="settings_pressure_host_unavailable">Registrering av lufttryck i bakgrunden kunde inte starta.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Återuppta spårning</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Jag kunde inte återuppta spårningen. Försök igen.</string>
 </resources>

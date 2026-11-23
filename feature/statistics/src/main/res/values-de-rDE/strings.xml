@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistiken</string>
     <string name="stats_cell_count">Anzahl der Funkzellen</string>
     <string name="stats_collections">Anzahl der Aktualisierungen</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Funkzelle %1$s · %2$s Proben</string>
     <string name="stats_cell_signal_carrier">Anbieter %1$s-%2$s</string>
     <string name="trip_detail_title">Fahrtdetails</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Quelle-Geschichte</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Quellverlauf nicht verfügbar</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Diese private Auswahl wurde nicht beibehalten, nachdem der App-Prozess neu erstellt wurde. Zurück zu der jüngsten Geschichte und wählen Sie sie erneut aus.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Der ausgewählte gespeicherte Quellzugriff ist nicht mehr verfügbar.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Die begrenzte Quelle der Geschichte konnte nicht sicher beendet werden.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Die ausgewählten gespeicherten Quellen-Einträge scheiterten bei den Integritätskontrollen.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Der für die Darstellung dieser Auswahl notwendige Quellbeweis ist nicht verfügbar.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Bei der Auswahl der Quelle wird die aktuelle gespeicherte Eintragung nicht mehr identifiziert.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Die Quellgeschichte ist gescheitert. Versuchen Sie es nochmal.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Fahrt nicht gefunden</string>
     <string name="trip_detail_not_found_subtitle">Diese Fahrt wurde möglicherweise gelöscht</string>
     <string name="trip_detail_error_title">Fahrt konnte nicht geladen werden</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Strecke</string>
     <string name="trip_detail_date">Datum</string>
     <string name="trip_detail_steps">Schritte</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Vollständige Abdeckung</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Zumindest so viele · teilweise Abdeckung</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Teilgeschichte · keine vertrauenswürdige Anzahl verfügbar</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Nicht überprüft: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Vermächtniswert · Vollständigkeit nicht überprüft</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Aktualisierung der Geschichte...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Für diese Sitzung nicht erfasst.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Diese Sitzung ist deaktiviert</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Nicht unterstützt</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Erlaubnis war erforderlich</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Begrenzt durch Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Nicht verfügbar</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Keine qualifizierende Beobachtung</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Löscht</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Nicht verfügbar</string>
     <string name="trip_detail_samples">Proben</string>
     <string name="trip_detail_source">Quelle</string>
     <string name="trip_detail_avg_speed">Durchschnittsgeschwindigkeit</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Löschen</string>
     <string name="trip_detail_cancel">Abbrechen</string>
     <string name="trip_detail_more_options">Weitere Optionen</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Aktionen nicht verfügbar für diese erfasste Quelle</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Quellverwaltung</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Herkunft</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Zurückgehaltene Zweck</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Genaue nur-quell-sitzungs-aufnahme</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Mitgliedschaft mit tragbaren Quellen</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Authentifizierte unveränderliche Erfassungshistorie bezeichnet dies als die einzige erfasste Quelle.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Das eingeführte Format beweist, dass die Quellmitgliedschaft beibehalten wurde, nicht, dass dieses Gerät die Beweise aufgenommen hat.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi Sitzung</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Zellsitzung</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Aufbewahrte Radiosammensetzung</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Abdeckung</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Vorbereitung der gespeicherten Radiohistorie</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Teilweise gespeicherte Radiohistorie</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Erhaltene Funkgeschichte verfügbar</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Funkgeschichte nicht verfügbar</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Keine qualifizierenden gespeicherten Funkbeweise</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Speicherte Radiohistorie gelöscht</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Funkgeschichte konnte nicht überprüft werden</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Funkgeschichte-Integritätsprüfung fehlgeschlagen</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Keine überprüfte Abdeckung</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Teilweise überprüfte Abdeckung</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Vollständige verifizierte Abdeckung</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Abdeckung nicht verfügbar</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Warten auf gespeicherte Radio-Beobachtungen.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Es gibt keine gespeicherten Funkbeobachtungen.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Die aufbewahrten Quellen wurden gelöscht.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Beweise, die aufbewahrt werden, können nicht sicher vorgestellt werden.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Zurückgehaltenen Lieferungen</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Lieferungen mit teilweisen Ergebnissen</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Beibehalten Wi‑Fi Beweise</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Speicherte Scanergebnisse</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Frequenz-Band-Ergebnismix</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Beibehaltlicher Signalbereich</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d bis %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Andere Bands</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Beweise für die Aufbewahrung von Zellen</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Speicherte Funkunterlagen</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Aufzeichnungen über den eingetragenen Status</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radiotechnologie-Aufzeichnungsmix</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Kein Netzwerk, kein Turm, kein Abonnent, keine Route, keine Entfernung, keine Geschwindigkeit, keine Höhe oder keine Standortidentität werden durch dieses Detail offenbart.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Schrittaufzeichnung</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Beweise für die aufbewahrten Schritte</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Abdeckung</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Keine abgedeckte Intervalle</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Vollständiger abgedeckter Intervall</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Teilweise abgedeckte Intervalle</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Abdeckung nicht verfügbar</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Es sind nur Beweise von Steps vorhanden. Die Position wurde nicht erfasst, so dass die Route und die von der Position abgeleiteten Metriken nicht verfügbar sind.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Aktivitätssitzung</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Aktivitätsbandes, Dauerräume und Vertrauen sind ungefähre Zusammenfassungen der auf dem Gerät gespeicherten Beweise.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Zusammenfassung der Tätigkeiten</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Abdeckung</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Herkunft</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Bekannte aktive Zeit</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Bekannte Inaktivitätszeit</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Nicht klassifizierte Zeit</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Bekannte Pausenzeit</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Zurückgehaltene Aktivitätsbanden und Lücken</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Durchschnittliche Dauer</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Sicherheit</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktivitätsübergangssignal</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Etwa %1$d ⁇ %2$d%% von %3$d aufbewahrten Beobachtungen</item>
+        <item quantity="other">Etwa %1$d ⁇ %2$d%% von %3$d behaltenen Beobachtungen</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Typ der Beweise</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Verfeinerter Übergang</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Bekannte Lücke</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Der Grund</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Durchschnittliche Dauer</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Vorbereitung der Aktivitätsgeschichte</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Teilweiser Aktivitätsverlauf</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Aktivitätsverlauf verfügbar</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Aktivitätsverlauf nicht verfügbar</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Aktivitätsverlauf konnte nicht überprüft werden</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Aufbewahrte Aktivitätsgeschichte wird noch vorbereitet; die Dauer ist noch nicht abgeleitet.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Nur ein Teil der Sitzung hat Aktivitätsbeweise behalten.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Es gibt keine aufbewahrten Aktivitätsdauer.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Es gibt keine vertrauenswürdigen erhaltenen Ergebnisse der Aktivität.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Aufbewahrte Aktivitätsnachweise fehlgeschlagenen Integritätsprüfungen.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Keine überprüfte Abdeckung</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Teilweise Abdeckung</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Vollständige Abdeckung</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Auf diesem Gerät erfasst.</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Einfuhr von behaltenen Beweisen</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Stillstehend</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Gehen</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Laufen</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Radfahren</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Im Fahrzeug</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Zu Fuß</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Neigung</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Unbekannte Aktivität</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Übergang</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Abgefasste Raffination</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Stichprobenklassifizierung</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Keine qualifizierenden behaltenen Beweise</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Unterbrechung des Aktivitätsanbieters</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Änderung der Genehmigung</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Neustart des Prozesses oder Geräts</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Die Beweise waren nicht geeignet</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Aufgenommenes Gespräch</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Standort nicht erfasst</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Gefangene Quellen</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Ausgewählte Details sind für diese genaue Quellenkombination noch nicht verfügbar. Route, GPX, Entfernung, Geschwindigkeit, Höhenstand und andere Standort-basierte Aktionen bleiben nicht verfügbar.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Standort</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Funkzelle</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Aktivität</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Schritte</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Druck</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Nicht geprüfte Fangquellen</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Diese ältere Sitzung ist vor der verifizierbaren Aufnahmegeschichte. Die aufbewahrten Reisedaten werden angezeigt und können unvollständig sein.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Drucksitzung</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Luftdruck</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Status</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Neueste</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Aufbewahrter Bereich</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Erste bis letzte Änderung</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Abdeckung</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Speicherzone</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Aktualisieren Sie den Druck...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Teilweise gehaltener Druck</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Zur Verfügung gehaltener Druck</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Zurückgelassener Druck gelöscht</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Zurückgelassener Druck konnte nicht überprüft werden</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Druck nicht verfügbar</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Druckgeschichte versagt</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Nicht verfügbar</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Versuchen Sie erneut, die Geschichte dieser Reise zu aktualisieren.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Der gespeicherte Quellbeweis ist nicht verfügbar. Versuchen Sie es nochmal.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Die begrenzte Quelle der Geschichte konnte nicht sicher beendet werden. Versuchen Sie es nochmal.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Die gespeicherte Quellverlaufsergebnis versagte Integritätsprüfung. Versuchen Sie erneut, wenn die Quelle verfügbar ist.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Die Physical History-Mitgliedschaft konnte nicht sicher überprüft werden.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Keine gespeicherte Abdeckung</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Vollständige aufbewahrte Deckung</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Teilweise aufbewahrte Abdeckung</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Abdeckung nicht verfügbar</string>
     <string name="ski_detail_header">Ski-Sitzung</string>
     <string name="ski_detail_runs">Abfahrten</string>
     <string name="ski_detail_vertical">Höhenmeter</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Zuletzt gesehen</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Zeitachse</string>
-    <string name="history_tab_trips">Fahrten</string>
     <string name="history_tab_calendar">Kalender</string>
     <string name="history_screen_title">Verlauf</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Nächster Monat</string>
     <string name="history_calendar_distance">Strecke</string>
     <string name="history_calendar_steps">Schritte</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Ich aktualisiere...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Nicht gefangen</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Unvollständig</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Nicht verfügbar</string>
     <string name="history_calendar_trips">Fahrten</string>
     <string name="history_exploration_title">Erkundung</string>
     <string name="history_exploration_cells">Zellen</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Verlauf</string>
     <string name="history_view_trip_on_map">Fahrt auf Karte anzeigen</string>
     <string name="stats_heatmap_title">Aktivität</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Einige Schritte</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Route und andere Sensordaten sind nicht enthalten.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sitzungen</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Sitzungen hinzufügen</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Bearbeitungssitzung</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Name (optional)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Aktivitätsetikett</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Keine Kennzeichnung</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Beginn</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Ende</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Zeitzone</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Zeitzonen anzuwenden</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Verwenden Sie die Zeitzone, bevor Sie sparen.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Umladen Sitzung</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Aufzeichnungsdetails</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Entfernen Sie die Sitzung</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Sparen Sie</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Abbrechen</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Diese Sitzung zu entfernen?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Die aufgezeichneten Daten bleiben in der Geschichte.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Datum</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Zeit</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Diese lokale Zeit existiert nicht, weil die Uhren vorwärts bewegen. Wählen Sie einen anderen Zeitpunkt.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Diesmal kommt es zweimal. Wählen Sie die UTC-Offset aus.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Das Ende muss nach dem Anfang sein. Beide Zeiten müssen am oder nach dem 1. Januar 1970 erfolgen.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Das Ende kann nicht in der Zukunft sein.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Eingabe einer IANA-Zeitzone, wie z. B. Europa/Prague oder UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Verwenden Sie maximal 200 Zeichen.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Dieses Etikett wurde entfernt. Wählen Sie ein anderes Etikett oder kein Etikett.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Diese Sitzung wurde geändert oder gesammelte Daten wurden gelöscht. Umladen, bevor Sie sparen.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Diese Sitzung ist nicht mehr verfügbar.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Die Sitzungen sind vorübergehend nicht verfügbar. Versuchen Sie, Geschichte wieder zu öffnen.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Keine Sitzungen in diesem Zeitraum.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Unbenannte Sitzung</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Wird aufgezeichnet</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Die Aufnahmezeit ist unsicher. Bestätigen Sie die Uhrzeit, bevor Sie den Intervall ändern.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Weiter von früherem Tag</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Zeigen Sie alles .</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Beenden Sie die Sitzung, um ihre Zeit zu bearbeiten oder zu entfernen.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Sitzungen für den heutigen Tag</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Einige Sitzungsmarker werden nicht angezeigt. Wählen Sie einen Tag aus, an dem Sie die Sitzungen ansehen können.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Tag %1$d, Sitzung</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Tag %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Erneut versuchen</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Aufzeichnungen durchsuchen</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Zurück zur Sitzung</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Ausführungssitzung</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Ich konnte die Datei nicht speichern. Versuchen Sie es noch mal.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Exportierte Sitzung</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Sitzungen mit vollständigen Aufnahmen, die sich über ihre Termine hinaus erstrecken.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Ich konnte es nicht beenden. Versuchen Sie es noch mal.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Diese Aufnahme löschen?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Die gespeicherten Messwerte werden dauerhaft gelöscht.</string>
     <string name="stats_recorded_partial_value">%1$s · teilweise</string>
     <string name="history_activity_started">Begonnen: %1$s</string>
     <string name="history_activity_ended">Beendet: %1$s</string>

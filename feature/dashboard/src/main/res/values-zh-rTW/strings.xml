@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="dashboard_finishing_session">正在結束記錄…</string>
+    <string name="dashboard_recorded_partial_value" tools:ignore="MissingTranslation">%1$s · 部分</string>
     <string name="dashboard_title">儀表板</string>
     <string name="dashboard_tracking_title">追蹤</string>
     <string name="dashboard_recording">記錄中</string>
@@ -20,7 +22,6 @@
         <item quantity="other">連續記錄：%1$d 天。輕觸查看連續記錄詳情</item>
     </plurals>
     <string name="dashboard_cd_streak_banner_empty">開始連續記錄。輕觸查看連續記錄詳情</string>
-    <string name="dashboard_cd_stop_tracking">停止追蹤</string>
     <string name="dashboard_action_enable_location">啟用位置存取權</string>
     <string name="dashboard_action_view_details">檢視詳細資料</string>
     <string name="dashboard_action_view_map">檢視地圖</string>
@@ -42,6 +43,11 @@
     <string name="dashboard_live_steps_materializing">正在準備永久儲存的步數記錄…</string>
     <string name="dashboard_live_steps_missing">正在等待有效的步數觀測</string>
     <string name="dashboard_live_steps_unavailable">永久儲存的步數記錄無法使用</string>
+    <string name="dashboard_metric_pressure">氣壓</string>
+    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
+    <string name="dashboard_live_pressure_range">範圍 %1$.1f–%2$.1f hPa</string>
+    <string name="dashboard_live_pressure_change">變化 %1$.1f hPa</string>
+    <string name="dashboard_live_pressure_zones">已儲存的時區：%1$s</string>
     <string name="dashboard_milestone_distance">已達成公里數！</string>
     <string name="dashboard_milestone_steps">已達成步數！</string>
     <string name="dashboard_milestone_time">已追蹤分鐘數！</string>
@@ -63,16 +69,106 @@
     <string name="dashboard_last_session_title">上一次工作階段</string>
     <string name="dashboard_last_session_duration">持續時間</string>
     <string name="dashboard_last_session_distance">距離</string>
-    <string name="dashboard_last_session_steps">步數</string>
     <string name="dashboard_last_session_view_map">檢視地圖</string>
     <string name="dashboard_recent_trips_title">近期追蹤</string>
     <string name="dashboard_recent_trips_empty">沒有近期追蹤工作階段。開始追蹤後即可在此查看。</string>
     <string name="dashboard_recent_history_loading">正在載入近期追蹤…</string>
     <string name="dashboard_recent_history_unavailable">近期追蹤無法使用</string>
+    <string name="dashboard_recent_history_source_unavailable" tools:ignore="MissingTranslation">%1$s 歷史無法找到</string>
+    <string name="dashboard_recent_history_recency_unavailable" tools:ignore="MissingTranslation">沒有源源近期權限</string>
+    <string name="dashboard_live_history_source_reason" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="dashboard_live_history_evidence_unavailable" tools:ignore="MissingTranslation">沒有保存的源證據快照</string>
+    <string name="dashboard_live_history_budget_unavailable" tools:ignore="MissingTranslation">數字數量有限的資料無法安全完成.</string>
+    <string name="dashboard_live_history_integrity_unavailable" tools:ignore="MissingTranslation">保存的源史未能進行完整性檢查</string>
+    <string name="dashboard_live_history_membership_unavailable" tools:ignore="MissingTranslation">沒有證實的身分歷史</string>
+    <string name="dashboard_history_source_location" tools:ignore="MissingTranslation">位置</string>
+    <string name="dashboard_history_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="dashboard_history_source_cell" tools:ignore="MissingTranslation">基地台</string>
+    <string name="dashboard_history_source_activity" tools:ignore="MissingTranslation">活動</string>
+    <string name="dashboard_history_source_steps" tools:ignore="MissingTranslation">步數</string>
+    <string name="dashboard_history_source_pressure" tools:ignore="MissingTranslation">氣壓</string>
     <string name="dashboard_recent_steps_title">步數工作階段</string>
     <string name="dashboard_recent_steps_available">步數記錄可用</string>
     <string name="dashboard_recent_steps_materializing">正在準備步數記錄…</string>
     <string name="dashboard_recent_steps_partial">部分步數記錄</string>
+    <string name="dashboard_recent_pressure_title">氣壓工作階段</string>
+    <string name="dashboard_recent_pressure_available">氣壓歷史可用</string>
+    <string name="dashboard_recent_pressure_materializing">正在準備氣壓歷史…</string>
+    <string name="dashboard_recent_pressure_partial">氣壓歷史不完整</string>
+    <string name="dashboard_recent_pressure_deleted" tools:ignore="MissingTranslation">已删除壓力歷史</string>
+    <string name="dashboard_recent_pressure_unverifiable" tools:ignore="MissingTranslation">不能確認壓力歷史</string>
+    <string name="dashboard_recent_pressure_unavailable">氣壓歷史無法使用</string>
+    <string name="dashboard_recent_pressure_failed">無法準備氣壓歷史</string>
+    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · 範圍 %2$.1f–%3$.1f hPa</string>
+    <string name="dashboard_recent_pressure_change_and_coverage">變化 %1$.1f hPa · %2$s</string>
+    <string name="dashboard_pressure_coverage_none">沒有保留的記錄範圍</string>
+    <string name="dashboard_pressure_coverage_complete">完整記錄範圍</string>
+    <string name="dashboard_pressure_coverage_partial">部分記錄範圍</string>
+    <string name="dashboard_pressure_coverage_unknown">記錄範圍無法使用</string>
+    <string name="dashboard_recent_activity_title">活動工作階段</string>
+    <string name="dashboard_recent_activity_ready">活動歷史可用</string>
+    <string name="dashboard_recent_activity_materializing">正在準備活動歷史…</string>
+    <string name="dashboard_recent_activity_partial">活動歷史不完整</string>
+    <string name="dashboard_recent_activity_unavailable">活動歷史無法使用</string>
+    <string name="dashboard_recent_activity_failed">無法驗證活動歷史</string>
+    <string name="dashboard_recent_activity_summary">%1$s · 活動時間 %2$s</string>
+    <string name="dashboard_recent_wifi_title" tools:ignore="MissingTranslation">網路連接時間</string>
+    <string name="dashboard_recent_cell_title" tools:ignore="MissingTranslation">細胞會議</string>
+    <string name="dashboard_live_wifi_title" tools:ignore="MissingTranslation">捕獲的Wi-Fi</string>
+    <string name="dashboard_live_cell_title" tools:ignore="MissingTranslation">捕獲的手機電台</string>
+    <string name="dashboard_live_source_set_title" tools:ignore="MissingTranslation">在本次會議中發出的消息來源</string>
+    <string name="dashboard_live_source_set_no_route" tools:ignore="MissingTranslation">這次會議中沒有拍攝位置.路線,距離,速度和高度都無法使用.</string>
+    <string name="dashboard_live_source_evidence_unavailable" tools:ignore="MissingTranslation">沒有確認的%1$s歷史.</string>
+    <string name="dashboard_radio_origin_local" tools:ignore="MissingTranslation">這種裝置被捕獲.</string>
+    <string name="dashboard_radio_origin_imported" tools:ignore="MissingTranslation">進口的保存證據</string>
+    <string name="dashboard_radio_state_materializing" tools:ignore="MissingTranslation">準備留存的廣播歷史...</string>
+    <string name="dashboard_radio_state_partial" tools:ignore="MissingTranslation">部分保留的電台歷史</string>
+    <string name="dashboard_radio_state_ready" tools:ignore="MissingTranslation">存儲無線傳播歷史</string>
+    <string name="dashboard_radio_state_unavailable" tools:ignore="MissingTranslation">沒有無線傳播歷史</string>
+    <string name="dashboard_radio_state_missing" tools:ignore="MissingTranslation">沒有有資格的無線證據</string>
+    <string name="dashboard_radio_state_deleted" tools:ignore="MissingTranslation">保存的電視歷史被删除</string>
+    <string name="dashboard_radio_state_unverifiable" tools:ignore="MissingTranslation">無線傳播歷史無法驗證</string>
+    <string name="dashboard_radio_state_failed" tools:ignore="MissingTranslation">沒有收音機歷史完整性檢查</string>
+    <string name="dashboard_radio_coverage_none" tools:ignore="MissingTranslation">沒有已驗證的記錄範圍</string>
+    <string name="dashboard_radio_coverage_partial" tools:ignore="MissingTranslation">部分驗證覆蓋</string>
+    <string name="dashboard_radio_coverage_complete" tools:ignore="MissingTranslation">完整的驗證覆蓋</string>
+    <string name="dashboard_radio_coverage_unknown" tools:ignore="MissingTranslation">記錄範圍無法使用</string>
+    <string name="dashboard_radio_waiting_for_evidence" tools:ignore="MissingTranslation">預期留存的無線觀測</string>
+    <string name="dashboard_radio_no_retained_evidence" tools:ignore="MissingTranslation">沒有留存的無線觀測</string>
+    <string name="dashboard_radio_deleted_explanation" tools:ignore="MissingTranslation">保存的來源證據被删除</string>
+    <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">保存的證據不能安全呈現</string>
+    <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">位置,路線,距離,速度和高度並非本來源歷史的一部分.</string>
+    <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 保存了掃描結果</item>
+        <item quantity="other">%1$d 保存了掃描結果</item>
+    </plurals>
+    <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 保存的電視紀錄</item>
+        <item quantity="other">%1$d 保存的電視錄音</item>
+    </plurals>
+    <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 預留交付</item>
+        <item quantity="other">%1$d 預留交付</item>
+    </plurals>
+    <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
+        <item quantity="one">%1$d 交付部分結果</item>
+        <item quantity="other">%1$d 交付的結果是部分</item>
+    </plurals>
+    <string name="dashboard_live_activity_title">已記錄的活動</string>
+    <string name="dashboard_live_activity_movement">最近記錄的移動</string>
+    <string name="dashboard_live_activity_active_time">活動時間</string>
+    <string name="dashboard_live_activity_gaps">已知資料缺口：%1$d</string>
+    <string name="dashboard_activity_coverage_none">沒有已驗證的記錄範圍</string>
+    <string name="dashboard_activity_coverage_partial">部分記錄範圍</string>
+    <string name="dashboard_activity_coverage_complete">完整記錄範圍</string>
+    <string name="dashboard_activity_still">靜止</string>
+    <string name="dashboard_activity_walking">步行</string>
+    <string name="dashboard_activity_running">跑步</string>
+    <string name="dashboard_activity_cycling">騎乘自行車</string>
+    <string name="dashboard_activity_vehicle">在車上</string>
+    <string name="dashboard_activity_on_foot">步行</string>
+    <string name="dashboard_activity_tilting">傾斜</string>
+    <string name="dashboard_activity_unknown">未知活動</string>
     <string name="dashboard_exploration_title">探索</string>
     <string name="dashboard_exploration_new_today">今日新發現</string>
     <string name="dashboard_exploration_total_cells">總格網</string>
@@ -150,51 +246,23 @@
     <string name="dashboard_ring_start_tracking">開始追蹤</string>
     <string name="dashboard_ring_enable_location">啟用位置</string>
     <string name="dashboard_pill_start">開始</string>
-    <string name="dashboard_pill_stop">停止</string>
     <string name="dashboard_pill_enable_location">啟用位置</string>
     <string name="dashboard_insights_title">工作階段洞察</string>
     <string name="dashboard_cd_insight_item">洞察：%1$s</string>
     <string name="widget_latest_achievement">最新成就</string>
     <string name="dashboard_latest_achievement_title">最新成就</string>
     <string name="dashboard_latest_achievement_empty">繼續追蹤以解鎖第一項成就</string>
-    <string name="dashboard_metric_pressure">氣壓</string>
-    <string name="dashboard_live_pressure_value">%1$.1f hPa</string>
-    <string name="dashboard_live_pressure_range">範圍 %1$.1f–%2$.1f hPa</string>
-    <string name="dashboard_live_pressure_change">變化 %1$.1f hPa</string>
-    <string name="dashboard_live_pressure_zones">已儲存的時區：%1$s</string>
-    <string name="dashboard_recent_pressure_title">氣壓工作階段</string>
-    <string name="dashboard_recent_pressure_available">氣壓歷史可用</string>
-    <string name="dashboard_recent_pressure_materializing">正在準備氣壓歷史…</string>
-    <string name="dashboard_recent_pressure_partial">氣壓歷史不完整</string>
-    <string name="dashboard_recent_pressure_unavailable">氣壓歷史無法使用</string>
-    <string name="dashboard_recent_pressure_failed">無法準備氣壓歷史</string>
-    <string name="dashboard_recent_pressure_latest_and_range">%1$.1f hPa · 範圍 %2$.1f–%3$.1f hPa</string>
-    <string name="dashboard_recent_pressure_change_and_coverage">變化 %1$.1f hPa · %2$s</string>
-    <string name="dashboard_pressure_coverage_none">沒有保留的記錄範圍</string>
-    <string name="dashboard_pressure_coverage_complete">完整記錄範圍</string>
-    <string name="dashboard_pressure_coverage_partial">部分記錄範圍</string>
-    <string name="dashboard_pressure_coverage_unknown">記錄範圍無法使用</string>
-    <string name="dashboard_recent_activity_title">活動工作階段</string>
-    <string name="dashboard_recent_activity_ready">活動歷史可用</string>
-    <string name="dashboard_recent_activity_materializing">正在準備活動歷史…</string>
-    <string name="dashboard_recent_activity_partial">活動歷史不完整</string>
-    <string name="dashboard_recent_activity_unavailable">活動歷史無法使用</string>
-    <string name="dashboard_recent_activity_failed">無法驗證活動歷史</string>
-    <string name="dashboard_recent_activity_summary">%1$s · 活動時間 %2$s</string>
-    <string name="dashboard_live_activity_title">已記錄的活動</string>
-    <string name="dashboard_live_activity_movement">最近記錄的移動</string>
-    <string name="dashboard_live_activity_active_time">活動時間</string>
-    <string name="dashboard_live_activity_gaps">已知資料缺口：%1$d</string>
-    <string name="dashboard_activity_coverage_none">沒有已驗證的記錄範圍</string>
-    <string name="dashboard_activity_coverage_partial">部分記錄範圍</string>
-    <string name="dashboard_activity_coverage_complete">完整記錄範圍</string>
-    <string name="dashboard_activity_still">靜止</string>
-    <string name="dashboard_activity_walking">步行</string>
-    <string name="dashboard_activity_running">跑步</string>
-    <string name="dashboard_activity_cycling">騎乘自行車</string>
-    <string name="dashboard_activity_vehicle">在車上</string>
-    <string name="dashboard_activity_on_foot">步行</string>
-    <string name="dashboard_activity_tilting">傾斜</string>
-    <string name="dashboard_activity_unknown">未知活動</string>
-    <string name="dashboard_finishing_session">正在結束記錄…</string>
+    <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">進口的步伐</string>
+    <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">顯示 %1$d 的錄音</item>
+        <item quantity="other">顯示 %1$d 的錄音</item>
+    </plurals>
+    <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="one">隱藏 %1$d 的錄音</item>
+        <item quantity="other">隱藏 %1$d 的錄音</item>
+    </plurals>
+    <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">錄音 %1$d</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s 步 ⁇</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">至少 %1$s 步 ⁇</string>
+    <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">步骤不可使用</string>
 </resources>

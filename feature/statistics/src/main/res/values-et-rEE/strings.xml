@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistika</string>
     <string name="stats_cell_count">Mobiilirakkude arv</string>
     <string name="stats_collections">Uuenduste arv</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">Mobiilirakk %1$s · %2$s proovi</string>
     <string name="stats_cell_signal_carrier">Operaator %1$s‑%2$s</string>
     <string name="trip_detail_title">Reisi üksikasjad</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Allikate ajalugu</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Allikas ajalugu ei ole kättesaadav</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Seda privaatset valikut ei säilinud pärast rakenduse protsessi taasloomist. Tagasi hiljutisele ajaloole ja valige see uuesti.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Valitud säilitatud allikas ei ole enam saadaval.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Piiratud allikad ei saanud turvaliselt lõpetada.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Valitud säilitatud allikate sisend ei suutnud olla terviklik.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Seda valikut esitamiseks vajalik allikatseteadmed ei ole kättesaadavad.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Allikaselt välja antud valik ei tähenda enam praegust säilitatud kannet.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Allikate ajalugu ei õnnestunud. Proovi uuesti värskendada.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Reisi ei leitud</string>
     <string name="trip_detail_not_found_subtitle">See reis võib olla kustutatud</string>
     <string name="trip_detail_error_title">Reisi laadimine ebaõnnestus</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Vahemaa</string>
     <string name="trip_detail_date">Kuupäev</string>
     <string name="trip_detail_steps">Sammud</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Täielik katvus</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Vähemalt nii palju · osalist katta</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Osaline ajalugu · usaldusväärne arv ei ole olemas</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Kontrollimata: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Väärtus päranduseks · täielikkus kinnitamata</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Päevastik...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Selle istungil ei võetud.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">See istung on keelatud.</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Toetamata</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Vajati loa</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Piiratud Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Pole saadaval</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Mitte kvalifitseerivat tähelepanekut</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Võtmine</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Ajaloo ei ole kättesaadav</string>
     <string name="trip_detail_samples">Proovid</string>
     <string name="trip_detail_source">Allikas</string>
     <string name="trip_detail_avg_speed">Keskmine kiirus</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Kustuta</string>
     <string name="trip_detail_cancel">Tühista</string>
     <string name="trip_detail_more_options">Rohkem valikuid</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Toimingud, mis ei ole kättesaadavad selle salvestatud allika jaoks</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Allikasasutus</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Põhjus</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Jätatud eesmärk</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Täpsed ainult allikast saadetud istungide salvestamine</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Portable source liikmeks</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Autentsed ja muutumatud salvestus ajalugu nimetab seda ainukse salvestatud allikaks.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Impordieritud formaat tõendab säilitatud allikast päritolu, mitte et see seadme registreeris tõendeid.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi istung</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Selle istung</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Raadiosageduse kokkuvõte</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Asjaolu</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Katus</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Raadiosageduse koostamine</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Osaliselt säilitatud raadio ajalugu</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Raadio ajalugu, mis on kättesaadav</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Raadio ajalugu ei ole kättesaadav</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Raadiosagedus ei ole</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Säilitud raadioajakirja kustutatud</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Raadio ajalugu ei saanud kontrollida</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Raadio ajalugu terviklikkuse kontrollimine ebaõnnestunud</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Kontrollitud katvus puudub</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Osaliselt tõestatud katmine</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Täielik tõestatud katmine</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Katvus pole saadaval</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Ootame säilitatud raadiovärgistusi.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Raadioobservatsioone ei ole võimalik säilitada.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Säilitud allikalt saadud tõendid kustutati.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Säilitud tõendeid ei saa turvaliselt esitada.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Eelmine tarnimine</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Osalise tulemusega toimetused</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Säilitud tõendid Wi‑Fi</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Skanningute tulemused</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Frequency-band tulemuste segu</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Signaalide säilitatud vahemik</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d kuni %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Muud rühmad</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Sellede säilitamine</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Raadiokordid</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Registreeritud staatuse andmed</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Raadiotehnoloogia salvestus</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Seda üksikasja ei paljasta ühtegi võrgu, torn, abonendi, marsruuti, kauguse, kiiruse, kõrguse või asukoha identiteedi.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Sammude seanss</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Jätatud sammud tõendid</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Katus</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Täidetud intervalli puudumine</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Täielik katstud interval</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Osaline katstud interval</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Katvus pole saadaval</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Ainult säilitatud Steps tõendid on näidatud. Asukoht ei ole salvestatud, nii et marsruudi ja asukohtist tulenevad mõõdetud andmed ei ole kättesaadavad.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Tegevusseanss</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Tegevusvahemikud, kestus ja usaldusväärsus on seadmes säilitatud tõendite ligikaudu kokkuvõtted.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Tegevuse kokkuvõte</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Asjaolu</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Katus</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Põhjus</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Teatav aktiivne aeg</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Tunnustatud mitteaktiivne aeg</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Klassifitseerimata aeg</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Teatud vaheajad</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Jätatud tegevusrajad ja valed</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Läbiarv</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Kindlus</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktiviteedi üleminekusignaal</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Umbes %1$d ⁇ %2$d%% %3$d observatsioonist</item>
+        <item quantity="other">Umbes %1$d ⁇ %2$d%% %3$d säilitatud tähelepanekust</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Tõendite tüüp</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Rafineeritud üleminek</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Teatav vahe</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Põhjus</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Läbiarv</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Tegevuse ajalugu ettevalmistamine</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Osaline tegevusajalugu</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Tegevusajalugu on saadaval</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Tegevusajalugu pole saadaval</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Tegevusajalugu ei saanud kontrollida</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">säilitatud tegevuskava ajalugu on veel valmistatud; kestust ei ole veel järeldatud.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Ainult osa istungist on säilitanud aktiivsuse tõendeid.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Täiendavate tegevuste kestust ei ole võimalik säilitada.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Usaldusväärseid säilitatud tegevustulemusi ei ole.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Hoidetud tegevusnäitajad ebaõnnestunud terviklikkuse kontrollimised.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Kontrollitud katvus puudub</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Osaline katvus</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Täielik katvus</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Selle seadmega kinni võetud</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Importitud säilitatud tõendid</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Paigal</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Kõndimine</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Jooksmine</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Jalgrattasõit</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Sõidukis</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Jalgsi</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Kallutamine</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Tundmatu tegevus</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Üleminek</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Proovitud rafineerimine</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Proovitud klassifitseerimine</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Kvalifitseerivaid tõendeid ei ole säilinud</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Tegevuse osutaja katkestamine</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Avalduse muutmine</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Tööprotsess või seadme uuesti käivitamine</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Tõendid ei ole kvalifitseeritud</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Seisund, mis on tehtud.</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Asukoht ei ole tuvastatud.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Võtetud allikad</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Selle täpse allikombinatsiooni kohta ei ole veel valitud üksikasju. Rutus, GPX, kaugus, kiirus, kõrgus ja muud asukohast tulenevad tegevused on endiselt kättesaamatud.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Asukoht</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Mobiilivõrk</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Tegevus</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Sammud</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Õhurõhk</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Võtmisallikad kinnitamata</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">See vanem istung on enne tõestatava salvestamise ajalugu. Seadatud reiside üksikasjad on esitatud ja võivad olla ebatäiuslikud.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Rõhuseanss</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Õhu rõhk</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Asjaolu</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Viimane</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Säästetud vahemik</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Esimene viimastesse muudatustesse</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Katus</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Varustatud tsoon</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Püsiva surve uuendamine...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Osaline säilitatav rõhk</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Püsiva rõhk</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Püsiva surve kustutatakse</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Sissejoonitud rõhk ei suutnud kontrollida</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Surv ei ole saadaval</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Pressi ajalugu ebaõnnestunud</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Ajaloo ei ole kättesaadav</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Proovige uuesti värskendada selle reisi salvestatud allikate ajalugu.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Vastatud allikalt saadud tõendid ei ole kättesaadavad. Proovi uuesti värskendada.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Piiratud allikad ei saanud turvaliselt lõpetada. Proovi uuesti värskendada.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Surnuhistori säilitamine ebaõnnestunud terviklikkuse kontrollimine. Proovi uuesti, kui allikas on saadaval.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Füüsikalise ajalugu ei saanud turvaliselt kontrollida.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Salvestatud katvus puudub</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Täielik säilitatav katlus</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Osaline säilitatud katlus</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Katvus pole saadaval</string>
     <string name="ski_detail_header">Suusaseanss</string>
     <string name="ski_detail_runs">Laskumised</string>
     <string name="ski_detail_vertical">Vertikaal</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Viimati nähtud</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Ajajoon</string>
-    <string name="history_tab_trips">Reisid</string>
     <string name="history_tab_calendar">Kalender</string>
     <string name="history_screen_title">Ajalugu</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Järgmine kuu</string>
     <string name="history_calendar_distance">Vahemaa</string>
     <string name="history_calendar_steps">Sammud</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Päevastik...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Ei ole kinni võetud.</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Täidetav</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Pole saadaval</string>
     <string name="history_calendar_trips">Reisid</string>
     <string name="history_exploration_title">Avastamine</string>
     <string name="history_exploration_cells">Ruudustikurakud</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Ajalugu</string>
     <string name="history_view_trip_on_map">Kuva reis kaardil</string>
     <string name="stats_heatmap_title">Tegevus</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Importitud sammud</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Ritte- ja muud sensoriandmed ei sisaldu.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Seansid</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Lisada istung</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Seisundi muutmine</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Nimi (valimine)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Tegevuse märgistus</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Ei ole märgistust</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Algus</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Lõpp</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Ajassoon</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Kasutada ajajooni</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Enne hoiustamist kasutage ajajooni.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Üldkoormuse istung</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Täpsemad salvestused</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Seansi kustutamine</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Säästa</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Tühista</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Kas selle istungit eemaldada?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Salvestatud andmed jäävad ajaloos.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Kuupäev</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Aeg</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">See kohalik aeg ei eksisteeri, sest kell liigub edasi. Võtke teine aeg.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">See kord juhtub kaks korda. Võtke selle UTC-de tasakaalustamine.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Lõpp peab olema pärast algust. Mõlemad aegad peavad olema 1. jaanuaril 1970 või pärast seda.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Lõpp ei saa olla tulevikus.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Võtke IANA ajajoon, näiteks Europe/Prague või UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Kasuta maksimaalselt 200 tähti.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">See etikett eemaldati. Võtke teine märgistus või mitte.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">See istung on muutunud või kogutud andmed on kustutatud. Kinnitada enne hoiustamist.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">See istung ei ole enam saadaval.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Istungid ei ole ajutiselt kättesaadavad. Proovi ajalugu uuesti avada.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Sel ajal ei ole istungid.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Nimetamata istung</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Salvestamine</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Salvestamise aeg on ebakindel. Vahetage aega enne selle vahevahetust.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Jätkatakse varasemast päevast.</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Näita kõik.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Lõpetage istung, et muuta selle aeg või eemaldada see.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Vaata tänavaid istungid.</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Mõned istungimärgid ei ole näidatud. Võtke välja päev, mil saate seda vaadata.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">Päev %1$d, istungid</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Päev %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Proovi uuesti</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Vaatame graafikuid</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Tagasi istungidele</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Ekspordi istung</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Ei suutnud faili salvestada. Proovi uuesti.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Eksportitud istung</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Ekspordi saadetud istung koos täielike salvestustega, mis ulatuvad selle kuupäevadest kaugemale.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Ma ei suutnud lõpetada. Proovi uuesti.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Kas sa kustutad selle salvestuse?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Selle salvestatud loengud kustutatakse püsivalt.</string>
     <string name="stats_recorded_partial_value">%1$s · osaline</string>
     <string name="history_activity_started">Algus: %1$s</string>
     <string name="history_activity_ended">Lõpp: %1$s</string>

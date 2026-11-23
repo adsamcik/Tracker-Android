@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Záloha před aktualizací byla exportována</string>
     <string name="settings_migration_backup_export_failure">Zálohu před aktualizací se nepodařilo exportovat</string>
     <string name="settings_migration_backup_export_cleanup_required">Export se nezdařil. Odstraňte částečně exportovanou zálohu z vybraného umístění.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Dovoz databází z dědictví vyžaduje pozornost</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Původní databáze zůstala v zařízení. Zkuste import znovu, aby se Tracker mohl otevřít.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Velikost databáze: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Následující zkouška dovozu</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Exportovat původní databázi</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">Smazat původní databázi a začít znovu</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Exportovaná databáze z dědictví</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Nedokázal exportovat starou databázi</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Vývoz selhal a neúplný cíl nemohl být odstraněn. Ručně to vymažte.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Skvělá databáze</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Verze %1$d %2$s %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Zdrojová verze: %1$d\nUložení: %2$s\nImport: %3$s\nImportované řádky: %4$d\nRady uchovávané pouze ve trezoru: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Dovoz dokončen: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Číslo 1</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Dovoz</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Dovoz dokončen</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Import selhal</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Smazat původní databázi?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">To trvale odstraní %1$s z tohoto zařízení. Vaše data v27 nejsou ovlivněny. Vyvezenou kopii si ponech, pokud budete potřebovat originální databázi později.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Zmazaná databáze</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Nedokázal odstranit databázi .</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Sledování se nepodařilo obnovit</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Sbírka zůstává mimo, zatímco Tracker bezpečně shoduje své sledovací údaje. Zkuste to znovu bez vymazání historie.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Zkusit obnovit sledování znovu</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Vývojová databáze potřebuje manuální zálohu</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker našel nevyřazenou vývojovou databázi verze 28, která se neslučuje s touto konstrukcí. Funkce sledování a databáze zůstávají vypnuté a soubor databáze zůstal nezměněný. Zálohovat data aplikace nebo databáze před nahrazením nebo opravou této vývojové instalace.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Databázi se nepodařilo otevřít</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker nebyla schopna bezpečně identifikovat nebo ověřit tuto databázi. Funkce sledování a databáze zůstávají vypnuté a soubor databáze zůstal nezměněný. Záloha dat aplikace nebo databáze před pokusu manuálního obnovení.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Databáze je dočasně nedostupná</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Funkce sledování a databáze zůstanou vypnuté, zatímco Tracker se bezpečně opakuje. Žádné údaje nebyly vymazány. Zkuste znovu zkontrolovat, zda problém s dočasným zámkem nebo úložištěm zmizel.</string>
     <string name="settings_delete_data_success">Všechna shromážděná data byla smazána</string>
     <string name="settings_delete_data_failure">Nepodařilo se smazat všechna shromážděná data</string>
     <string name="settings_game_goals_title">Cíle</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Načítání nastavení hry…</string>
     <string name="settings_game_load_error">Nastavení hry se nepodařilo načíst. Zkuste to prosím znovu.</string>
     <string name="settings_map_info_hint">Tato nastavení řídí kvalitu vizualizace mapy a výkon. Většina uživatelů může použít výchozí hodnoty.</string>
+    <string name="settings_map_offline_data_section">Offline mapy</string>
     <string name="settings_map_online_tiles_section_title">Online mapové dlaždice</string>
     <string name="settings_map_online_tiles_enable_title">Použít online mapové dlaždice</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Vypnuto — používá se jen přibalená offline základní mapa. Žádné síťové požadavky.</string>
@@ -199,9 +230,76 @@
     <string name="tracking_preset_custom_name">Vlastní</string>
     <string name="tracking_preset_custom_description">Ručně nastavit každý parametr sledování</string>
     <string name="tracking_preset_selector_subtitle">Vyberte profil, ze kterého chcete začít, a pak dolaďte libovolné nastavení níže.</string>
+    <string name="tracking_preset_change">Porovnávejte možnosti</string>
+    <string name="tracking_preset_done">Pouze vybraná zobrazení</string>
     <string name="tracking_preset_customized_summary">Sledování jste doladili. Předvolbu výše vyberte pro resetování.</string>
+    <string name="settings_tracking_section_start_stop">Automatické sledování</string>
+    <string name="settings_tracking_section_battery_detail">Kvalita sledování</string>
+    <string name="settings_tracking_section_data_collected">Shromažďované údaje</string>
     <string name="settings_tracking_section_detail">Sběr polohy</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Výlety do zahraničí (volatné)</string>
     <string name="settings_tracking_section_notifications">Oznámení</string>
+    <string name="settings_transition_detection_friendly_title">Detekce pohybu s účinnou baterií</string>
+    <string name="settings_transition_detection_friendly_summary">Používá Android změny aktivity, aby se zabránilo častým kontrolám pozadí. Automatické spuštění mohou reagovat trochu pomaleji.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automatické sledování není dostupné</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Váš výběr automatického režimu je uložen. Před automatickým spuštěním musí být povoleno rozpoznání činnosti.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Vyberte si, co nahrát mezi výlety.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi‑Fi mimo relace</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Mobilní síť mimo relace</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Mezi výlety.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Uloženo jako zapnuté. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Pokrývání mimo provoz je oportunistické a může obsahovat nedostatky v povolení, poskytovateli, procesu, rebootu nebo operačním systému. Tracker nepředpokládá trvalou sbírku ani nevymýšlí dobu uchovávání.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Sběrat se nezastaví, protože politika uchovávání výrobků ještě není k dispozici.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Zkontroluji sbírku...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Současné zavedení je shromáždění bezpečně zajištěno.</string>
+    <string name="settings_ambient_user_turned_off">Sledování je vypnuté. Vaše volby a uložená data zůstávají zachována.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Povolte Trackeru číst kroky v Health Connect, aby mohl doplnit mezery po zavření aplikace.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Povolit kroky v Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Přístup k Health Connect se nepodařilo ověřit. Zkuste to znovu.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Údaje o krocích lze importovat, když je Tracker spuštěný. Přístup na pozadí může omezit mezery v historii kroků.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Žádný podporovaný zdroj celodenních kroků není dostupný.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Aktualizujte Health Connect, aby mohl poskytovat kroky.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Zdroj kroků se nepodařilo ověřit. Zkuste to později.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Povolte rozpoznávání aktivit pro zaznamenávání kroků v zařízení.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Zaznamenávání kroků v tomto zařízení není dostupné.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect je připraven. Některá období mohou mít mezery.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Zaznamenávání kroků je připravené. Některá období mohou mít mezery.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Pro záznam polohy mezi relacemi povolte přístup k poloze na pozadí. Nastavení záznamu během relací se nezmění.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi požadavky na povolení pro skenování nejsou splněny. To jim nedovolí zachytit lokalitu.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Požadavky na povolení zpětného volání do mobilu nejsou splněny. To jim nedovolí zachytit lokalitu.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasivní lokalizace je připravena na usmíření zdrojového vlastníka. Poskytuje oportunistické body, ne kontinuitu trasy.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Závěry z výsledků skenování jsou připraveny k usmíření zdrojového vlastníka. Žádné skenování nebo probuzení není slibuje.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Závěry na změnu buněk jsou připraveny k usmíření zdrojového vlastníka. Žádná nucená obnovení není slíbena.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Nejsou k dispozici požadované platformy nebo poskytovatelé, takže sběrat nebude možné.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Uloženo jako vypnuté. Čeká se na potvrzení stavu.</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Uloženo jako zapnuté. Záznam je podle systému dostupný.</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Uloženo jako zapnuté. Záznam zatím nefunguje.</string>
+    <string name="settings_location_source_summary">Zapíšejte cestu, vzdálenost a rychlost. Obvykle největší náklady na baterii.</string>
+    <string name="settings_activity_source_summary">Zaznamenává chůzi, jízdu na kole, řízení a nehybnost po celý den.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Zaznamenává kroky po celý den. Výlety uspořádají stejnou historii.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Ověřování zaznamenávání kroků.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Vypnout sledování</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">Vypínání…</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Zastaví záznamy, celodenní sběr i automatické spouštění. Vaše volby a uložená data zůstanou zachována.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Sledování je vypnuté. Vaše volby a uložená data zůstaly zachovány.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Sledování se nepodařilo vypnout. Zkuste to znovu.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Zaznamenává tlak vzduchu po celý den s oznámením o sledování.</string>
+    <string name="settings_ambient_activity_ready">Záznam aktivity je připraven.</string>
+    <string name="settings_ambient_pressure_ready">Záznam tlaku je připraven.</string>
+    <string name="settings_pressure_host_unavailable">Záznam tlaku na pozadí se nepodařilo spustit.</string>
+    <string name="settings_wifi_source_summary">Záznam v blízkosti Wi-Fi sítí pro přidání místního kontextu. Údaje zůstávají na tomto zařízení.</string>
+    <string name="settings_cell_source_summary">Zaznamená se v blízkých buněčných věžích pro přidání souvislosti s polohou. Údaje zůstávají na tomto zařízení.</string>
+    <string name="settings_location_source_compact">Cesta, vzdálenost a rychlost</string>
+    <string name="settings_activity_source_compact">Typ pohybu a klid</string>
+    <string name="settings_steps_source_compact">Kroky po celý den</string>
+    <string name="settings_barometer_source_compact">Výška a výška</string>
+    <string name="settings_wifi_source_compact">Kontext poblíž sítě</string>
+    <string name="settings_cell_source_compact">Kontext nedaleké věže</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Technický stav</string>
+    <string name="settings_technical_status_summary">Odhad baterie, povolení a stav sbírky.</string>
+    <string name="settings_technical_status_attention">Některé zdroje sbírky potřebují pozornost. Otevřete pro detaily.</string>
+    <string name="settings_simple_source_controls_title">Použijte jednoduché ovládání</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -268,7 +366,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Automaticky sledovat chůzi a běh.</string>
     <string name="setup_auto_tracking_in_motion">V pohybu</string>
     <string name="setup_auto_tracking_in_motion_desc">Automaticky sledovat veškerý pohyb včetně řízení a jízdy na kole.</string>
-    <string name="setup_preset_title">Podrobnost sledování</string>
+    <string name="settings_auto_tracking_mode_summary">Vyberte si, který pohyb má začít a automaticky zastavit.</string>
     <string name="setup_recommended">Doporučeno</string>
     <string name="setup_what_to_collect_title">Co shromažďovat</string>
     <string name="setup_what_to_collect_subtitle">Další možnosti jsou níže. Začněte objevovat bez oprávnění nebo je povolte později. Data zůstávají v tomto zařízení.</string>
@@ -277,20 +375,17 @@
     <string name="setup_source_activity">Aktivita</string>
     <string name="setup_source_activity_desc">Zaznamenávejte chůzi, běh, jízdu na kole a řízení po celý den.</string>
     <string name="setup_source_steps">Kroky</string>
-    <string name="setup_source_steps_desc">Počítejte kroky pomocí krokoměru zařízení.</string>
-    <string name="setup_steps_all_day_summary">Zaznamenávejte kroky po celý den. Výlety uspořádají stejnou historii.</string>
-    <string name="setup_steps_no_direct_sensor">Přímý krokoměr chybí. Tracker ověří jiný zdroj kroků v zařízení.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Zaznamenávejte kroky po celý den. Výlety uspořádají stejnou historii.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Přímý krokoměr chybí. Tracker ověří jiný zdroj kroků v zařízení.</string>
     <string name="setup_perm_steps_why">Povolte přístup k pohybu, aby aplikace mohla na tomto zařízení počítat kroky po celý den.</string>
     <string name="setup_perm_grant_steps_content_description">Povolit přístup k pohybu pro kroky</string>
     <string name="setup_steps_health_connect_why">Povolte kroky v Health Connect, aby se doplnily mezery po zavření Trackeru.</string>
     <string name="setup_steps_provider_ready">Zdroj kroků v zařízení je připraven. Některá období mohou mít mezery.</string>
     <string name="setup_steps_provider_checking">Ověřování dostupných zdrojů kroků…</string>
     <string name="setup_source_wifi">Sítě Wi-Fi</string>
-    <string name="setup_source_wifi_desc">Zaznamenávejte okolní sítě Wi-Fi ke zlepšení přesnosti polohy.</string>
-    <string name="setup_wifi_independent_summary">Zaznamenávejte okolní sítě Wi-Fi i bez sledování polohy.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Zaznamenávejte okolní sítě Wi-Fi i bez sledování polohy.</string>
     <string name="setup_source_cell">Základnové stanice</string>
-    <string name="setup_source_cell_desc">Zaznamenávejte informace o základnových stanicích pro kontext polohy.</string>
-    <string name="setup_cell_independent_summary">Zaznamenávejte okolní základnové stanice i bez sledování polohy.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Zaznamenávejte okolní základnové stanice i bez sledování polohy.</string>
     <string name="setup_perm_location_why">Vyžadováno k zaznamenávání tras a jejich zobrazení na mapě. Poloha zůstává v tomto zařízení — nic se neodesílá na server.</string>
     <string name="setup_perm_location_bg_why">Chcete-li trasu zaznamenávat i po přepnutí do jiné aplikace nebo při zhasnuté obrazovce, Tracker potřebuje přístup k vaší poloze na pozadí. Zaznamenaná poloha zůstává v tomto zařízení — nic se neodesílá na server. V dalším systémovém dialogu zvolte „Povolit vždy“, aby se aktivovalo automatické sledování; volba „Povolit jen při používání aplikace“ udrží Tracker aktivní pouze, když je jeho obrazovka otevřená.</string>
     <string name="setup_perm_activity_why">Umožní Trackeru zjistit, co děláte (chůze, jízda na kole, řízení, klid), aby se automatické sledování mohlo pozastavit, když se nehýbete, a šetřit baterii. Data o aktivitě zůstávají v tomto zařízení — nic se neodesílá na server.</string>
@@ -306,42 +401,17 @@
     <string name="setup_perm_grant_cell_content_description">Povolit oprávnění k rádiovým datům mobilní sítě</string>
     <string name="setup_perm_granted">Povoleno ✓</string>
     <string name="permission_grant_in_settings">Povolit v Nastavení →</string>
-    <string name="permission_disabled_due_to_denial">Funkce %1$s je vypnutá, protože bylo zamítnuto oprávnění. Povolte je v Nastavení.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">Zdroj %1$s je vybraný, ale bez oprávnění zatím nemůže zaznamenávat.</string>
     <string name="settings_wifi_permission_required">Vyžaduje oprávnění k Wi-Fi/poloze. Zapnutím přepínače jej povolíte — do té doby se žádná data Wi-Fi nezaznamenávají a zaznamenaná data zůstávají v tomto zařízení.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Přístup je stále potřeba. Vaše volby jsou zachovány.</string>
     <string name="settings_cell_permission_required">Vyžaduje oprávnění ke stavu telefonu a přesné poloze. Zapnutím přepínače jej povolíte — do té doby se žádná data mobilní sítě nezaznamenávají a zaznamenaná data zůstávají v tomto zařízení.</string>
     <string name="settings_barometer_unavailable">Senzor tlaku není v tomto zařízení k dispozici.</string>
     <string name="settings_activity_permission_required">Vyžaduje oprávnění k rozpoznávání aktivit. Zapnutím přepínače jej povolíte.</string>
-    <string name="settings_steps_unavailable">Senzor počítadla kroků není v tomto zařízení k dispozici.</string>
-    <string name="settings_steps_source_summary">Zaznamenává kroky po celý den. Výlety uspořádají stejnou historii.</string>
-    <string name="settings_steps_status_checking">Ověřování zaznamenávání kroků.</string>
-    <string name="settings_turn_off_tracking">Vypnout sledování</string>
-    <string name="settings_turning_off_tracking">Vypínání…</string>
-    <string name="settings_turn_off_tracking_explanation">Zastaví záznamy, celodenní sběr i automatické spouštění. Vaše volby a uložená data zůstanou zachována.</string>
-    <string name="settings_tracking_is_off">Sledování je vypnuté. Vaše volby a uložená data zůstaly zachovány.</string>
-    <string name="settings_turn_off_tracking_failed">Sledování se nepodařilo vypnout. Zkuste to znovu.</string>
-    <string name="settings_barometer_source_summary">Zaznamenává tlak vzduchu po celý den s oznámením o sledování.</string>
-    <string name="settings_activity_source_summary">Zaznamenává chůzi, jízdu na kole, řízení a nehybnost po celý den.</string>
-    <string name="settings_ambient_activity_ready">Záznam aktivity je připraven.</string>
-    <string name="settings_ambient_pressure_ready">Záznam tlaku je připraven.</string>
-    <string name="settings_pressure_host_unavailable">Záznam tlaku na pozadí se nepodařilo spustit.</string>
-    <string name="settings_steps_allow_health_connect">Povolit kroky v Health Connect</string>
-    <string name="settings_steps_health_connect_repair_failed">Přístup k Health Connect se nepodařilo ověřit. Zkuste to znovu.</string>
-    <string name="settings_ambient_steps_health_connect_permission">Povolte Trackeru číst kroky v Health Connect, aby mohl doplnit mezery po zavření aplikace.</string>
-    <string name="settings_ambient_user_turned_off">Sledování je vypnuté. Vaše volby a uložená data zůstávají zachována.</string>
-    <string name="settings_ambient_steps_health_connect_background_optional">Kroky lze importovat při běhu Trackeru. Přístup na pozadí může omezit mezery.</string>
-    <string name="settings_ambient_steps_health_connect_unavailable">Žádný podporovaný zdroj celodenních kroků není dostupný.</string>
-    <string name="settings_ambient_steps_health_connect_update">Aktualizujte Health Connect, aby mohl poskytovat kroky.</string>
-    <string name="settings_ambient_steps_health_connect_probe_failed">Zdroj kroků se nepodařilo ověřit. Zkuste to později.</string>
-    <string name="settings_ambient_steps_health_connect_ready">Health Connect je připraven. Některá období mohou mít mezery.</string>
-    <string name="settings_ambient_steps_recording_permission">Povolte rozpoznávání aktivit pro zaznamenávání kroků v zařízení.</string>
-    <string name="settings_ambient_steps_recording_unavailable">Zaznamenávání kroků v tomto zařízení není dostupné.</string>
-    <string name="settings_ambient_steps_recording_ready">Zaznamenávání kroků je připravené. Některá období mohou mít mezery.</string>
-    <string name="permission_selected_but_unavailable">Zdroj %1$s je vybraný, ale bez oprávnění zatím nemůže zaznamenávat.</string>
     <string name="setup_start_exploring">Začít objevovat</string>
-    <string name="setup_finishing">Dokončování nastavení…</string>
-    <string name="setup_retry">Zkusit znovu</string>
-    <string name="setup_settings_save_failed">Nastavení se nepodařilo uložit. Vaše volby zůstaly zachované.</string>
-    <string name="setup_retention_prepare_failed">Příprava uložených dat se nezdařila. Vaše volby zůstaly zachované.</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Dokončování nastavení…</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Zkusit znovu</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Nastavení se nepodařilo uložit. Vaše volby zůstaly zachované.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Příprava uložených dat se nezdařila. Vaše volby zůstaly zachované.</string>
     <string name="setup_continue">Pokračovat</string>
     <string name="setup_step_indicator">Krok %1$d z %2$d</string>
     <string name="setup_online_tiles_title">Online mapové dlaždice?</string>
@@ -353,18 +423,25 @@
     <string name="setup_online_tiles_privacy">Pokud jsou dlaždice zapnuté, poskytovatel může vidět vaši IP adresu a načítané dlaždice — přibližně oblast mapy, na kterou se díváte. Tracker nikdy neodesílá účet, identifikátor ani historii polohy.</string>
     <string name="setup_online_tiles_change_later">Toto můžete kdykoli změnit v Nastavení → Mapa → Online mapové dlaždice.</string>
     <string name="setup_background_access_optional">Volitelné, ale doporučené. Toto můžete kdykoli změnit v Nastavení → Sledování.</string>
-    <string name="background_reliability_status_exempt">Činnost na pozadí je povolena</string>
-    <string name="background_reliability_status_optimized">Optimalizace baterie je zapnutá</string>
-    <string name="background_reliability_allow_action">Povolit činnost na pozadí</string>
-    <string name="background_reliability_samsung_hint">Zařízení Samsung mohou aplikace zařadit také mezi \"Aplikace ve spánku\". Otevřete nastavení baterie, odeberte Tracker z Aplikací ve spánku a nastavte, aby nebyl uspáván.</string>
-    <string name="background_reliability_samsung_action">Otevřít nastavení baterie zařízení</string>
-    <string name="settings_tracebox_title">Diagnostika pádů</string>
-    <string name="settings_tracebox_root_summary">Místní diagnostika pádů, ANR a struktury</string>
     <string name="setup_background_location_title">Povolit polohu na pozadí pro automatické sledování</string>
     <string name="setup_background_location_disclosure">Automatické sledování se spouští, když Tracker běží na pozadí, a zaznamenává vaši trasu, i když jeho obrazovka není otevřená. Poloha zůstává v tomto zařízení. V nastavení polohy aplikace zvolte „%1$s“.</string>
     <string name="setup_background_location_open_settings">Otevřít nastavení polohy</string>
     <string name="setup_background_location_decline">Teď ne</string>
     <string name="setup_background_location_manual_only">Ruční sledování v popředí zůstává dostupné. Automatické sledování polohy zůstane vypnuté, dokud nebude povolena poloha na pozadí.</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Nastavení sledování pozadí</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android a nastavení zařízení mohou zastavit nebo zastavit pozadí. Tracker může hlásit omezení, které Android odhaluje, ale nemůže překonat omezený nebo silně zastavený stav.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Zjištěno pozadí omezení</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Zjištěna optimalizace baterie</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Žádné omezení neobjeveno</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Zástup omezení není k dispozici</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android hlásí, že pozadí aktivita je omezená. Sledování se může zastavit, když není Tracker viditelné; aplikace nemůže tuto politiku přehodnotit.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android hlásí, že Tracker není na seznamu povolených baterií. Řízení výkonu může zpoždit pozadní práci; přidělování omezení snižuje omezení, ale nezaručuje nepřetržitý sledování.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android hlásí žádné pozadí omezení a Tracker je na seznamu povolených baterií. Systém stále může aplikaci zastavit a silné zastavení nelze zrušit.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nemohl číst všechny příslušné omezení Android. Žádná příčina nebo nápravná opatření specifická pro přístroj nemůže být potvrzena.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Otevřete nastavení baterie aplikace</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Otevřete nastavení optimalizace baterie</string>
+    <string name="settings_tracebox_title">Diagnostika pádů</string>
+    <string name="settings_tracebox_root_summary">Místní diagnostika pádů, ANR a struktury</string>
     <string name="settings_tracking_changes_apply_live">Změny se použijí v probíhajícím sledování</string>
     <string name="settings_balance_title">Spotřeba a podrobnosti</string>
     <string name="settings_balance_custom">Vlastní nastavení · Zvolit vyvážení</string>
@@ -372,13 +449,6 @@
     <string name="settings_balance_inherit_value">Podrobnosti · Celkové vyvážení: %1$s</string>
     <string name="settings_balance_inherit">Použít celkové vyvážení</string>
     <string name="settings_balance_summary">Zvolte běžnou kvalitu vybraných zdrojů. Aktivní relace upřednostňují podrobnosti u zapojených zdrojů. Volba vyvážení nahradí dřívější frekvence sběru; volby zdrojů, souhlas se sběrem na pozadí a filtry přesnosti zůstanou zachovány.</string>
-    <string name="export_format_portable_steps_desc">Ověřená historie kroků, pokrytí a mezery bez souřadnic trasy</string>
-    <string name="export_format_portable_ambient_steps_desc">Celodenní počty kroků, doba aktivity, data, mezery v pokrytí a uložené časové pásmo bez souřadnic trasy</string>
-    <string name="export_format_portable_activity_desc">Zaznamenané intervaly pohybu, míra jistoty a pokrytí bez souřadnic trasy</string>
-    <string name="export_format_portable_pressure_desc">Přímá měření tlaku v hPa, pokrytí a mezery bez souřadnic trasy</string>
-    <string name="export_sensitivity_portable_title">Exportovat zaznamenanou historii?</string>
-    <string name="export_sensitivity_portable_steps_message">Tento soubor obsahuje počty kroků, časové intervaly a údaje o pokrytí. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">Tento soubor obsahuje celodenní počty kroků, intervaly aktivity, data, mezery v pokrytí a uložené časové pásmo. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
-    <string name="export_sensitivity_portable_activity_message">Tento soubor obsahuje zaznamenané intervaly pohybu, časové intervaly a údaje o pokrytí. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
-    <string name="export_sensitivity_portable_pressure_message">Tento soubor obsahuje měření tlaku a časové intervaly, které mohou odhalit údaje o prostředí. Neobsahuje souřadnice trasy ani kalibrovanou nadmořskou výšku. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Pokračovat ve sledování</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Sledování se nepodařilo obnovit. Zkuste to znovu.</string>
 </resources>

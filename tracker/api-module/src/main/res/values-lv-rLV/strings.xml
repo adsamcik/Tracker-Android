@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordinātas</string>
     <string name="description_settings">Iestatījumu poga</string>
     <string name="description_tracking_start">Izsekošanas sākšanas poga</string>
-    <string name="description_tracking_stop">Izsekošanas apturēšanas poga</string>
     <string name="description_tracking_start_no_permission">Sākt izsekošanu — nepieciešama atļauja</string>
     <string name="description_points_today">Šodien nopelnītie punkti: %s</string>
     <string name="description_copy">Kopēt vērtību</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Sesijas ilgums</string>
     <string name="duration_value">ilgums %s</string>
     <string name="error_nothing_to_track">Iespējojiet vismaz vienu izsekošanas opciju (atrašanās vietu, soļus vai aktivitāti)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Atvērtu Lokācijas pakalpojumus, lai izmantotu aktivizētu izsekošanas avotu.</string>
     <string name="hint_customize_notification_show_in_content">Rādīt paziņojuma saturā</string>
     <string name="hint_customize_notification_show_in_title">Rādīt paziņojuma virsrakstā</string>
     <string name="horizontal_accuracy_title">Horizontālā precizitāte</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker tiek palaists — tiek izmantota atrašanās vieta</string>
     <string name="notification_starting_without_location">Tracker tiek palaists</string>
-    <string name="notification_stop">Apturēt</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Apturēt uz %d minūtēm</string>
     <string name="notification_stop_til_recharge">Apturēt līdz uzlādei</string>
-    <string name="stop_tracking_dialog_title">Apturēt izsekošanu?</string>
     <string name="stop_tracking_dialog_message">Automātiskā izsekošana ir ieslēgta un drīz var sākt jaunu sesiju, ja to tikai apturēsiet.</string>
     <string name="notification_tracker_active_ticker">Ieraksta jūsu maršrutu — tiek izmantota atrašanās vieta</string>
     <string name="notification_tracker_active_without_location">Izsekošana bez atrašanās vietas</string>
     <string name="notification_tracking_active">Izsekošana</string>
     <string name="notification_tracking_start_failed_title">Neizdevās sākt izsekošanu</string>
     <string name="notification_tracking_start_failed_text">Atveriet lietotni, lai pārskatītu atļaujas un atsāktu izsekošanu.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Izmeklēšanas sagatavošana</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Neiegūst datus, kamēr nav pabeigta atgūšana.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Izmeklēšanas sagatavošana</string>
     <string name="settings_activity_enabled_title">Aktivitāte</string>
     <string name="settings_cell_enabled_title">Šūna</string>
     <string name="settings_disabled_recharge_summary">Automātiskā izsekošana ir atspējota, līdz tālrunis tiek pievienots lādētājam</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Atrašanās vieta</string>
     <string name="settings_notification_customize_summary">Mainiet, kas un kādā secībā jāparādās izsekošanas paziņojumā.</string>
     <string name="settings_notification_customize_title">Pielāgot paziņojumu</string>
+    <string name="settings_notification_move_up">Pārvietot augšup</string>
+    <string name="settings_notification_move_down">Pārvietot lejup</string>
+    <string name="settings_notification_load_failed">Neizdevās ielādēt paziņojumu iestatījumus.</string>
+    <string name="settings_notification_save_failed">Izmaiņas netika saglabātas.</string>
+    <string name="settings_notification_retry">Mēģināt vēlreiz</string>
     <string name="settings_notification_styled_summary">Paziņojumiem izmantojiet lietotnes stila krāsu.</string>
     <string name="settings_notification_styled_title">Krāsaini paziņojumi</string>
     <string name="ski_notification_title">Slēpošanas statistika</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Soļu skaits</string>
     <string name="settings_tracking_min_distance_title">Minimālais attālums starp atjauninājumiem</string>
     <string name="settings_tracking_min_time_title">Minimālā aizkave starp atjauninājumiem</string>
-    <string name="settings_tracking_notice_summary">Izmaiņas stājas spēkā, kad restartējat izsekošanu</string>
     <string name="settings_tracking_required_accuracy_title">Nepieciešamā atrašanās vietas precizitāte</string>
     <string name="settings_tracking_title">Izsekošana</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Sākt izsekošanu</string>
     <string name="shortcut_start_tracking_long">Sākt atrašanās vietas izsekošanu</string>
-    <string name="shortcut_stop_tracking">Apturēt izsekošanu</string>
-    <string name="shortcut_stop_tracking_long">Apturēt atrašanās vietas izsekošanu</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Beigt sesiju</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Beigt pašreizējo sesiju</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Izslēgt izsekošanu</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Apturēt visu izsekošanu un automātisko sākšanu</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Piecešanas pasākumi</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pauzes automātiska startēšana</string>
     <string name="speed_title">Ātrums</string>
     <string name="speed_value">ātrums %s</string>
     <string name="battery_title">Akumulators</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d izsekošanas minūte</item>
         <item quantity="other">%1$d izsekošanas minūtes</item>
     </plurals>
-    <string name="insight_exploration_title">Pētnieks!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Jūs atklājāt %1$d jaunu apgabalu</item>
         <item quantity="other">Jūs atklājāt %1$d jaunus apgabalus</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Doties atpakaļ</string>
     <string name="insight_distance_title">Veiktais attālums</string>
     <string name="insight_distance_desc">Šajā sesijā veicāt %1$s.</string>
-    <string name="insight_steps_title">Ierakstītie soļi</string>
-    <string name="insight_steps_desc">Šajā sesijā %1$s soļi — turpiniet tā!</string>
     <string name="tracker_measurement_partial">Daļēji</string>
 </resources>

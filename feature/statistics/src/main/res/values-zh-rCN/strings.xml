@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">统计</string>
     <string name="stats_cell_count">蜂窝基站数量</string>
     <string name="stats_collections">更新次数</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">小区 %1$s · %2$s 个样本</string>
     <string name="stats_cell_signal_carrier">运营商 %1$s‑%2$s</string>
     <string name="trip_detail_title">行程详情</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">来源历史</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">源历史记录不可</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">在重新创建应用程序过程后,这个私人选择并没有保留.返回最近的历史,再选择它.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">选择的保留源输入不再可用.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">经历来源有限的阅读无法安全地完成.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">选择的保留源输入失败了完整性检查.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">提供此选项所需的来源证据快照无法获得.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">源发行选择不再识别当前保留的输入.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">来源历史阅读失败了.再试刷新它.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">未找到行程</string>
     <string name="trip_detail_not_found_subtitle">此行程可能已被删除</string>
     <string name="trip_detail_error_title">无法加载行程</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">距离</string>
     <string name="trip_detail_date">日期</string>
     <string name="trip_detail_steps">步数</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">完整记录范围</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">部分覆盖率</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">部分历史 · 没有可靠的数量</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">未经验证:%1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">遗产值 ·完整性未经验证</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">更新历史...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">没有被捕获.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">暂停此次会议</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">没有支持</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">需要许可</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">限于Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">不可用</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">没有合格的观察</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">删除</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">历史不可使用</string>
     <string name="trip_detail_samples">样本</string>
     <string name="trip_detail_source">来源</string>
     <string name="trip_detail_avg_speed">平均速度</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">删除</string>
     <string name="trip_detail_cancel">取消</string>
     <string name="trip_detail_more_options">更多选项</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">无法获取此获取的来源的操作</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">来源权威</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">起源</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">保留目的</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">仅获取原始数据</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">可移动源会员</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">获取的历史记录是唯一的获取来源.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">进口格式证明保留的源属性,而不是该设备记录了证据.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">无线电会议</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">细胞会议</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">保存的无线电总结</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">状态</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">覆盖范围</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">编制保存的无线电历史</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">部分保留的无线电历史</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">可存储的无线电历史记录</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">无线电历史记录不可</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">没有符合条件的无线电证据</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">保存的无线电历史记录被删除</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">无线电历史无法验证</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">无线电历史完整性检查失败</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">没有已验证的记录范围</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">部分验证的覆盖</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">完整的验证覆盖</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">记录范围不可用</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">在等待被保留的无线电观测.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">没有保留的无线电观测.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">保存的来源证据被删除.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">保存的证据不能安全呈现.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">预期交付</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">有部分结果的交付</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">存储的Wi-Fi证据</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">保存的扫描结果</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">频段结果混合</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">保持信号范围</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">在%1$d至%2$d dBm之间</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2.4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">其他乐队</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">保持细胞证据</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">存储的无线电记录</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">已登记的状态记录</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">无线电技术记录组合</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">国际电信监管局</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">没有网络,塔楼,用户,路线,距离,速度,高度或位置身份被这些细节所暴露.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">步数会话</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">保留的步骤证据</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">覆盖范围</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">没有覆盖的间隔</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">完全覆盖的间隔</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">部分覆盖的间隔</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">记录范围不可用</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">只有保留的步骤证据被显示.位置没有被捕获,所以路线和位置来源的指标无法获得.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">活动会话</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">活动频段,持续时间和可信度是存储在设备上证据的概括.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">活动总结</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">状态</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">覆盖范围</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">起源</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">已知活动时间</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">已知不活动时间</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">未分类的时间</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">已知间隙时间</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">保持活动范围和空隙</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">大约持续时间</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">置信度</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">活动过渡信号</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">约%1$d ⁇ %2$d%%从%3$d保留的观察中</item>
+        <item quantity="other">在%3$d个保留的观察中,约有%1$d ⁇ %2$d%%</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">证据类型</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">完善的过渡</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">已知差距</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">原因</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">大约持续时间</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">准备活动历史</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">活动历史不完整</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">活动历史可用</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">活动历史不可用</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">无法验证活动历史</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">存储活动历史记录仍在准备中;目前还没有推断时间.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">只有部分会议保留了活动证据.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">没有保留的活动时间.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">没有可信可保留的活动结果.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">保存活动证据失败了完整性检查.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">没有已验证的记录范围</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">部分记录范围</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">完整记录范围</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">在这个设备上捕获</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">进口保留的证据</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">静止</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">步行</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">跑步</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">骑行</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">乘车中</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">步行中</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">倾斜</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">未知活动</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">过渡</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">采样精炼</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">采样分类</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">没有符合条件的保留证据</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">活动提供商中断</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">权限变更</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">进程或设备重启</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">证据不合格</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">捕获的会议</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">位置未被捕获</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">捕获的来源</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">精确的来源组合尚未获得精确的细节.路线,GPX,距离,速度,高度和其他来自位置的操作仍然不可使用.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">位置</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">移动网络</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">活动</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">步数</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">气压</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">捕获来源未经验证</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">这段时间早于可验证的捕获历史.保存的旅行细节显示,可能不完整.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">气压会话</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">空气压力</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">状态</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">最新的</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">保持范围</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">最后一次变化</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">覆盖范围</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">存储区</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">更新保持压力...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">部分保留压力</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">可保留的压力</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">保持压力删除</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">无法验证保持压力</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">压力不可使用</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">压力历史失败</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">历史不可使用</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">再试更新这次旅行的记录.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">保存的来源证据的快照无法获取.再试刷新它.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">经历来源有限的阅读无法安全地完成.再试刷新它.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">保存的源历史记录失败了完整性检查.检查源获取后再尝试.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">物理历史成员身份无法安全地验证.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">没有保留的记录范围</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">完全保留的覆盖范围</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">部分保留的覆盖</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">记录范围不可用</string>
     <string name="ski_detail_header">滑雪会话</string>
     <string name="ski_detail_runs">滑行次数</string>
     <string name="ski_detail_vertical">垂直落差</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">最近发现</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">时间线</string>
-    <string name="history_tab_trips">行程</string>
     <string name="history_tab_calendar">日历</string>
     <string name="history_screen_title">历史记录</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">下个月</string>
     <string name="history_calendar_distance">距离</string>
     <string name="history_calendar_steps">步数</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">更新了...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">没有被捕</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">不完整</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">不可用</string>
     <string name="history_calendar_trips">行程</string>
     <string name="history_exploration_title">探索</string>
     <string name="history_exploration_cells">网格单元</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">历史记录</string>
     <string name="history_view_trip_on_map">在地图上查看行程</string>
     <string name="stats_heatmap_title">活动</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">进口的步骤</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">路线和其他传感器数据不包含.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">会话</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">加入会议</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">编辑会议</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">名称 (可选)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">活动标签</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">没有标签</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">开始</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">结束</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">时间区</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">应用时区</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">在节省之前,应使用时区.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">重新加载会议</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">记录细节</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">删除会议</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">保存</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">取消</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">删除这个会议?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">记录的数据将留在历史中.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">日期</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">时间</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">由于钟表向前移动,这个地方时间不存在.选择另一个时间.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">这一次发生了两次.选择其 UTC 偏移.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">终点必须是开始之后.两次都必须在1970年1月1日或之后.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">末日不可能在未来.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">输入IANA时区,例如欧洲/布拉格或UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">使用最多200个字符.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">这标签被删除了.选择另一个标签或没有标签.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">这次会议改变或收集的数据被清除了.在储存之前重新加载.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">这次会议不再可用.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">会议暂时不开放.试着重新打开历史.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">在此期间没有会议.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">无名会议</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">正在记录</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">录音时间不确定.在改变间隔之前确认时间.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">继续从一天前</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">展示所有</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">结束会议,编辑时间或删除.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">今天的视频</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">部分会议标记没有显示.选择一天,可以观看会议.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">%1$d日,有会议</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">%1$d日</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">重试</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">浏览录音</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">回到会议</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">出口会议</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">无法保存文件.再试一次.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">出口的会议</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">会议出口,记录完整的时间超出日期.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">我无法完成.再试一次.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">删除这个录音?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">保存的读数将永久删除.</string>
     <string name="stats_recorded_partial_value">%1$s · 部分</string>
     <string name="history_activity_started">开始：%1$s</string>
     <string name="history_activity_ended">结束：%1$s</string>

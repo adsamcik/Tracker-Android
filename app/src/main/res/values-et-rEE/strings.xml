@@ -27,6 +27,36 @@
     <string name="settings_migration_backup_export_success">Versiooniuuenduse-eelne varukoopia eksporditi</string>
     <string name="settings_migration_backup_export_failure">Versiooniuuenduse-eelset varukoopiat ei saanud eksportida</string>
     <string name="settings_migration_backup_export_cleanup_required">Eksport ebaõnnestus. Kustutage valitud asukohast osaliselt eksporditud varukoopia.</string>
+    <string name="legacy_database_import_failed_title" tools:ignore="MissingTranslation">Pärispärase andmebaasi import vajab tähelepanu</string>
+    <string name="legacy_database_import_failed_message" tools:ignore="MissingTranslation">Teie algne andmebaas on veel sellel seadmel. Püüa uuesti importida Tracker.</string>
+    <string name="legacy_database_size" tools:ignore="MissingTranslation">Varasemate andmebaasi suurus: %1$s</string>
+    <string name="legacy_database_retry" tools:ignore="MissingTranslation">Impordi uuesti proovida</string>
+    <string name="legacy_database_export" tools:ignore="MissingTranslation">Ekspordi varasemate andmete andmebaas</string>
+    <string name="legacy_database_delete" tools:ignore="MissingTranslation">kustutada vanu andmebaasi ja alustada uuesti</string>
+    <string name="legacy_database_export_success" tools:ignore="MissingTranslation">Eksportitud päranditabas</string>
+    <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">Eelmine andmebaas ei saanud eksportida</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">Eksport ei õnnestunud ja ebatäielik sihtkoht ei saanud ära viia. kustuta see manuaalselt.</string>
+    <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">Varakonna andmebaasi valvur</string>
+    <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">Versioon %1$d · %2$s · %3$s</string>
+    <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">Allikversioon: %1$d\nLaevandus: %2$s\nImport: %3$s\nImportitud rammad: %4$d\nRammad, mis on säilinud ainult varjupaigas: %5$d</string>
+    <string name="legacy_database_completed_at" tools:ignore="MissingTranslation">Impordi lõpp: %1$s</string>
+    <string name="legacy_database_status_not_started" tools:ignore="MissingTranslation">Importitud tooted</string>
+    <string name="legacy_database_status_running" tools:ignore="MissingTranslation">Importimine</string>
+    <string name="legacy_database_status_complete" tools:ignore="MissingTranslation">Impordi lõpetatud</string>
+    <string name="legacy_database_status_failed" tools:ignore="MissingTranslation">Impordi toimimine ebaõnnestunud</string>
+    <string name="legacy_database_delete_confirm_title" tools:ignore="MissingTranslation">Kas kustutada vanu andmebaasi?</string>
+    <string name="legacy_database_delete_confirm_message" tools:ignore="MissingTranslation">See eemaldab %1$s selle seadmest püsivalt. Teie v27 andmed ei ole mõjutatud. Hoia eksporditud koopia, kui vajate hiljem originaalandmebaasi.</string>
+    <string name="legacy_database_delete_success" tools:ignore="MissingTranslation">Võtmata eelmine andmebaas</string>
+    <string name="legacy_database_delete_failure" tools:ignore="MissingTranslation">Eelmine andmebaas ei kustutatud</string>
+    <string name="tracking_startup_recovery_title" tools:ignore="MissingTranslation">Jälgimise taastamine vajab tähelepanu</string>
+    <string name="tracking_startup_recovery_message" tools:ignore="MissingTranslation">Kogumine jääb kinni, samal ajal kui Tracker ühendab oma jälgimise andmeid turvaliselt. Proovige uuesti, kustutamata ajalugu.</string>
+    <string name="tracking_startup_retry" tools:ignore="MissingTranslation">Püüa jälgimise taastamine uuesti</string>
+    <string name="development_database_containment_title" tools:ignore="MissingTranslation">Arendusandmebaasi vajab manuaalset varustamist</string>
+    <string name="development_database_containment_message" tools:ignore="MissingTranslation">Tracker leidis mitte lähetatud versiooni 28 arendusandmebaasi, mis ei vasta sellele ehitusele. Seire- ja andmebaasi funktsioonid on välja lülitatud ning andmebaasifail on jäänud muutumatuks. Kasutage back up rakenduse andmed või andmebaas enne selle arendustegevuse installatsiooni asendamist või parandamist.</string>
+    <string name="database_containment_title" tools:ignore="MissingTranslation">Andmebaas vajab tähelepanu</string>
+    <string name="database_containment_message" tools:ignore="MissingTranslation">Tracker ei suutnud seda andmebaasi turvaliselt tuvastada ega kinnitada. Seire- ja andmebaasi funktsioonid on välja lülitatud ning andmebaasifail on jäänud muutumatuks. Kasuta rakenduse andmeid või andmebaasi enne manuaalse taastamise katse.</string>
+    <string name="database_retryable_title" tools:ignore="MissingTranslation">Andmebaas ei ole ajutiselt saadaval</string>
+    <string name="database_retryable_message" tools:ignore="MissingTranslation">Jälgimis- ja andmebaasi funktsioonid jäävad välja, kuni Tracker proovib turvaliselt uuesti. Mitte ühtegi andmeid ei kustutatud. Püüa nüüd uuesti kontrollida, kas ajutine lukus või ladustamisprobleem on lahkunud.</string>
     <string name="settings_delete_data_success">Kõik kogutud andmed kustutati</string>
     <string name="settings_delete_data_failure">Kõiki kogutud andmeid ei saanud kustutada</string>
     <string name="settings_game_goals_title">Eesmärgid</string>
@@ -49,6 +79,7 @@
     <string name="settings_game_loading">Mänguseadete laadimine…</string>
     <string name="settings_game_load_error">Mänguseadeid ei saanud laadida. Proovige uuesti.</string>
     <string name="settings_map_info_hint">Need seaded juhivad kaardi visualiseerimise kvaliteeti ja jõudlust. Enamik kasutajaid saab kasutada vaikeväärtusi.</string>
+    <string name="settings_map_offline_data_section">Offline kaardiandmed</string>
     <string name="settings_map_online_tiles_section_title">Veebipõhised kaardipaanid</string>
     <string name="settings_map_online_tiles_enable_title">Kasuta veebipõhiseid kaardipaane</string>
     <string name="settings_map_online_tiles_enable_subtitle_off">Väljas — kasutatakse ainult kaasatud võrguühenduseta aluskaarti. Võrgupäringuid ei tehta.</string>
@@ -195,9 +226,76 @@
     <string name="tracking_preset_custom_name">Kohandatud</string>
     <string name="tracking_preset_custom_description">Häälestage iga jälgimisparameeter käsitsi</string>
     <string name="tracking_preset_selector_subtitle">Valige alustamiseks profiil, seejärel häälestage allpool soovitud seadeid.</string>
+    <string name="tracking_preset_change">Võrreldada valikuid</string>
+    <string name="tracking_preset_done">Näita ainult valitud</string>
     <string name="tracking_preset_customized_summary">Olete jälgimist peenhäälestanud. Lähtestamiseks valige ülal eelseadistus.</string>
+    <string name="settings_tracking_section_start_stop">Automaatne jälgimine</string>
+    <string name="settings_tracking_section_battery_detail">Jälgimise kvaliteet</string>
+    <string name="settings_tracking_section_data_collected">Kogutud andmed</string>
     <string name="settings_tracking_section_detail">Asukoha kogumine</string>
+    <string name="settings_tracking_section_ambient" tools:ignore="MissingTranslation">Väljapoole sõidud (valimine)</string>
     <string name="settings_tracking_section_notifications">Märguanded</string>
+    <string name="settings_transition_detection_friendly_title">Batteriitõhus liikumise tuvastamine</string>
+    <string name="settings_transition_detection_friendly_summary">Kasutab Android tegevusmuutusi, et vältida sagedaseid taustakontrolli. Automaatne algus võib reageerida veidi aeglasemalt.</string>
+    <string name="settings_automatic_unavailable_title" tools:ignore="MissingTranslation">Automaatne jälgimine ei ole kättesaadav</string>
+    <string name="settings_automatic_permission_required_summary" tools:ignore="MissingTranslation">Teie automaatses režiimis valik on salvestatud. Enne automaatse algust on vaja tegevusseadmise loa.</string>
+    <string name="settings_ambient_sources_summary" tools:ignore="MissingTranslation">Vali, mida reiside vahel salvestada.</string>
+    <string name="settings_ambient_wifi_title" tools:ignore="MissingTranslation">Wi-Fi väljapääs</string>
+    <string name="settings_ambient_cell_title" tools:ignore="MissingTranslation">Sella väljapääs</string>
+    <string name="settings_ambient_source_off_summary" tools:ignore="MissingTranslation">Läbi reiside vahel.</string>
+    <string name="settings_ambient_source_enabled_status" tools:ignore="MissingTranslation">Säilitud. %1$s</string>
+    <string name="settings_ambient_retention_summary" tools:ignore="MissingTranslation">Väljasõidu kattavus on oportunistlik ja võib sisaldada lubade, teenuseosutaja, protsessi, uuesti käivitamise või tööstussüsteemi puudusi. Tracker ei nõua alati kogumist ega leiuta säilitamise kestust.</string>
+    <string name="settings_ambient_retention_unavailable" tools:ignore="MissingTranslation">Toote säilitamise poliitika ei ole veel kättesaadav.</string>
+    <string name="settings_ambient_reconciliation_pending" tools:ignore="MissingTranslation">Kontrollimine kogus...</string>
+    <string name="settings_ambient_rollout_contained" tools:ignore="MissingTranslation">Kooskumist on praeguse kasutuselevõtuga turvaliselt piiratud.</string>
+    <string name="settings_ambient_user_turned_off">Jälgimine on välja lülitatud. Sinu valikud ja salvestatud andmed säilivad.</string>
+    <string name="settings_ambient_steps_health_connect_permission" tools:ignore="MissingTranslation">Luba juurdepääs sammude arvule Health Connectis, et täita sammude ajaloo lüngad, kui Tracker on suletud.</string>
+    <string name="settings_steps_allow_health_connect" tools:ignore="MissingTranslation">Lubada juurdepääsu sammide loendamisele Health Connect</string>
+    <string name="settings_steps_health_connect_repair_failed" tools:ignore="MissingTranslation">Ma ei saanud Health Connect juurdepääsu kontrollida. Proovi uuesti.</string>
+    <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Sammude arvu saab importida, kui Tracker töötab. Juurdepääs taustal võib vähendada lünki sammude ajaloos.</string>
+    <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">Kogu päeva piire pakkujat ei ole olemas.</string>
+    <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">Päevastage Health Connect nii et Tracker saab lugeda sammu.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">Ma ei suutnud astmepakkuja kontrollida. Proovi hiljem uuesti.</string>
+    <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">Andke füüsilisele aktiivsusele loa, et arvustada selle seadme sammu.</string>
+    <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">Seda seadet ei ole võimalik kasutada.</string>
+    <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect on valmis. Mõnel perioodil võivad olla ka tühjad.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Stepi salvestamine on valmis. Mõnel perioodil võivad olla ka tühjad.</string>
+    <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Asukoha salvestamiseks seansside vahel on vaja taustal asukohale juurdepääsu. Seansi ajal salvestamise seadistus ei muutu.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi skannimisalatuse nõuded ei ole täidetud. Nende andmine ei võimalda asukoha salvestamist.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Selle tagasi helistamise loa nõuded ei ole täidetud. Nende andmine ei võimalda asukoha salvestamist.</string>
+    <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passiivne asukoht on valmis allikas-omaniku leevendamiseks. See annab oportunistlikke punkte, mitte marsruudi jätkusuutlikkust.</string>
+    <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Skanningutõendused on valmis allikas-omaniku lepitamiseks. Skaneringu või ärkamiskuupäeva ei lubata.</string>
+    <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Ajasmärgiga kvalifitseeritud rakkude vahetamise tagasisõnumid on valmis allikas-omaniku lepitamiseks. Ei lubata sunnitud värskendamist.</string>
+    <string name="settings_ambient_provider_unavailable" tools:ignore="MissingTranslation">Nõutav platvorm või teenusepakkuja ei ole saadaval, nii et kogumine ei toimu.</string>
+    <string name="settings_ambient_semantics_off" tools:ignore="MissingTranslation">Säästetud; tööstuse seisund</string>
+    <string name="settings_ambient_semantics_enabled_ready" tools:ignore="MissingTranslation">Säilitatud; teatatud käitamise kättesaadavust</string>
+    <string name="settings_ambient_semantics_enabled_unavailable" tools:ignore="MissingTranslation">Säästetud, mitte töötav</string>
+    <string name="settings_location_source_summary">Registreeri oma marsruuti, kaugust ja kiirust. Tavaliselt on suurima aktsia kulu.</string>
+    <string name="settings_activity_source_summary">Salvestab kõndimist, rattasõitu, autosõitu ja paigalolekut kogu päeva jooksul.</string>
+    <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">Jälgib sammu kogu päeva jooksul. Reisimed korraldavad sama sammu.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">Kontrollimine sammide kogumine.</string>
+    <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">Lülita jälgimine välja</string>
+    <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">- Ma lülitan välja.</string>
+    <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">Sessioone peatamine, kogu päev salvestamine ja automaatne algus. Teie valikud ja salvestatud andmed jäävad.</string>
+    <string name="settings_tracking_is_off" tools:ignore="MissingTranslation">Jälgimine on välja lülitatud. Sinu valikud ja salvestatud andmed säilivad.</string>
+    <string name="settings_turn_off_tracking_failed" tools:ignore="MissingTranslation">Ma ei suutnud jälgimist kustutada. Proovi uuesti.</string>
+    <string name="settings_barometer_source_summary" tools:ignore="MissingTranslation">Päeva jooksul registreeritakse õhustiku jälgimisteadmega.</string>
+    <string name="settings_ambient_activity_ready">Valmis tegevust salvestama.</string>
+    <string name="settings_ambient_pressure_ready">Valmis õhurõhku salvestama.</string>
+    <string name="settings_pressure_host_unavailable">Õhurõhu salvestamist taustal ei saanud käivitada.</string>
+    <string name="settings_wifi_source_summary">Registreerima lähedal asuvaid Wi-Fi võrke, et lisada kohalikku konteksti. Andmed jäävad sellele seadmele.</string>
+    <string name="settings_cell_source_summary">Registreerima lähedal asuvaid mobiiltornid, et lisada asukoha konteksti. Andmed jäävad sellele seadmele.</string>
+    <string name="settings_location_source_compact">Rutus, kaugus ja kiirus</string>
+    <string name="settings_activity_source_compact">Liikumise tüüp ja vaiksus</string>
+    <string name="settings_steps_source_compact">Aeg mööda.</string>
+    <string name="settings_barometer_source_compact">Kõrgus ja kõrgus</string>
+    <string name="settings_wifi_source_compact">Lähivõrgu kontekst</string>
+    <string name="settings_cell_source_compact">Lähedane torn kontekst</string>
+    <string name="settings_source_summary_with_status">%1$s\n%2$s</string>
+    <string name="settings_technical_status_title">Tehniline seisund</string>
+    <string name="settings_technical_status_summary">Akku hinnang, lubadused ja kogumise seisund.</string>
+    <string name="settings_technical_status_attention">Mõned kogumisallikad vajavad tähelepanu. Avatud üksikasjad.</string>
+    <string name="settings_simple_source_controls_title">Kasuta lihtsat juhtimist</string>
     <string name="tracking_preset_battery_saver_name">@string/tracking_preset_power_save_name</string>
     <string name="tracking_preset_battery_saver_description">@string/tracking_preset_power_save_description</string>
     <string name="tracking_preset_high_precision_name">@string/tracking_preset_high_accuracy_name</string>
@@ -260,7 +358,7 @@
     <string name="setup_auto_tracking_on_foot_desc">Jälgige kõndimist ja jooksmist automaatselt.</string>
     <string name="setup_auto_tracking_in_motion">Liikumises</string>
     <string name="setup_auto_tracking_in_motion_desc">Jälgige automaatselt kõiki liikumisi, sealhulgas auto- ja jalgrattasõitu.</string>
-    <string name="setup_preset_title">Jälgimise detailsus</string>
+    <string name="settings_auto_tracking_mode_summary">Valige, millist liikumist alustada ja peatada automaatselt.</string>
     <string name="setup_recommended">Soovitatud</string>
     <string name="setup_what_to_collect_title">Mida koguda</string>
     <string name="setup_what_to_collect_subtitle">Rohkem valikuid on allpool. Alustage avastamist ilma lubadeta või andke need hiljem. Andmed jäävad sellele seadmele.</string>
@@ -269,11 +367,17 @@
     <string name="setup_source_activity">Tegevus</string>
     <string name="setup_source_activity_desc">Tuvastage, kas kõnnite, jooksete, sõidate jalgrattaga või autoga.</string>
     <string name="setup_source_steps">Sammud</string>
-    <string name="setup_source_steps_desc">Loendage samme seadme sammulugeja abil.</string>
+    <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">Jälgige samme kogu päeva. Reisimed korraldavad sama ajalugu.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">Ei otsest astmeandorit. Tracker kontrollib seadmes olevat stepsource.</string>
+    <string name="setup_perm_steps_why">Luba juurdepääs liikumisele, et loendada sellel seadmel samme kogu päeva.</string>
+    <string name="setup_perm_grant_steps_content_description">Luba liikumisandmete kasutamine sammude jaoks</string>
+    <string name="setup_steps_health_connect_why">Luba sammud Health Connectis, et täita lüngad, kui Tracker on suletud.</string>
+    <string name="setup_steps_provider_ready">Seadmes olev sammude allikas on valmis. Mõnes ajavahemikus võib siiski olla lünki.</string>
+    <string name="setup_steps_provider_checking">Saadaolevate sammude allikate kontrollimine…</string>
     <string name="setup_source_wifi">WiFi-võrgud</string>
-    <string name="setup_source_wifi_desc">Salvestage lähedal asuvaid WiFi-võrke, et parandada asukoha täpsust.</string>
+    <string name="setup_wifi_independent_summary" tools:ignore="MissingTranslation">Registreerima lähedal asuvaid Wi-Fi võrke, kus on asukoha jälgimine või mitte.</string>
     <string name="setup_source_cell">Mobiilimastid</string>
-    <string name="setup_source_cell_desc">Salvestage mobiilimastide teave asukoha konteksti jaoks.</string>
+    <string name="setup_cell_independent_summary" tools:ignore="MissingTranslation">Registreerima lähedal olevaid mobiilturneid, kus on asukoha jälgimine või mitte.</string>
     <string name="setup_perm_location_why">Vajalik marsruutide salvestamiseks ja nende kaardil näitamiseks. Asukoht jääb sellele seadmele — serverisse ei saadeta midagi.</string>
     <string name="setup_perm_location_bg_why">Marsruudi salvestamise jätkamiseks, kui vahetate rakendust või ekraan lülitub välja, vajab Tracker juurdepääsu teie asukohale taustal. Salvestatud asukoht jääb sellele seadmele — serverisse ei saadeta midagi. Automaatse jälgimise lubamiseks valige järgmisel süsteemi viipal „Luba alati”; „Rakenduse kasutamise ajal” hoiab Trackeri töös ainult siis, kui selle ekraan on avatud.</string>
     <string name="setup_perm_activity_why">Võimaldab Trackeril tuvastada, mida teete (kõnnite, sõidate jalgrattaga, juhite autot või seisate paigal), et automaatne jälgimine saaks peatuda, kui te ei liigu, ja säästa akut. Tegevusandmed jäävad sellele seadmele — serverisse ei saadeta midagi.</string>
@@ -289,13 +393,17 @@
     <string name="setup_perm_grant_cell_content_description">Anna mobiilside raadioluba</string>
     <string name="setup_perm_granted">Luba antud ✓</string>
     <string name="permission_grant_in_settings">Luba seadetes →</string>
-    <string name="permission_disabled_due_to_denial">%1$s on keelatud, kuna luba ei antud. Lubamiseks andke luba seadetes.</string>
+    <string name="permission_selected_but_unavailable" tools:ignore="MissingTranslation">%1$s on valitud, kuid ei saa koguda enne loa andmist.</string>
     <string name="settings_wifi_permission_required">Vajab Wi‑Fi/asukoha luba. Puudutage lülitit loa andmiseks — enne seda Wi‑Fi andmeid ei salvestata ning salvestatud andmed jäävad sellele seadmele.</string>
+    <string name="settings_permission_still_needed" tools:ignore="MissingTranslation">Võimalus on endiselt vajalik. Sinu valikud on hoidtud.</string>
     <string name="settings_cell_permission_required">Vajab telefoni oleku ja täpse asukoha luba. Puudutage lülitit loa andmiseks — enne seda mobiiliraku andmeid ei salvestata ning salvestatud andmed jäävad sellele seadmele.</string>
     <string name="settings_barometer_unavailable">Rõhuandur pole selles seadmes saadaval.</string>
     <string name="settings_activity_permission_required">Vajab tegevuse tuvastamise luba. Puudutage lülitit loa andmiseks.</string>
-    <string name="settings_steps_unavailable">Sammulugeja andur pole selles seadmes saadaval.</string>
     <string name="setup_start_exploring">Alusta avastamist</string>
+    <string name="setup_finishing" tools:ignore="MissingTranslation">Täiendav seadmine...</string>
+    <string name="setup_retry" tools:ignore="MissingTranslation">Proovi uuesti</string>
+    <string name="setup_settings_save_failed" tools:ignore="MissingTranslation">Ma ei suutnud seadistust salvestada. Sinu valikud on veel siin.</string>
+    <string name="setup_retention_prepare_failed" tools:ignore="MissingTranslation">Ma ei saanud salvestatud andmeid ette valmistada. Sinu valikud on veel siin.</string>
     <string name="setup_continue">Jätka</string>
     <string name="setup_step_indicator">Samm %1$d/%2$d</string>
     <string name="setup_online_tiles_title">Veebipõhised kaardipaanid?</string>
@@ -307,24 +415,25 @@
     <string name="setup_online_tiles_privacy">Kui see on lubatud, näeb pakkuja teie IP-aadressi ja laaditavaid paane — ligikaudu seda kaardiala, mida vaatate. Tracker ei saada kunagi kontot, tunnust ega teie asukohaajalugu.</string>
     <string name="setup_online_tiles_change_later">Saate seda igal ajal muuta menüüs Seaded → Kaart → Veebipõhised kaardipaanid.</string>
     <string name="setup_background_access_optional">Valikuline, kuid soovitatav. Saate seda igal ajal muuta menüüs Seaded → Jälgimine.</string>
-    <string name="background_reliability_status_exempt">Taustategevus on lubatud</string>
-    <string name="background_reliability_status_optimized">Aku optimeerimine on sees</string>
-    <string name="background_reliability_allow_action">Luba taustategevus</string>
-    <string name="background_reliability_samsung_hint">Samsungi seadmed võivad rakendusi paigutada ka jaotisse „Uinuvad rakendused”. Avage akuseaded, eemaldage Tracker uinuvatest rakendustest ja määrake, et seda ei pandaks unerežiimi.</string>
-    <string name="background_reliability_samsung_action">Ava seadme akuseaded</string>
-    <string name="settings_tracebox_title">Krahhi diagnostika</string>
-    <string name="settings_tracebox_root_summary">Kohalikud krahhi-, ANR-i ja struktuursed diagnostikaandmed</string>
     <string name="setup_background_location_title">Luba automaatseks jälgimiseks asukoht taustal</string>
     <string name="setup_background_location_disclosure">Automaatne jälgimine käivitub, kui Tracker töötab taustal, ja salvestab sinu marsruudi ka siis, kui rakenduse kuva pole avatud. Asukohaandmed jäävad sellesse seadmesse. Vali rakenduse asukohaseadetes „%1$s”.</string>
     <string name="setup_background_location_open_settings">Ava asukohaseaded</string>
     <string name="setup_background_location_decline">Mitte praegu</string>
     <string name="setup_background_location_manual_only">Käsitsi jälgimine esiplaanil jääb kättesaadavaks. Automaatne asukoha jälgimine jääb välja, kuni taustal asukoha kasutamine on lubatud.</string>
-    <string name="settings_ambient_user_turned_off">Jälgimine on välja lülitatud. Sinu valikud ja salvestatud andmed säilivad.</string>
-    <string name="setup_perm_steps_why">Luba juurdepääs liikumisele, et loendada sellel seadmel samme kogu päeva.</string>
-    <string name="setup_perm_grant_steps_content_description">Luba liikumisandmete kasutamine sammude jaoks</string>
-    <string name="setup_steps_health_connect_why">Luba sammud Health Connectis, et täita lüngad, kui Tracker on suletud.</string>
-    <string name="setup_steps_provider_ready">Seadmes olev sammude allikas on valmis. Mõnes ajavahemikus võib siiski olla lünki.</string>
-    <string name="setup_steps_provider_checking">Saadaolevate sammude allikate kontrollimine…</string>
+    <string name="background_reliability_title" tools:ignore="MissingTranslation">Tausta jälgimisseadmed</string>
+    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android ja seadme juhised võivad peatada või peatada tausta tööd. Tracker võib teatada piiranguid, mida Android esitab, kuid see ei saa ületada piiratud või jõuliselt peatatud seisundit.</string>
+    <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Taustapiirangu tuvastamine</string>
+    <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Akku optimeerimine tuvastatud</string>
+    <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Piirangut ei tuvastatud</string>
+    <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Piirangud ei ole kättesaadavad</string>
+    <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android teavitab, et taustategevus on piiratud. Jälgimine võib lõpetada, kui Tracker ei ole nähtav; rakendus ei saa selle poliitika kõrvale jätta.</string>
+    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android teatab, et Tracker ei ole aktsia lubamise nimekirjas. Võimsuse juhtimine võib viivitada tausta tööd; lubade loetelu vähendas piiranguid, kuid ei taga pidevat jälgimist.</string>
+    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ei teata tagaküljelist piirangutest ja Tracker on patareid käsitleva nimekirjas. Süsteem suudab ikka veel rakendust peatada ja jõupingutusi ei saa kõrvale lülitada.</string>
+    <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker ei suutnud lugeda kõiki asjakohaseid Android piirangute signaale. Ükski seadme- spetsiifilist põhjust ega ravimi ei saa kinnitada.</string>
+    <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Avatage rakenduse aktsia seadistused</string>
+    <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Avatud akumuleeri optimeerimisseadmed</string>
+    <string name="settings_tracebox_title">Krahhi diagnostika</string>
+    <string name="settings_tracebox_root_summary">Kohalikud krahhi-, ANR-i ja struktuursed diagnostikaandmed</string>
     <string name="settings_tracking_changes_apply_live">Muudatused uuendavad käimasolevat jälgimist</string>
     <string name="settings_balance_title">Energia ja üksikasjad</string>
     <string name="settings_balance_custom">Kohandatud seaded · Vali tasakaal</string>
@@ -332,17 +441,6 @@
     <string name="settings_balance_inherit_value">Üksikasjad · Üldine tasakaal: %1$s</string>
     <string name="settings_balance_inherit">Kasuta üldist tasakaalu</string>
     <string name="settings_balance_summary">Vali valitud allikate tavapärane kvaliteet. Aktiivsed seansid eelistavad osalevate allikate puhul üksikasju. Tasakaalu valimine asendab vanad kogumissagedused; allikavalikud, taustal kogumise nõusolek ja täpsusfiltrid jäävad salvestatuks.</string>
-    <string name="export_format_portable_steps_desc">Kontrollitud sammude ajalugu, katvus ja lüngad ilma marsruudi koordinaatideta</string>
-    <string name="export_format_portable_ambient_steps_desc">Taustal kogutud sammud, aktiivsusaeg, kuupäevad, katvuse lüngad ja salvestatud ajavöönd ilma marsruudi koordinaatideta</string>
-    <string name="export_format_portable_activity_desc">Salvestatud liikumisvahemikud, usaldusväärsus ja katvus ilma marsruudi koordinaatideta</string>
-    <string name="export_format_portable_pressure_desc">Otsesed rõhumõõtmised hPa-des, katvus ja lüngad ilma marsruudi koordinaatideta</string>
-    <string name="export_sensitivity_portable_title">Kas eksportida salvestatud ajalugu?</string>
-    <string name="export_sensitivity_portable_steps_message">See fail sisaldab sammude arve, ajavahemikke ja katvuse teavet. See ei sisalda marsruudi koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
-    <string name="export_sensitivity_portable_ambient_steps_message">See fail sisaldab taustal kogutud sammude arve, aktiivsusvahemikke, kuupäevi, katvuse lünki ja salvestatud ajavööndit. See ei sisalda marsruudi koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
-    <string name="export_sensitivity_portable_activity_message">See fail sisaldab salvestatud liikumisvahemikke, ajavahemikke ja katvuse teavet. See ei sisalda marsruudi koordinaate. Jätka ainult siis, kui usaldad sihtkohta.</string>
-    <string name="export_sensitivity_portable_pressure_message">See fail sisaldab rõhumõõtmisi ja ajavahemikke, mis võivad avaldada teavet ümbruse kohta. See ei sisalda marsruudi koordinaate ega kalibreeritud kõrgust. Jätka ainult siis, kui usaldad sihtkohta.</string>
-    <string name="settings_activity_source_summary">Salvestab kõndimist, rattasõitu, autosõitu ja paigalolekut kogu päeva jooksul.</string>
-    <string name="settings_ambient_activity_ready">Valmis tegevust salvestama.</string>
-    <string name="settings_ambient_pressure_ready">Valmis õhurõhku salvestama.</string>
-    <string name="settings_pressure_host_unavailable">Õhurõhu salvestamist taustal ei saanud käivitada.</string>
+    <string name="settings_resume_tracking" tools:ignore="MissingTranslation">Jätka jälgimist</string>
+    <string name="settings_resume_tracking_failed" tools:ignore="MissingTranslation">Ma ei suutnud jälgimist jätkata. Proovi uuesti.</string>
 </resources>

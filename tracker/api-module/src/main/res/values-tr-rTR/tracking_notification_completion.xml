@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">Gün boyu konum</string>
-    <string name="notification_background_location_text">Uyarlanabilir konum toplama etkin. Yönetmek için Tracker uygulamasını açın.</string>
     <string name="settings_notification_unsaved_exit">Değişikliklerinizi kaydetmek için tekrar deneyin veya kaydetmeden çıkın.</string>
     <string name="settings_notification_leave_without_saving">Kaydetmeden çık</string>
     <string name="notification_background_collection_title">Arka planda izleme</string>

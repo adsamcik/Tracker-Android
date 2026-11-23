@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">終日の位置情報</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">セッションの間でも</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">セッションの間には有効です入手可能性はアクセスとAndroidの背景制限に依存する.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">適応性</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">パッシブのみ</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">位置収集を移動と詳細の選択に調整し,継続的な通知をします.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">他のアプリまたはシステムによって提供されたポジションを使用します.長い隙間が可能です</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker はセッション間の位置を収集し,動きに努力を調整し,継続的な通知を表示します.パシブ・コレクションよりもバッテリーが多く使えますAndroid が位置アクセスを求める前に選択が保存されます.アクセスがないので 待機します いつでも消すことができます</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">アダプティブの位置を使用</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">位置情報へのアクセスを許可</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">アダプティブ 場所詳細を選択</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">場所詳細: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">位置力と詳細</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">適応可能な位置を採用するレベルを選択します.バランスの取れたのはデフォルトで ライブセッションは 詳細を好みますAndroidとあなたのアクセスが結果を制限することができます.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">エネルギー第一</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">優位権</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">バランス</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">詳細を好む</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">詳細はまず</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">動議支援</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">選択的に位置を調整するために動きのヒントを使用します.これはアクティビティ履歴を記録し,セッションを開始することはできません.場所が有効だ 断ったら</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">動きのヒントを許す</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">この変更は適用できなかった.もう一度やってみろ</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">アダプティブコレクションはまだ行っていません</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">位置の詳細レベルを調整します</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">アダプティブ・ロケーションが利用可能だ</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">装置によって調整された位置要求.</string>
+</resources>

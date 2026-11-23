@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statisztikák</string>
     <string name="stats_cell_count">Cellák száma</string>
     <string name="stats_collections">Gyűjtemények száma</string>
@@ -79,6 +79,16 @@
     <string name="stats_cell_signal_tower_detail">%1$s cella · %2$s minta</string>
     <string name="stats_cell_signal_carrier">Szolgáltató: %1$s‑%2$s</string>
     <string name="trip_detail_title">Út részletei</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Forrás-történet</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">A forráskészlet nem elérhető</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Ezt a privát kiválasztást nem tartották fenn az app folyamatát újjáépítés után. Menj vissza a legutóbbi történelemre és válassza ki újra.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">A kiválasztott megtartott forrásbejegyzés már nem áll rendelkezésre.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">A korlátozott forrás történelmének olvasása nem ért véget biztonságban.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">A kiválasztott megtartott forrásbejegyzés nem sikerült betartási ellenőrzéseit végezni.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">A kiválasztás bemutatásához szükséges forrás-bizonyító pillanatnyomás nem áll rendelkezésre.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">A forrásból kiállított kiválasztás már nem azonosítja a jelenlegi megtartott bejegyzést.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">A forrás történelmének olvasása nem sikerült. Próbáld meg újra felfrissíteni.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Az út nem található</string>
     <string name="trip_detail_not_found_subtitle">Lehet, hogy ezt az utat törölték</string>
     <string name="trip_detail_error_title">Nem sikerült betölteni az utat</string>
@@ -87,6 +97,21 @@
     <string name="trip_detail_distance">Távolság</string>
     <string name="trip_detail_date">Dátum</string>
     <string name="trip_detail_steps">Lépések</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Teljes lefedettség</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">Legalábbis ez a sok · részleges lefedettség</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Részletes történelem · nincs megbízható szám</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Nem ellenőrzött: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Helyes érték · Teljesség nem ellenőrizve</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">A történelem frissítése...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Nem kaptam fel a jelen ülésen.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">A jelen ülés nem működik.</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Nem támogatott</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Engedélyre volt szükség.</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Android által korlátozott</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Nem érhető el</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Nem minősítő megfigyelés</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Törölték</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">A történelem nem elérhető</string>
     <string name="trip_detail_samples">Minták</string>
     <string name="trip_detail_source">Forrás</string>
     <string name="trip_detail_avg_speed">Átlagsebesség</string>
@@ -110,6 +135,157 @@
     <string name="trip_detail_delete_confirm">Törlés</string>
     <string name="trip_detail_cancel">Mégse</string>
     <string name="trip_detail_more_options">További beállítások</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">A rögzített forráshoz nem elérhető műveletek</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Forráshatóság</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">A származás</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Megtartott cél</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Pontosan csak forráskódból rögzített ülés</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">A hordozható forrás tagság</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">A hitelesített, változatlan rögzítési történelem ezt nevezte az egyetlen rögzített forrásnak.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Az importált formátum bizonyítja a megtartott forrás tagságát, nem pedig, hogy ez a készülék rögzítette a bizonyítékot.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi ülés</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Hálózati ülés</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Megtartott rádiós összefoglaló</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Szállás</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Átfogás</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">A megőrzött rádiós történelem elkészítése</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Részletesen megőrzött rádió története</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">A rendelkezésre álló rádió-történet</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">A rádió előadása nem elérhető</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Nincs minősített, megtartott rádió bizonyíték</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">A megőrzött rádió-történet törlésre kerül</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">A rádió történelmét nem lehetett ellenőrizni.</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">A rádió történelmi integritás ellenőrzése nem sikerült.</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Nincs ellenőrzött lefedettség</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">A részleges ellenőrzött lefedettség</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Teljesen ellenőrzött lefedettség</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Lefedettség nem érhető el</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Várjuk a megtartott rádiós megfigyeléseket.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Nincs megtartott rádiós megfigyelés.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">A megtartott forrásbeli bizonyítékot törölték.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">A megőrzött bizonyítékokat nem lehet biztonságosan bemutatni.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Megtartott szállítások</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">A részleges eredményeket tartalmazó szállítások</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Tartózkodott Wi‑Fi bizonyíték</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Megtartott szkennelési eredmények</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">A frekvencia-szalag eredményei kombinációja</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Megtartott jelezési tartomány</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d - %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Egyéb falak</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Megtartott sejt bizonyítékok</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Megtartott rádiófelvételek</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Bejegyzett státuszról szóló nyilvántartások</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">A rádiótechnológiai lemezek keveréke</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Egyetlen hálózat, torony, előfizető, útvonal, távolság, sebesség, magasság vagy hely azonosítóját nem tárja fel ez a részlet.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Lépésszámlálási munkamenet</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">A megtartott lépések bizonyítéka</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Átfogás</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Nem fedezett intervallum</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Teljes, fedezett intervallum</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Csupán fedezett intervallum</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Lefedettség nem érhető el</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Csak a megmaradt lépések bizonyítéka látható. A helyszínt nem rögzítették, így a útvonal és a helyszíntől származó mérések nem állnak rendelkezésre.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Tevékenység-munkamenet</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">A tevékenységsávok, az időtartamok és a bizalom a készülékon tárolt bizonyítékok megközelítő összefoglalása.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">A tevékenység összefoglalása</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Szállás</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Átfogás</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">A származás</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Ismerett aktív idő</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Ismerett inaktív idő</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Nem osztályozott idő</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Ismerett szakadékidő</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">A megtartott tevékenységi sávok és szakadékok</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Körülbelül időtartam</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Bizonyosság</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">A tevékenység átmeneti jelzése</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Körülbelül %1$d ⁇ %2$d%% a %3$d megtartott megfigyelésből</item>
+        <item quantity="other">Körülbelül %1$d ⁇ %2$d%% a %3$d megtartott megfigyelésből</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Bizonyíték típusa</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Az átmeneti folyamat finomítása</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Ismerett különbség</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Az ok</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Körülbelül időtartam</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">A tevékenységek történelmének elkészítése</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Hiányos tevékenységelőzmények</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Tevékenységelőzmények elérhetők</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Tevékenységelőzmények nem érhetők el</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Tevékenységelőzmények ellenőrzése sikertelen</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Megtartott tevékenységek történelmét még mindig készítik; még nem következtethető a időtartam.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">A ülés csak egy része tartotta fenn a tevékenységre vonatkozó bizonyítékokat.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">A tevékenység időtartama nem áll rendelkezésre.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">A megbízható tevékenység eredménye nem áll rendelkezésre.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Megtartott tevékenységi bizonyítékok nem sikerült betartási ellenőrzéseket végezni.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Nincs ellenőrzött lefedettség</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Részleges lefedettség</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Teljes lefedettség</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Ezt a készüléket rögzítették.</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Behozott megőrzött bizonyítékok</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Mozdulatlan</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Gyaloglás</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Futás</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Kerékpározás</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Járműben</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Gyalog</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Döntés</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Ismeretlen tevékenység</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Átmenet</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Mutatás:</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">A mintába vett osztályozás</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Nem áll fenn minősítő bizonyítékok</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">A tevékenységi szolgáltató megszakítása</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Az engedély megváltozott.</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">A folyamat vagy a készülék újraindítása</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">A bizonyítékok nem minősítettek</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Felfogott ülés</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">A helyszín nem rögzített.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Fogott források</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">A kiválasztott részlet még nem áll rendelkezésre a pontos forráskombinációra vonatkozóan. Az útvonal, GPX, a távolság, a sebesség, a magasság és más helytartási műveletek nem állnak rendelkezésre.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Hely</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Mobilhálózat</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Tevékenység</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Lépések</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Légnyomás</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">A fogási források nem ellenőriztek</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Ez az idősebb ülés az ellenőrizhető rögzítési történelem előtt van. Megtartott utazási részletek szerepelnek, és nem lehetnek teljesek.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Nyomásmérési munkamenet</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Légnyomás</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Szállás</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Legutóbbi</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">A tartós tartomány</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Első és legutóbbi változás</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Átfogás</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">A tárolt övezet</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">A fenntartott nyomás frissítése...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Részleges megtartott nyomás</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Megtartott nyomás</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Megtartott nyomás törlésre</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">A megtartott nyomás nem ellenőrizhető</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">A nyomás nem áll rendelkezésre</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">A nyomás története nem sikerült.</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">A történelem nem elérhető</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Próbáld meg újra frissíteni a forráskódok történelmét az utazásra.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">A megőrzött forrás-bizonyosítási képet nem lehet elérni. Próbáld meg újra felfrissíteni.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">A korlátozott forrás történelmének olvasása nem ért véget biztonságban. Próbáld meg újra felfrissíteni.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">A megőrzött forrás-történet meghibásodott az integritási ellenőrzések során. Próbáld meg újra, ha a forrás rendelkezésre áll.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">A fizikai történelem tagságát nem lehetett biztonságosan ellenőrizni.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Nincs megőrzött lefedettség</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Teljes, megtartott fedezet</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Részleges megtartott fedezet</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Lefedettség nem érhető el</string>
     <string name="ski_detail_header">Síelési munkamenet</string>
     <string name="ski_detail_runs">Menetek</string>
     <string name="ski_detail_vertical">Szintkülönbség</string>
@@ -134,7 +310,6 @@
     <string name="wifilist_title_last_seen">Utolsó észlelés</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Idővonal</string>
-    <string name="history_tab_trips">Utazások</string>
     <string name="history_tab_calendar">Naptár</string>
     <string name="history_screen_title">Előzmények</string>
     <plurals name="history_trip_count">
@@ -151,6 +326,10 @@
     <string name="history_calendar_next_month">Következő hónap</string>
     <string name="history_calendar_distance">Távolság</string>
     <string name="history_calendar_steps">Lépések</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Folyamatosan frissítem...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Nem fogták el</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Nem teljes</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Nem érhető el</string>
     <string name="history_calendar_trips">Utazások</string>
     <string name="history_exploration_title">Felfedezés</string>
     <string name="history_exploration_cells">Cellák</string>
@@ -160,6 +339,59 @@
     <string name="history_button_label">Előzmények</string>
     <string name="history_view_trip_on_map">Út megjelenítése a térképen</string>
     <string name="stats_heatmap_title">Tevékenység</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Az importált lépések</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Az útvonal és más érzékelő adatok nem szerepelnek.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Munkamenetek</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Hívás</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Szenzációs szerkesztés</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">A név (felvételi)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Társadalmi címke</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Nincs címke</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Kezdet</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Vége</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Időzónák</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Az időzónát kell alkalmazni.</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Az időzónát alkalmazza a megtakarítás előtt.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Átöltési ülés</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">A felvétel részletei</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Szünet törlés</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">- Takarítsd meg!</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Mégse</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Vedd le ezt a részt?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">A feljegyzett adatok a történelemben maradnak.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Dátum</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Idő</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Ez a helyi idő nem létezik, mert az órák előre haladnak. Válassza ki egy másik időpontot.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Ez az alkalom kétszeres. Válassza ki az UTC kompenzációját.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">A vége a kezdet után lesz. Mindkét időpontot 1970. január 1-jén vagy utána kell elvégezni.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">A vég nem lehet a jövőben.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Adjon be egy IANA időzónát, például az Európa/Prága vagy az UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Legfeljebb 200 karakteret használj.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Ezt a címkét eltávolították. Válassza ki egy másik címkét, vagy ne legyen címke.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">A jelen ülés megváltozott, vagy a gyűjtött adatokat eltávolították. Átöltsük, mielőtt megtakarítjuk.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Ez a találkozó már nem áll rendelkezésre.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Az ülések ideiglenesen nem állnak rendelkezésre. Próbáld újra megnyitni a történelmet.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Ebben az időszakban nincs ülés.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Névtelen ülés</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Rögzítés</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">A felvétel idője nem biztos. A határidő módosítása előtt erősítse meg az időt.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Folytatott egy korábbi napból</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Mutasd meg mindent!</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Végezd a találkozót, hogy szerkeszted az időt vagy távolítsd el.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">A jelen nap előadásait nézzétek</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Néhány ülésjelző nem jelenik meg. Válassza ki egy napot, hogy megnézze a résztvevők találkozóit.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">%1$d. nap, ülés</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Nap %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Újrapróbálás</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">A felvételeket böngészd</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Vissza a találkozókra.</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Export ülés</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Nem menthettem meg a fájlt. Próbáld meg újra!</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Exportált ülés</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">A teljes felvételekkel kivitt ülés, amelyek a dátumok után terjednek ki.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Nem tudtam befejezni. Próbáld meg újra!</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Törölje el ezt a felvételt?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">A mentett olvasmányokat véglegesen töröljük.</string>
     <string name="stats_recorded_partial_value">%1$s · részleges</string>
     <string name="history_activity_started">Kezdete: %1$s</string>
     <string name="history_activity_ended">Vége: %1$s</string>

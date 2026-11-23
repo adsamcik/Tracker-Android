@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Местоположение през целия ден</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">От време на време.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Осигурява се между сесиите. Достъпността зависи от достъпа и ограниченията за Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Приспособяване</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Само пасивни</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Приспособява събирането на местоположения към движение и вашите предпочитания за детайли, с текущо уведомление.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Използва позиции, предоставени от други приложения или системата. Дълги пропуски са възможни.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker ще събере местоположението между сесиите, да коригира усилията си за движение и да показва текущо уведомление. Това може да използва повече батерия, отколкото пасивна колекция. Изборът ви е запазен преди Android да поиска достъп до местоположението. Липсата на достъп го оставя да чака; можете да го изключите по всяко време.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Използвайте адаптивно местоположение</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Разрешаване на достъпа до местоположението</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Изберете адаптивното местоположение</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Детайли за местоположението: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Мощността и детайлите на местоположението</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Изберете ниво, за да приемете адаптивно местоположение. Балансиран е дефолтът; живите сесии предпочитат повече детайли. Android и вашият достъп може да ограничи резултата.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Първо енергия.</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Популярност на силата</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Балансирано</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Подробности</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Първо детайли.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Подпомагане на предложението</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Опционално използвате указания за движение за регулиране на местоположението. Това не записва историята на дейностите и не може да започне сесия. Местоположението все още работи, ако откажеш.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Позволете на намеците за движение</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Не можех да прилагам тази промяна. Опитай пак.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Адаптивната колекция все още не работи.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Използва адаптивното ниво на подробности за местоположението.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Разполага с адаптивното местоположение.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Заявление за местоположение, коригирано от устройството.</string>
+</resources>

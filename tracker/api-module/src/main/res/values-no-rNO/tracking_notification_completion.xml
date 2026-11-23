@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notification_background_location_title">Posisjon hele dagen</string>
-    <string name="notification_background_location_text">Tilpasset innsamling av posisjon er aktivert. Åpne Tracker for å administrere den.</string>
     <string name="settings_notification_unsaved_exit">Prøv igjen for å lagre endringene, eller forlat uten å lagre.</string>
     <string name="settings_notification_leave_without_saving">Forlat uten å lagre</string>
     <string name="notification_background_collection_title">Sporing i bakgrunnen</string>

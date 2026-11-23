@@ -14,7 +14,6 @@
     <string name="coordinates_title">Współrzędne</string>
     <string name="description_settings">Przycisk ustawień</string>
     <string name="description_tracking_start">Przycisk rozpoczęcia śledzenia</string>
-    <string name="description_tracking_stop">Przycisk zatrzymania śledzenia</string>
     <string name="description_tracking_start_no_permission">Rozpocznij śledzenie — wymagane uprawnienie</string>
     <string name="description_points_today">Punkty zdobyte dzisiaj: %s</string>
     <string name="description_copy">Kopiuj wartość</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Czas trwania sesji</string>
     <string name="duration_value">czas trwania: %s</string>
     <string name="error_nothing_to_track">Włącz co najmniej jedną opcję śledzenia (lokalizację, kroki lub aktywność)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Włącz usługi lokalizacji, aby użyć uruchomionego źródła śledzenia.</string>
     <string name="hint_customize_notification_show_in_content">Pokaż w treści powiadomienia</string>
     <string name="hint_customize_notification_show_in_title">Pokaż w tytule powiadomienia</string>
     <string name="horizontal_accuracy_title">Dokładność pozioma</string>
@@ -49,16 +49,17 @@
     </plurals>
     <string name="notification_starting">Uruchamianie Trackera — lokalizacja używana</string>
     <string name="notification_starting_without_location">Uruchamianie Trackera</string>
-    <string name="notification_stop">Zatrzymaj</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Zatrzymaj na %d minut</string>
     <string name="notification_stop_til_recharge">Zatrzymaj do naładowania</string>
-    <string name="stop_tracking_dialog_title">Zatrzymać śledzenie?</string>
     <string name="stop_tracking_dialog_message">Automatyczne śledzenie jest włączone i może wkrótce rozpocząć nową sesję, jeśli tylko je zatrzymasz.</string>
     <string name="notification_tracker_active_ticker">Rejestrowanie trasy — lokalizacja używana</string>
     <string name="notification_tracker_active_without_location">Śledzenie bez lokalizacji</string>
     <string name="notification_tracking_active">Śledzenie</string>
     <string name="notification_tracking_start_failed_title">Nie udało się rozpocząć śledzenia</string>
     <string name="notification_tracking_start_failed_text">Otwórz aplikację, aby sprawdzić uprawnienia i wznowić śledzenie.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Przygotowanie śledzenia</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Żadne dane nie są gromadzone, dopóki nie zostanie zakończone odzyskanie.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Przygotowanie śledzenia</string>
     <string name="settings_activity_enabled_title">Aktywność</string>
     <string name="settings_cell_enabled_title">Sieć komórkowa</string>
     <string name="settings_disabled_recharge_summary">Automatyczne śledzenie jest wyłączone, dopóki telefon nie zostanie podłączony do ładowarki</string>
@@ -66,6 +67,11 @@
     <string name="settings_location_enabled_title">Lokalizacja</string>
     <string name="settings_notification_customize_summary">Zmień, co ma się pojawiać w powiadomieniu śledzenia i w jakiej kolejności.</string>
     <string name="settings_notification_customize_title">Dostosuj powiadomienie</string>
+    <string name="settings_notification_move_up">Przenieś w górę</string>
+    <string name="settings_notification_move_down">Przenieś w dół</string>
+    <string name="settings_notification_load_failed">Nie udało się wczytać ustawień powiadomień.</string>
+    <string name="settings_notification_save_failed">Zmiany nie zostały zapisane.</string>
+    <string name="settings_notification_retry">Spróbuj ponownie</string>
     <string name="settings_notification_styled_summary">Używaj koloru stylu aplikacji dla powiadomień.</string>
     <string name="settings_notification_styled_title">Kolorowe powiadomienia</string>
     <string name="ski_notification_title">Statystyki narciarskie</string>
@@ -75,14 +81,17 @@
     <string name="settings_steps_enabled_title">Liczba kroków</string>
     <string name="settings_tracking_min_distance_title">Minimalna odległość między aktualizacjami</string>
     <string name="settings_tracking_min_time_title">Minimalne opóźnienie między aktualizacjami</string>
-    <string name="settings_tracking_notice_summary">Zmiany zaczną obowiązywać po ponownym uruchomieniu śledzenia</string>
     <string name="settings_tracking_required_accuracy_title">Wymagana dokładność lokalizacji</string>
     <string name="settings_tracking_title">Śledzenie</string>
     <string name="settings_wifi_enabled_title">Wi‑Fi</string>
     <string name="shortcut_start_tracking">Rozpocznij śledzenie</string>
     <string name="shortcut_start_tracking_long">Rozpocznij śledzenie lokalizacji</string>
-    <string name="shortcut_stop_tracking">Zatrzymaj śledzenie</string>
-    <string name="shortcut_stop_tracking_long">Zatrzymaj śledzenie lokalizacji</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Zakończ sesję</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Zakończ bieżącą sesję</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Wyłącz śledzenie</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Zatrzymaj śledzenie i wyłącz automatyczne uruchamianie</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Działania śledzące</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Zatrzymać automatyczne uruchomienie</string>
     <string name="speed_title">Prędkość</string>
     <string name="speed_value">prędkość: %s</string>
     <string name="battery_title">Bateria</string>
@@ -114,7 +123,6 @@
         <item quantity="many">%1$d minut śledzenia</item>
         <item quantity="other">%1$d minuty śledzenia</item>
     </plurals>
-    <string name="insight_exploration_title">Odkrywca!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Odkryto %1$d nowy obszar</item>
         <item quantity="few">Odkryto %1$d nowe obszary</item>
@@ -183,7 +191,5 @@
     <string name="action_navigate_back">Wróć</string>
     <string name="insight_distance_title">Pokonana odległość</string>
     <string name="insight_distance_desc">Pokonano %1$s w tej sesji.</string>
-    <string name="insight_steps_title">Zarejestrowane kroki</string>
-    <string name="insight_steps_desc">%1$s kroków w tej sesji — tak trzymaj!</string>
     <string name="tracker_measurement_partial">Częściowe</string>
 </resources>

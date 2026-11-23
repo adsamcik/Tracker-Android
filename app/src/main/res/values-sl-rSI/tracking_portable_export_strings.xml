@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Preverjena zgodovina korakov, pokritost in vrzeli brez koordinat poti</string>
+    <string name="export_format_portable_ambient_steps_desc">Koraki iz ozadja, čas aktivnosti, datumi, vrzeli v pokritosti in shranjeni časovni pas brez koordinat poti</string>
+    <string name="export_format_portable_activity_desc">Zabeleženi intervali gibanja, zanesljivost in pokritost brez koordinat poti</string>
+    <string name="export_format_portable_pressure_desc">Neposredne meritve tlaka v hPa, pokritost in vrzeli brez koordinat poti</string>
+    <string name="export_sensitivity_portable_title">Izvozi zabeleženo zgodovino?</string>
+    <string name="export_sensitivity_portable_steps_message">Ta datoteka vsebuje število korakov, časovne intervale in informacije o pokritosti. Ne vsebuje koordinat poti. Nadaljujte le, če zaupate cilju.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Ta datoteka vsebuje korake iz ozadja, intervale aktivnosti, datume, vrzeli v pokritosti in shranjeni časovni pas. Ne vsebuje koordinat poti. Nadaljujte le, če zaupate cilju.</string>
+    <string name="export_sensitivity_portable_activity_message">Ta datoteka vsebuje zabeležene intervale gibanja, časovne intervale in informacije o pokritosti. Ne vsebuje koordinat poti. Nadaljujte le, če zaupate cilju.</string>
+    <string name="export_sensitivity_portable_pressure_message">Ta datoteka vsebuje meritve tlaka in časovne intervale, ki lahko razkrijejo informacije o okolju. Ne vsebuje koordinat poti ali umerjene višine. Nadaljujte le, če zaupate cilju.</string>
+</resources>

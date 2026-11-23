@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Istoric al pașilor verificat, acoperire și goluri fără coordonatele traseului</string>
+    <string name="export_format_portable_ambient_steps_desc">Pași din fundal, timp de activitate, date, goluri de acoperire și fus orar salvat fără coordonatele traseului</string>
+    <string name="export_format_portable_activity_desc">Intervale de mișcare înregistrate, încredere și acoperire fără coordonatele traseului</string>
+    <string name="export_format_portable_pressure_desc">Măsurători directe ale presiunii în hPa, acoperire și goluri fără coordonatele traseului</string>
+    <string name="export_sensitivity_portable_title">Exportați istoricul înregistrat?</string>
+    <string name="export_sensitivity_portable_steps_message">Acest fișier conține numărul de pași, intervale de timp și informații despre acoperire. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Acest fișier conține pași din fundal, intervale de activitate, date, goluri de acoperire și fusul orar salvat. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
+    <string name="export_sensitivity_portable_activity_message">Acest fișier conține intervale de mișcare înregistrate, intervale de timp și informații despre acoperire. Nu conține coordonatele traseului. Continuați numai dacă aveți încredere în destinație.</string>
+    <string name="export_sensitivity_portable_pressure_message">Acest fișier conține măsurători ale presiunii și intervale de timp care pot dezvălui informații despre mediu. Nu conține coordonatele traseului sau altitudine calibrată. Continuați numai dacă aveți încredere în destinație.</string>
+</resources>

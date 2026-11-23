@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Entkomme jedem virtuellen Explosionsradius, bevor seine Zündschnur abläuft</string>
     <string name="minigame_switchback_name">Switchback</string>
     <string name="minigame_switchback_description">Fahre scharfe wechselnde Kurven, um eine Flow-Kombination aufzubauen</string>
-    <string name="minigame_locked">Wird auf Stufe %1$d freigeschaltet</string>
     <string name="game_play_section_title">Spielen</string>
     <string name="game_progress_section_title">Fortschritt</string>
     <string name="minigame_outrun_goal_line">Halte 25–100 m Vorsprung vor dem Geist</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Du hast dein %2$s Ziel erreicht!</string>
     <string name="goals_daily_goal">tägliches</string>
     <string name="goals_weekly_goal">wöchentliches</string>
-    <string name="goals_monthly_goal">monatliches</string>
     <string name="game_steps_goals_title">Schrittziele</string>
     <string name="game_step_sensor_unavailable">Schrittsensor nicht verfügbar</string>
     <string name="game_step_sensor_unavailable_detail">Dieses Gerät hat keinen Schrittzählersensor. Schrittziele können nicht verfolgt werden.</string>

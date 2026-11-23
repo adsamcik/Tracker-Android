@@ -14,7 +14,6 @@
     <string name="coordinates_title">Coordonate</string>
     <string name="description_settings">Buton Setări</string>
     <string name="description_tracking_start">Buton Pornire urmărire</string>
-    <string name="description_tracking_stop">Buton Oprire urmărire</string>
     <string name="description_tracking_start_no_permission">Pornește urmărirea — este necesară permisiunea</string>
     <string name="description_points_today">Puncte câștigate astăzi: %s</string>
     <string name="description_copy">Copiază valoarea</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Durata sesiunii</string>
     <string name="duration_value">durată %s</string>
     <string name="error_nothing_to_track">Activează cel puțin o opțiune de urmărire (locație, pași sau activitate)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Activați Serviciile de localizare pentru a utiliza sursa de urmărire activată.</string>
     <string name="hint_customize_notification_show_in_content">Afișează în conținutul notificării</string>
     <string name="hint_customize_notification_show_in_title">Afișează în titlul notificării</string>
     <string name="horizontal_accuracy_title">Precizie orizontală</string>
@@ -48,16 +48,17 @@
     </plurals>
     <string name="notification_starting">Tracker pornește — locația este utilizată</string>
     <string name="notification_starting_without_location">Tracker pornește</string>
-    <string name="notification_stop">Oprește</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Oprește pentru %d minute</string>
     <string name="notification_stop_til_recharge">Oprește până la reîncărcare</string>
-    <string name="stop_tracking_dialog_title">Oprești urmărirea?</string>
     <string name="stop_tracking_dialog_message">Urmărirea automată este activă și poate porni curând din nou o sesiune dacă doar o oprești.</string>
     <string name="notification_tracker_active_ticker">Se înregistrează ruta — locația este utilizată</string>
     <string name="notification_tracker_active_without_location">Urmărire fără locație</string>
     <string name="notification_tracking_active">Urmărire</string>
     <string name="notification_tracking_start_failed_title">Urmărirea nu a putut porni</string>
     <string name="notification_tracking_start_failed_text">Deschide aplicația pentru a revizui permisiunile și a relua urmărirea.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Pregătirea urmăririi</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Nu se colectează date până la finalizarea recuperării.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Pregătirea urmăririi</string>
     <string name="settings_activity_enabled_title">Activitate</string>
     <string name="settings_cell_enabled_title">Celulă</string>
     <string name="settings_disabled_recharge_summary">Urmărirea automată este dezactivată până când telefonul este conectat la încărcător</string>
@@ -65,6 +66,11 @@
     <string name="settings_location_enabled_title">Locație</string>
     <string name="settings_notification_customize_summary">Schimbă ce elemente apar și în ce ordine în notificarea de urmărire.</string>
     <string name="settings_notification_customize_title">Personalizează notificarea</string>
+    <string name="settings_notification_move_up">Mută în sus</string>
+    <string name="settings_notification_move_down">Mută în jos</string>
+    <string name="settings_notification_load_failed">Setările notificărilor nu au putut fi încărcate.</string>
+    <string name="settings_notification_save_failed">Modificările nu au fost salvate.</string>
+    <string name="settings_notification_retry">Reîncearcă</string>
     <string name="settings_notification_styled_summary">Folosește culoarea stilului aplicației pentru notificări.</string>
     <string name="settings_notification_styled_title">Notificări colorate</string>
     <string name="ski_notification_title">Statistici schi</string>
@@ -74,14 +80,17 @@
     <string name="settings_steps_enabled_title">Număr de pași</string>
     <string name="settings_tracking_min_distance_title">Distanța minimă între actualizări</string>
     <string name="settings_tracking_min_time_title">Întârzierea minimă între actualizări</string>
-    <string name="settings_tracking_notice_summary">Modificările intră în vigoare când repornești urmărirea</string>
     <string name="settings_tracking_required_accuracy_title">Precizia necesară a locației</string>
     <string name="settings_tracking_title">Urmărire</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Pornește urmărirea</string>
     <string name="shortcut_start_tracking_long">Pornește urmărirea locației</string>
-    <string name="shortcut_stop_tracking">Oprește urmărirea</string>
-    <string name="shortcut_stop_tracking_long">Oprește urmărirea locației</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Încheie sesiunea</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Încheie sesiunea curentă</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Dezactivează urmărirea</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Oprește orice urmărire și pornirile automate</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Acțiuni de urmărire</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pauza de pornire automată</string>
     <string name="speed_title">Viteză</string>
     <string name="speed_value">viteză %s</string>
     <string name="battery_title">Baterie</string>
@@ -111,7 +120,6 @@
         <item quantity="few">%1$d minute de urmărire</item>
         <item quantity="other">%1$d minute de urmărire</item>
     </plurals>
-    <string name="insight_exploration_title">Explorator!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Ai descoperit %1$d zonă nouă</item>
         <item quantity="few">Ai descoperit %1$d zone noi</item>
@@ -179,7 +187,5 @@
     <string name="action_navigate_back">Navighează înapoi</string>
     <string name="insight_distance_title">Distanță parcursă</string>
     <string name="insight_distance_desc">Ai parcurs %1$s în această sesiune.</string>
-    <string name="insight_steps_title">Pași înregistrați</string>
-    <string name="insight_steps_desc">%1$s pași în această sesiune — continuă tot așa!</string>
     <string name="tracker_measurement_partial">Parțial</string>
 </resources>

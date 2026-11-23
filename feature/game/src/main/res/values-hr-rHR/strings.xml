@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Pobjegnite iz svakog virtualnog područja eksplozije prije isteka fitilja</string>
     <string name="minigame_switchback_name">Serpentine</string>
     <string name="minigame_switchback_description">Izvodite oštre izmjenične zavoje da biste izgradili kombinaciju toka</string>
-    <string name="minigame_locked">Otključava se na razini %1$d</string>
     <string name="game_play_section_title">Igraj</string>
     <string name="game_progress_section_title">Napredak</string>
     <string name="minigame_outrun_goal_line">Ostanite 25–100 m ispred duha</string>
@@ -190,7 +189,6 @@
     <string name="goals_reached_notification">%1$s! Dosegnuli ste %2$s cilj!</string>
     <string name="goals_daily_goal">dnevni</string>
     <string name="goals_weekly_goal">tjedni</string>
-    <string name="goals_monthly_goal">mjesečni</string>
     <string name="game_steps_goals_title">Ciljevi koraka</string>
     <string name="game_step_sensor_unavailable">Senzor koraka nije dostupan</string>
     <string name="game_step_sensor_unavailable_detail">Ovaj uređaj nema senzor brojača koraka. Ciljeve koraka nije moguće pratiti.</string>

@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="export_format_portable_steps_desc">Ověřená historie kroků, pokrytí a mezery bez souřadnic trasy</string>
+    <string name="export_format_portable_ambient_steps_desc">Celodenní počty kroků, doba aktivity, data, mezery v pokrytí a uložené časové pásmo bez souřadnic trasy</string>
+    <string name="export_format_portable_activity_desc">Zaznamenané intervaly pohybu, míra jistoty a pokrytí bez souřadnic trasy</string>
+    <string name="export_format_portable_pressure_desc">Přímá měření tlaku v hPa, pokrytí a mezery bez souřadnic trasy</string>
+    <string name="export_sensitivity_portable_title">Exportovat zaznamenanou historii?</string>
+    <string name="export_sensitivity_portable_steps_message">Tento soubor obsahuje počty kroků, časové intervaly a údaje o pokrytí. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_sensitivity_portable_ambient_steps_message">Tento soubor obsahuje celodenní počty kroků, intervaly aktivity, data, mezery v pokrytí a uložené časové pásmo. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_sensitivity_portable_activity_message">Tento soubor obsahuje zaznamenané intervaly pohybu, časové intervaly a údaje o pokrytí. Neobsahuje souřadnice trasy. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+    <string name="export_sensitivity_portable_pressure_message">Tento soubor obsahuje měření tlaku a časové intervaly, které mohou odhalit údaje o prostředí. Neobsahuje souřadnice trasy ani kalibrovanou nadmořskou výšku. Pokračujte pouze, pokud důvěřujete cílovému umístění.</string>
+</resources>

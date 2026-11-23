@@ -14,7 +14,6 @@
     <string name="coordinates_title">Coordinate</string>
     <string name="description_settings">Pulsante Impostazioni</string>
     <string name="description_tracking_start">Pulsante Avvia tracciamento</string>
-    <string name="description_tracking_stop">Pulsante Interrompi tracciamento</string>
     <string name="description_tracking_start_no_permission">Avvia tracciamento — autorizzazione necessaria</string>
     <string name="description_points_today">Punti ottenuti oggi: %s</string>
     <string name="description_copy">Copia valore</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Durata della sessione</string>
     <string name="duration_value">durata %s</string>
     <string name="error_nothing_to_track">Devi tracciare qualcosa oltre al tempo</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Attiva i Servizi di localizzazione per utilizzare la sorgente di tracciamento abilitata.</string>
     <string name="hint_customize_notification_show_in_content">Mostra nel contenuto della notifica</string>
     <string name="hint_customize_notification_show_in_title">Mostra nel titolo della notifica</string>
     <string name="horizontal_accuracy_title">Precisione orizzontale</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Avvio del servizio Tracker</string>
     <string name="notification_starting_without_location">Avvio di Tracker</string>
-    <string name="notification_stop">Interrompi</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Interrompi per %d minuti</string>
     <string name="notification_stop_til_recharge">Interrompi fino alla ricarica</string>
-    <string name="stop_tracking_dialog_title">Interrompere il tracciamento?</string>
     <string name="stop_tracking_dialog_message">Il tracciamento automatico è attivo e potrebbe avviare presto una nuova sessione se ti limiti a interrompere.</string>
     <string name="notification_tracker_active_ticker">Tracker è attivo</string>
     <string name="notification_tracker_active_without_location">Tracciamento senza posizione</string>
     <string name="notification_tracking_active">Tracciamento</string>
     <string name="notification_tracking_start_failed_title">Impossibile avviare il tracciamento</string>
     <string name="notification_tracking_start_failed_text">Apri l\'app per rivedere le autorizzazioni e riprendere il tracciamento.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Preparazione del tracciamento</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Non vengono raccolti dati fino al completamento del recupero.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Preparazione del tracciamento</string>
     <string name="settings_activity_enabled_title">Attività</string>
     <string name="settings_cell_enabled_title">Cella</string>
     <string name="settings_disabled_recharge_summary">Il tracciamento automatico è disabilitato finché il telefono non è collegato a un caricatore</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Posizione</string>
     <string name="settings_notification_customize_summary">Modifica quali elementi e in quale ordine devono apparire nella notifica di tracciamento.</string>
     <string name="settings_notification_customize_title">Personalizza notifica</string>
+    <string name="settings_notification_move_up">Sposta su</string>
+    <string name="settings_notification_move_down">Sposta giù</string>
+    <string name="settings_notification_load_failed">Impossibile caricare le impostazioni delle notifiche.</string>
+    <string name="settings_notification_save_failed">Le modifiche non sono state salvate.</string>
+    <string name="settings_notification_retry">Riprova</string>
     <string name="settings_notification_styled_summary">Usa il colore dello stile dell\'app per le notifiche.</string>
     <string name="settings_notification_styled_title">Notifiche colorate</string>
     <string name="ski_notification_title">Statistiche sci</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Conteggio passi</string>
     <string name="settings_tracking_min_distance_title">Distanza minima tra le raccolte</string>
     <string name="settings_tracking_min_time_title">Ritardo minimo tra le raccolte</string>
-    <string name="settings_tracking_notice_summary">Per motivi tecnici, la maggior parte delle modifiche alle impostazioni di Tracker richiede il riavvio del tracciamento. Se il tracciamento è attivo, interrompilo e riavvialo. Chiudere e riaprire l\'app potrebbe non essere sufficiente.</string>
     <string name="settings_tracking_required_accuracy_title">Precisione della posizione richiesta</string>
     <string name="settings_tracking_title">Tracciamento</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Avvia tracciamento</string>
     <string name="shortcut_start_tracking_long">Avvia servizio di tracciamento</string>
-    <string name="shortcut_stop_tracking">Interrompi tracciamento</string>
-    <string name="shortcut_stop_tracking_long">Interrompi servizio di tracciamento</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Termina sessione</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Termina la sessione in corso</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Disattiva il monitoraggio</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Interrompi ogni monitoraggio e gli avvii automatici</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Azioni di tracciamento</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pausa di avvio automatico</string>
     <string name="speed_title">Velocità</string>
     <string name="speed_value">velocità %s</string>
     <string name="battery_title">Batteria</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d minuto di tracciamento</item>
         <item quantity="other">%1$d minuti di tracciamento</item>
     </plurals>
-    <string name="insight_exploration_title">Esploratore!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Hai scoperto %1$d nuova area</item>
         <item quantity="other">Hai scoperto %1$d nuove aree</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Torna indietro</string>
     <string name="insight_distance_title">Distanza percorsa</string>
     <string name="insight_distance_desc">Hai percorso %1$s in questa sessione.</string>
-    <string name="insight_steps_title">Passi registrati</string>
-    <string name="insight_steps_desc">%1$s passi in questa sessione — continua così!</string>
     <string name="tracker_measurement_partial">Parziale</string>
 </resources>

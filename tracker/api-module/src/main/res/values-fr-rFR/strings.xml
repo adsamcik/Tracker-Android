@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="activity_title">Activité</string>
     <string name="activity_value">%s</string>
@@ -14,7 +14,6 @@
     <string name="coordinates_title">Coordonnées</string>
     <string name="description_settings">Bouton Paramètres</string>
     <string name="description_tracking_start">Bouton Démarrer le suivi</string>
-    <string name="description_tracking_stop">Bouton Arrêter le suivi</string>
     <string name="description_tracking_start_no_permission">Démarrer le suivi — autorisation requise</string>
     <string name="description_points_today">Points gagnés aujourd’hui : %s</string>
     <string name="description_copy">Copier la valeur</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Durée de la session</string>
     <string name="duration_value">durée %s</string>
     <string name="error_nothing_to_track">Activez au moins une option de suivi (localisation, pas ou activité)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Activez les services de localisation pour utiliser la source de suivi activée.</string>
     <string name="hint_customize_notification_show_in_content">Afficher dans le contenu de la notification</string>
     <string name="hint_customize_notification_show_in_title">Afficher dans le titre de la notification</string>
     <string name="horizontal_accuracy_title">Précision horizontale</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Démarrage de Tracker — localisation utilisée</string>
     <string name="notification_starting_without_location">Démarrage de Tracker</string>
-    <string name="notification_stop">Arrêter</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">Arrêter pendant %d minutes</string>
     <string name="notification_stop_til_recharge">Arrêter jusqu’à la recharge</string>
-    <string name="stop_tracking_dialog_title">Arrêter le suivi ?</string>
     <string name="stop_tracking_dialog_message">Le suivi automatique est activé et peut bientôt démarrer une nouvelle session si vous vous arrêtez maintenant.</string>
     <string name="notification_tracker_active_ticker">Enregistrement de votre itinéraire — localisation utilisée</string>
     <string name="notification_tracker_active_without_location">Suivi sans localisation</string>
     <string name="notification_tracking_active">Suivi</string>
     <string name="notification_tracking_start_failed_title">Impossible de démarrer le suivi</string>
     <string name="notification_tracking_start_failed_text">Ouvrez l’application pour vérifier les autorisations et reprendre le suivi.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Préparation du suivi</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Aucune donnée n\'est recueillie avant la fin de la récupération.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Préparation du suivi</string>
     <string name="settings_activity_enabled_title">Activité</string>
     <string name="settings_cell_enabled_title">Cellule</string>
     <string name="settings_disabled_recharge_summary">Le suivi automatique est désactivé jusqu’à ce que votre téléphone soit connecté à un chargeur</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Localisation</string>
     <string name="settings_notification_customize_summary">Modifiez les éléments à afficher et leur ordre dans la notification de suivi.</string>
     <string name="settings_notification_customize_title">Personnaliser la notification</string>
+    <string name="settings_notification_move_up">Monter</string>
+    <string name="settings_notification_move_down">Descendre</string>
+    <string name="settings_notification_load_failed">Impossible de charger les paramètres de notification.</string>
+    <string name="settings_notification_save_failed">Les modifications n’ont pas été enregistrées.</string>
+    <string name="settings_notification_retry">Réessayer</string>
     <string name="settings_notification_styled_summary">Utilisez la couleur du style de votre application pour les notifications.</string>
     <string name="settings_notification_styled_title">Notifications colorées</string>
     <string name="ski_notification_title">Statistiques de ski</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Nombre de pas</string>
     <string name="settings_tracking_min_distance_title">Distance minimale entre les mises à jour</string>
     <string name="settings_tracking_min_time_title">Délai minimal entre les mises à jour</string>
-    <string name="settings_tracking_notice_summary">Les modifications prennent effet après le redémarrage du suivi</string>
     <string name="settings_tracking_required_accuracy_title">Précision de localisation requise</string>
     <string name="settings_tracking_title">Suivi</string>
     <string name="settings_wifi_enabled_title">Wi-Fi</string>
     <string name="shortcut_start_tracking">Démarrer le suivi</string>
     <string name="shortcut_start_tracking_long">Démarrer le suivi de localisation</string>
-    <string name="shortcut_stop_tracking">Arrêter le suivi</string>
-    <string name="shortcut_stop_tracking_long">Arrêter le suivi de localisation</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Terminer la session</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Terminer la session en cours</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Désactiver le suivi</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Arrêter tout suivi et les démarrages automatiques</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Actions de suivi</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Arrêtez le démarrage automatique</string>
     <string name="speed_title">Vitesse</string>
     <string name="speed_value">vitesse %s</string>
     <string name="battery_title">Batterie</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d minute de suivi</item>
         <item quantity="other">%1$d minutes de suivi</item>
     </plurals>
-    <string name="insight_exploration_title">Exploration !</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Vous avez découvert %1$d nouvelle zone</item>
         <item quantity="other">Vous avez découvert %1$d nouvelles zones</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Revenir en arrière</string>
     <string name="insight_distance_title">Distance parcourue</string>
     <string name="insight_distance_desc">Vous avez parcouru %1$s pendant cette session.</string>
-    <string name="insight_steps_title">Pas enregistrés</string>
-    <string name="insight_steps_desc">%1$s pas pendant cette session — continuez ainsi !</string>
     <string name="tracker_measurement_partial">Partiel</string>
 </resources>

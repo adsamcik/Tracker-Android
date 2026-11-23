@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Utečte z každého virtuálneho okruhu výbuchu skôr, než vyprší rozbuška</string>
     <string name="minigame_switchback_name">Serpentína</string>
     <string name="minigame_switchback_description">Robte prudké striedavé zákruty a budujte plynulé kombo</string>
-    <string name="minigame_locked">Odomkne sa na úrovni %1$d</string>
     <string name="game_play_section_title">Hrať</string>
     <string name="game_progress_section_title">Postup</string>
     <string name="minigame_outrun_goal_line">Udržujte si pred duchom náskok 25–100 m</string>
@@ -196,7 +195,6 @@
     <string name="goals_reached_notification">%1$s! Dosiahli ste svoj %2$s cieľ!</string>
     <string name="goals_daily_goal">denný</string>
     <string name="goals_weekly_goal">týždenný</string>
-    <string name="goals_monthly_goal">mesačný</string>
     <string name="game_steps_goals_title">Ciele krokov</string>
     <string name="game_step_sensor_unavailable">Snímač krokov nie je k dispozícii</string>
     <string name="game_step_sensor_unavailable_detail">Toto zariadenie nemá snímač počítadla krokov. Ciele krokov nemožno sledovať.</string>

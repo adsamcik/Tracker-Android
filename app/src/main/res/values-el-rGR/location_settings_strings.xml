@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Τοποθεσία όλη την ημέρα</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Μεταξύ των συνεδριάσεων.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Επιτρέπεται ανάμεσα στις συνεδρίες. Η διαθεσιμότητα εξαρτάται από την πρόσβαση και τα οριακά Android.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Προσαρμοστική</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Μόνο παθητικό</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Προσαρμόζει τη συλλογή τοποθεσιών στην κίνηση και τις προτιμήσεις σας για λεπτομέρειες, με συνεχή ειδοποίηση.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Χρησιμοποιεί θέσεις που παρέχονται από άλλες εφαρμογές ή το σύστημα. Είναι πιθανό να υπάρχουν μεγάλα κενά.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Το Tracker θα συλλέγει τοποθεσία ανάμεσα στις συνεδρίες, θα προσαρμόζει την προσπάθειά του στην κίνηση και θα εμφανίζει μια συνεχιζόμενη ειδοποίηση. Αυτό μπορεί να χρησιμοποιήσει περισσότερη μπαταρία από παθητική συλλογή. Η επιλογή σας αποθηκεύεται πριν το Android ζητήσει πρόσβαση στη θέση. Η απουσία πρόσβασης την αφήνει να περιμένει, μπορείτε να την απενεργοποιήσετε ανά πάσα στιγμή.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Χρησιμοποιήστε προσαρμοστική τοποθεσία</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Να επιτρέπεται η πρόσβαση στην τοποθεσία</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Επιλέξτε προσαρμοστική λεπτομέρεια τοποθεσίας</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Πληροφορίες τοποθεσίας: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Δύναμη τοποθεσίας και λεπτομέρειες</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Επιλέξτε ένα επίπεδο για να υιοθετήσετε την προσαρμοστική τοποθεσία. Η ισορροπία είναι το προεπιλεγμένο, οι ζωντανές συνεδρίες προτιμούν περισσότερες λεπτομέρειες. Android και η πρόσβασή σας μπορεί να περιορίσει το αποτέλεσμα.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Πρώτα η ενέργεια.</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Δύναμη ευνοίας</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Ισορροπημένη</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Προτιμήστε λεπτομέρεια</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Πρώτα λεπτομέρεια.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Βοήθεια για την κίνηση</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Επιλογικά χρησιμοποιεί ενδείξεις κίνησης για να ρυθμίσει τοποθεσία. Αυτό δεν καταγράφει ιστορικό δραστηριότητας και δεν μπορεί να ξεκινήσει μια συνεδρία. Η τοποθεσία εξακολουθεί να λειτουργεί αν αρνηθείς.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Επιτρέψτε ενδείξεις κίνησης</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Δεν μπορούσα να εφαρμόσω αυτή την αλλαγή. Δοκίμασε ξανά.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Η προσαρμοστική συλλογή δεν λειτουργεί ακόμα.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Χρησιμοποιεί το προσαρμοστικό επίπεδο λεπτομέρειας τοποθεσίας.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Διατίθεται η προσαρμοστική τοποθεσία.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Ζητήματα τοποθεσίας προσαρμοσμένα από τη συσκευή.</string>
+</resources>

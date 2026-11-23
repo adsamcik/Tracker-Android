@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Sijainti koko päivän</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">Istuntojen välillä.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">Aikaistuja istuntojen välillä. Käytettävyys riippuu pääsystä ja Android:n taustalla olevista rajoista.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Sääntyvä</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Vain passiivinen</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">Säännöt paikankokouksen liikkeeseen ja yksityiskohtien mieltymyksesi jatkuvalla ilmoituksella.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">Käyttää muita sovelluksia tai järjestelmää tarjoamia asemia. Pitkiä aukkoja on mahdollista.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">Tracker kerää sijainnin istuntojen välillä, säätää sen liikkumisen ja näyttää jatkuvan ilmoituksen. Tämä voi käyttää enemmän akkua kuin passiivista keräämistä. Valintasi tallennetaan ennen kuin Android pyytää sijaintipääsyä. Puuttuva pääsy jättää sen odottamaan; voit sammuttaa sen milloin tahansa.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Käytä mukautuvaa sijaintia</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Salli sijainnin käyttö</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Valitse mukautuva sijainti yksityiskohta</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Paikallinen nimi: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Paikalla sijaitseva voima ja yksityiskohdat</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Valitse tason, jonka mukautukselle on mukautettava sijainti. Tasapainoinen on oletus; elävät istunnot mieluummin yksityiskohtia. Android ja pääsysi voivat rajoittaa tuloksen.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">Voima ensin</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Suositteluvoima</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Tasapainotettu</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">Suosittelen yksityiskohtiin</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Yksityiskohtaus ensin</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">Muutoksenhakun avustaminen</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">Valitettavasti käytetään liikkeen vinkkejä säätää sijainti. Tämä ei tallenta toimintaa eikä voi aloittaa istuntoa. Paikka toimii, jos kieltäydyt.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">Käynnistä liikkuvuus</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">En voinut soveltaa tätä muutosta. Yritä uudestaan.</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Sopeutumista ei ole vielä käynnissä.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Käytät mukautuvaa sijainnin tasoa.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Sääntyvä sijainti on käytettävissä.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">Laite säätää sijainnin pyynnön.</string>
+</resources>

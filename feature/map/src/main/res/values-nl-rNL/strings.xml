@@ -127,7 +127,6 @@
     <string name="settings_map_zoom_buttons_subtitle">Toon + en − knoppen op het scherm om op de kaart te zoomen, voor situaties waarin knijpen om te zoomen lastig is.</string>
     <string name="tips_map_date_range_title">Datumbereik</string>
     <string name="tips_map_my_location_title">Mijn locatie</string>
-    <string name="tips_map_sheet_description">Tikken op of omhoog trekken aan deze balk opent meer opties voor de kaart, waaronder laagselectie en legenda.</string>
     <string name="map_search_placeholder">Lat, lng bijv. 50.075, 14.437</string>
     <string name="map_search_invalid_format">Probeer 48.8566, 2.3522 • 48.8566 2.3522 • N48.8566 E2.3522 • 48°51\'24"N 2°21\'08"E</string>
     <string name="map_search_clear">Zoeken wissen</string>

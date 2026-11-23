@@ -1,10 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="notification_activity_watcher_info">Trenutna dejavnost: %1$s (%2$d%%)</string>
-    <string name="notification_activity_watcher_ticker">Storitev spremljanja dejavnosti je aktivna</string>
     <string name="settings_activity_snackbar_message">Odstranjeno: %s</string>
     <string name="settings_activity_title">Dejavnosti</string>
-    <string name="settings_activity_watcher_title">Spremljanje dejavnosti</string>
     <string name="settings_ski_infrastructure_title">Podatki o žičnicah</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Naloženo (tapnite za odstranitev)</string>
     <string name="settings_ski_infrastructure_subtitle_none">Ni naloženo. Tapnite za uvoz datoteke SQLite ski_infrastructure.db.</string>

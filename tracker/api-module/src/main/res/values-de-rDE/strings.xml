@@ -14,7 +14,6 @@
     <string name="coordinates_title">Koordinaten</string>
     <string name="description_settings">Schaltfläche Einstellungen</string>
     <string name="description_tracking_start">Schaltfläche zum Starten der Aufzeichnung</string>
-    <string name="description_tracking_stop">Schaltfläche zum Beenden der Aufzeichnung</string>
     <string name="description_tracking_start_no_permission">Aufzeichnung starten — Berechtigung erforderlich</string>
     <string name="description_points_today">Heute verdiente Punkte: %s</string>
     <string name="description_copy">Wert kopieren</string>
@@ -29,6 +28,7 @@
     <string name="duration_title">Sitzungsdauer</string>
     <string name="duration_value">Dauer %s</string>
     <string name="error_nothing_to_track">Aktiviere mindestens eine Aufzeichnungsoption (Standort, Schritte oder Aktivität)</string>
+    <string name="manual_tracking_location_services_required" tools:ignore="MissingTranslation">Schalten Sie Standortdienste ein, um die aktivierte Trackingquelle zu verwenden.</string>
     <string name="hint_customize_notification_show_in_content">Im Benachrichtigungsinhalt anzeigen</string>
     <string name="hint_customize_notification_show_in_title">Im Benachrichtigungstitel anzeigen</string>
     <string name="horizontal_accuracy_title">Horizontale Genauigkeit</string>
@@ -47,16 +47,17 @@
     </plurals>
     <string name="notification_starting">Tracker startet — Standort wird verwendet</string>
     <string name="notification_starting_without_location">Tracker startet</string>
-    <string name="notification_stop">Beenden</string>
     <string name="notification_stop_for_minutes" tools:ignore="PluralsCandidate">%d Minuten beenden</string>
     <string name="notification_stop_til_recharge">Bis zum Aufladen beenden</string>
-    <string name="stop_tracking_dialog_title">Aufzeichnung beenden?</string>
     <string name="stop_tracking_dialog_message">Die automatische Aufzeichnung ist aktiv und kann kurz nach dem Beenden wieder eine neue Sitzung starten.</string>
     <string name="notification_tracker_active_ticker">Deine Route wird aufgezeichnet — Standort wird verwendet</string>
     <string name="notification_tracker_active_without_location">Aufzeichnung ohne Standort</string>
     <string name="notification_tracking_active">Aufzeichnung</string>
     <string name="notification_tracking_start_failed_title">Aufzeichnung konnte nicht starten</string>
     <string name="notification_tracking_start_failed_text">Öffne die App, um Berechtigungen zu prüfen und die Aufzeichnung fortzusetzen.</string>
+    <string name="notification_tracking_restoring_title" tools:ignore="MissingTranslation">Vorbereitung der Verfolgung</string>
+    <string name="notification_tracking_restoring_text" tools:ignore="MissingTranslation">Es werden keine Daten gesammelt, bis die Wiederherstellung abgeschlossen ist.</string>
+    <string name="notification_tracking_restoring_public" tools:ignore="MissingTranslation">Vorbereitung der Verfolgung</string>
     <string name="settings_activity_enabled_title">Aktivität</string>
     <string name="settings_cell_enabled_title">Funkzelle</string>
     <string name="settings_disabled_recharge_summary">Die automatische Aufzeichnung ist deaktiviert, bis dein Telefon mit einem Ladegerät verbunden ist</string>
@@ -64,6 +65,11 @@
     <string name="settings_location_enabled_title">Standort</string>
     <string name="settings_notification_customize_summary">Ändere, was und in welcher Reihenfolge in der Aufzeichnungsbenachrichtigung angezeigt wird.</string>
     <string name="settings_notification_customize_title">Benachrichtigung anpassen</string>
+    <string name="settings_notification_move_up">Nach oben</string>
+    <string name="settings_notification_move_down">Nach unten</string>
+    <string name="settings_notification_load_failed">Benachrichtigungseinstellungen konnten nicht geladen werden.</string>
+    <string name="settings_notification_save_failed">Änderungen wurden nicht gespeichert.</string>
+    <string name="settings_notification_retry">Erneut versuchen</string>
     <string name="settings_notification_styled_summary">Verwende die Stilfarbe deiner App für Benachrichtigungen.</string>
     <string name="settings_notification_styled_title">Farbige Benachrichtigungen</string>
     <string name="ski_notification_title">Ski-Statistiken</string>
@@ -73,14 +79,17 @@
     <string name="settings_steps_enabled_title">Schrittzahl</string>
     <string name="settings_tracking_min_distance_title">Mindestabstand zwischen Aktualisierungen</string>
     <string name="settings_tracking_min_time_title">Mindestverzögerung zwischen Aktualisierungen</string>
-    <string name="settings_tracking_notice_summary">Änderungen werden nach dem Neustart der Aufzeichnung wirksam</string>
     <string name="settings_tracking_required_accuracy_title">Erforderliche Standortgenauigkeit</string>
     <string name="settings_tracking_title">Aufzeichnung</string>
     <string name="settings_wifi_enabled_title">WLAN</string>
     <string name="shortcut_start_tracking">Aufzeichnung starten</string>
     <string name="shortcut_start_tracking_long">Standortaufzeichnung starten</string>
-    <string name="shortcut_stop_tracking">Aufzeichnung beenden</string>
-    <string name="shortcut_stop_tracking_long">Standortaufzeichnung beenden</string>
+    <string name="shortcut_end_session" tools:ignore="MissingTranslation">Sitzung beenden</string>
+    <string name="shortcut_end_session_long" tools:ignore="MissingTranslation">Aktuelle Sitzung beenden</string>
+    <string name="shortcut_turn_off_tracking" tools:ignore="MissingTranslation">Tracking ausschalten</string>
+    <string name="shortcut_turn_off_tracking_long" tools:ignore="MissingTranslation">Jegliches Tracking und automatische Starts stoppen</string>
+    <string name="tracking_actions_menu" tools:ignore="MissingTranslation">Verfolgungsmaßnahmen</string>
+    <string name="tracking_pause_automatic" tools:ignore="MissingTranslation">Pause automatischer Starts</string>
     <string name="speed_title">Geschwindigkeit</string>
     <string name="speed_value">Geschwindigkeit %s</string>
     <string name="battery_title">Akku</string>
@@ -108,7 +117,6 @@
         <item quantity="one">%1$d Minute Aufzeichnung</item>
         <item quantity="other">%1$d Minuten Aufzeichnung</item>
     </plurals>
-    <string name="insight_exploration_title">Entdecker!</string>
     <plurals name="insight_exploration_desc">
         <item quantity="one">Du hast %1$d neuen Bereich entdeckt</item>
         <item quantity="other">Du hast %1$d neue Bereiche entdeckt</item>
@@ -175,7 +183,5 @@
     <string name="action_navigate_back">Zurück navigieren</string>
     <string name="insight_distance_title">Zurückgelegte Strecke</string>
     <string name="insight_distance_desc">Du hast in dieser Sitzung %1$s zurückgelegt.</string>
-    <string name="insight_steps_title">Aufgezeichnete Schritte</string>
-    <string name="insight_steps_desc">%1$s Schritte in dieser Sitzung — weiter so!</string>
     <string name="tracker_measurement_partial">Teilweise</string>
 </resources>

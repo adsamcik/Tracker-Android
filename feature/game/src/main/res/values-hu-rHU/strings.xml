@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Meneküljön ki minden virtuális robbanási sugárból, mielőtt lejár a gyújtózsinór.</string>
     <string name="minigame_switchback_name">Szerpentin</string>
     <string name="minigame_switchback_description">Vágjon éles, váltakozó kanyarokat a flow-kombó építéséhez</string>
-    <string name="minigame_locked">A feloldás a(z) %1$d. szintnél történik</string>
     <string name="game_play_section_title">Játék</string>
     <string name="game_progress_section_title">Előrehaladás</string>
     <string name="minigame_outrun_goal_line">Tartson 25–100 m előnyt a szellemmel szemben</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Elérte a(z) %2$s célját!</string>
     <string name="goals_daily_goal">napi</string>
     <string name="goals_weekly_goal">heti</string>
-    <string name="goals_monthly_goal">havi</string>
     <string name="game_steps_goals_title">Lépéscélok</string>
     <string name="game_step_sensor_unavailable">A lépésszámláló-érzékelő nem érhető el</string>
     <string name="game_step_sensor_unavailable_detail">Ez az eszköz nem rendelkezik lépésszámláló-érzékelővel. A lépéscélok nem követhetők.</string>

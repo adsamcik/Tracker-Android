@@ -11,7 +11,6 @@
     <string name="minigame_fuserun_description">Избягвайте всеки виртуален радиус на взрива, преди предпазителят му да изтече.</string>
     <string name="minigame_switchback_name">Серпентина</string>
     <string name="minigame_switchback_description">Правете остри редуващи се завои, за да изградите поредица от плавни движения.</string>
-    <string name="minigame_locked">Отключва се на ниво %1$d</string>
     <string name="game_play_section_title">Игра</string>
     <string name="game_progress_section_title">Напредък</string>
     <string name="minigame_outrun_goal_line">Поддържайте преднина от 25–100 м пред призрака</string>
@@ -184,7 +183,6 @@
     <string name="goals_reached_notification">%1$s! Достигнахте своята %2$s цел!</string>
     <string name="goals_daily_goal">дневна</string>
     <string name="goals_weekly_goal">седмична</string>
-    <string name="goals_monthly_goal">месечна</string>
     <string name="game_steps_goals_title">Цели за крачки</string>
     <string name="game_step_sensor_unavailable">Сензорът за крачки не е наличен</string>
     <string name="game_step_sensor_unavailable_detail">Това устройство няма сензор за броене на крачки. Целите за крачки не могат да бъдат проследявани.</string>

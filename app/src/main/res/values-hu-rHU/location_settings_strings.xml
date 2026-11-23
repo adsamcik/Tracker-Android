@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <string name="settings_all_day_location_title" tools:ignore="MissingTranslation">Egész napos helyadatgyűjtés</string>
+    <string name="settings_all_day_location_off" tools:ignore="MissingTranslation">A találkozók között.</string>
+    <string name="settings_all_day_location_saved" tools:ignore="MissingTranslation">A találkozók között engedélyezett. A rendelkezésre állás függ a hozzáférésről és a Android háttérhatártól.</string>
+    <string name="settings_location_mode_adaptive" tools:ignore="MissingTranslation">Adaptív</string>
+    <string name="settings_location_mode_passive" tools:ignore="MissingTranslation">Csak passzív</string>
+    <string name="settings_location_adaptive_summary" tools:ignore="MissingTranslation">A helyszíngyűjtés beállítása a mozgáshoz és a részletes preferenciákhoz, folyamatos értesítéssel.</string>
+    <string name="settings_location_passive_summary" tools:ignore="MissingTranslation">A többi alkalmazás vagy a rendszer által megadott pozíciókat használja. Hosszú szakadékok lehetnek.</string>
+    <string name="settings_location_adaptive_disclosure" tools:ignore="MissingTranslation">A Tracker összegyűjti a helyszínt az ülések között, módosítja a mozgási erőfeszítését, és megmutatja a folyamatos értesítést. Ez több akkumulátort használhat, mint a passzív gyűjtés. A választásod mentve van, mielőtt a Android a helyszín elérését kérné. Ha nincs hozzáférés, vár, bármikor kikapcsolja.</string>
+    <string name="settings_location_use_adaptive" tools:ignore="MissingTranslation">Használja az adaptív helyiséget</string>
+    <string name="settings_location_allow_access" tools:ignore="MissingTranslation">Helyhozzáférés engedélyezése</string>
+    <string name="settings_location_adopt_profile" tools:ignore="MissingTranslation">Válassza ki az alkalmazkodó helymeghatározást</string>
+    <string name="settings_location_balance_value" tools:ignore="MissingTranslation">Helyezkedési részlet: %1$s</string>
+    <string name="settings_location_balance_title" tools:ignore="MissingTranslation">Helyezési erő és részlet</string>
+    <string name="settings_location_balance_summary" tools:ignore="MissingTranslation">Válasszon egy szintet, hogy alkalmazkodjon a helyhez. A kiegyensúlyozott az alapértelmezett; a élő ülések jobban szeretnek a részleteket. Android és a hozzáférésed korlátozhatja a eredményt.</string>
+    <string name="settings_location_balance_1" tools:ignore="MissingTranslation">A hatalom először.</string>
+    <string name="settings_location_balance_2" tools:ignore="MissingTranslation">Támogatja a hatalmat</string>
+    <string name="settings_location_balance_3" tools:ignore="MissingTranslation">Kiegyensúlyozott</string>
+    <string name="settings_location_balance_4" tools:ignore="MissingTranslation">A részleteket kedvelem.</string>
+    <string name="settings_location_balance_5" tools:ignore="MissingTranslation">Először a részletek.</string>
+    <string name="settings_location_motion_assistance" tools:ignore="MissingTranslation">A mozgalmi támogatás</string>
+    <string name="settings_location_motion_assistance_summary" tools:ignore="MissingTranslation">A mozgásjelzéseket használhatja a helyiség beállításához. Ez nem rögzíti az Aktivitás előtérét, és nem kezdheti meg a sessziót. A helyszín még mindig működik, ha visszautasítod.</string>
+    <string name="settings_location_allow_motion" tools:ignore="MissingTranslation">A mozgás jelzései</string>
+    <string name="settings_location_save_failed" tools:ignore="MissingTranslation">Nem tudtam ezt a változást alkalmazni. Próbáld meg újra!</string>
+    <string name="settings_location_adaptive_not_ready" tools:ignore="MissingTranslation">Az adaptív gyűjtés még nem működik.</string>
+    <string name="settings_location_adopted_source_summary" tools:ignore="MissingTranslation">Használja az adaptív helyszín részletes szintjét.</string>
+    <string name="settings_location_adaptive_ready" tools:ignore="MissingTranslation">Az adaptív hely elérhető.</string>
+    <string name="settings_location_request_adjusted" tools:ignore="MissingTranslation">A berendezés által beállított helymeghatározási kérelem.</string>
+</resources>

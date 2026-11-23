@@ -1,10 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="notification_activity_watcher_info">Activitatea curentă: %1$s (%2$d%%)</string>
-    <string name="notification_activity_watcher_ticker">Serviciul Monitor activitate este activ</string>
     <string name="settings_activity_snackbar_message">S-a eliminat %s</string>
     <string name="settings_activity_title">Activități</string>
-    <string name="settings_activity_watcher_title">Monitor activitate</string>
     <string name="settings_ski_infrastructure_title">Date despre instalațiile de schi</string>
     <string name="settings_ski_infrastructure_subtitle_loaded">Încărcate (atinge pentru a elimina)</string>
     <string name="settings_ski_infrastructure_subtitle_none">Nu sunt încărcate. Atinge pentru a importa un fișier SQLite ski_infrastructure.db.</string>

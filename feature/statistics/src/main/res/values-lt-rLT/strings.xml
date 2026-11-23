@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="module_statistics_title">Statistika</string>
     <string name="stats_cell_count">Ląstelių skaičius</string>
     <string name="stats_collections">Atnaujinimų skaičius</string>
@@ -81,6 +81,16 @@
     <string name="stats_cell_signal_tower_detail">Ląstelė %1$s · %2$s pavyzdžių</string>
     <string name="stats_cell_signal_carrier">Operatorius %1$s‑%2$s</string>
     <string name="trip_detail_title">Kelionės informacija</string>
+    <string name="source_history_detail_title" tools:ignore="MissingTranslation">Šalių istorija</string>
+    <string name="source_history_detail_unavailable" tools:ignore="MissingTranslation">Šalinio istorija nepasiekiama</string>
+    <string name="source_history_detail_expired" tools:ignore="MissingTranslation">Šis privačio pasirinkimas nebuvo išsaugotas po to, kai buvo atkurtas programos procesas. Grįžk į naujausią istoriją ir išrink ją dar kartą.</string>
+    <string name="source_history_detail_not_found" tools:ignore="MissingTranslation">Pasirinktas išsaugotas šaltinio įrašas nebėra prieinamas.</string>
+    <string name="source_history_detail_budget" tools:ignore="MissingTranslation">Iš ribotos šaltinių istorijos skaitymas negalėjo baigtis saugiai.</string>
+    <string name="source_history_detail_integrity" tools:ignore="MissingTranslation">Išsirinktas išsaugotas šaltinio įrašas nepavyko patikrinti vientisumo.</string>
+    <string name="source_history_detail_snapshot_unavailable" tools:ignore="MissingTranslation">Šio pasirinkimo pateikimui reikalingas šaltinio įrodymų nuotraukas nėra prieinamas.</string>
+    <string name="source_history_detail_changed" tools:ignore="MissingTranslation">Išvestas iš šaltinio pasirinkimas nebeįpažįsta dabartinio išsaugoto įrašo.</string>
+    <string name="source_history_detail_retryable" tools:ignore="MissingTranslation">Šalies istorija nepavyko perskaityti. Dar kartą bandyk jį atnaujinti.</string>
+    <string name="source_history_detail_failure_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
     <string name="trip_detail_not_found">Kelionė nerasta</string>
     <string name="trip_detail_not_found_subtitle">Ši kelionė galėjo būti ištrinta</string>
     <string name="trip_detail_error_title">Nepavyko įkelti kelionės</string>
@@ -89,6 +99,21 @@
     <string name="trip_detail_distance">Atstumas</string>
     <string name="trip_detail_date">Data</string>
     <string name="trip_detail_steps">Žingsniai</string>
+    <string name="trip_detail_steps_complete" tools:ignore="MissingTranslation">Visa aprėptis</string>
+    <string name="trip_detail_steps_partial" tools:ignore="MissingTranslation">bent tokia dalis ·</string>
+    <string name="trip_detail_steps_partial_without_value" tools:ignore="MissingTranslation">Dalis istorijos · nėra patikimo skaičiavimo</string>
+    <string name="trip_detail_steps_legacy_value" tools:ignore="MissingTranslation">Neverifikuotas: %1$s</string>
+    <string name="trip_detail_steps_legacy_unverified" tools:ignore="MissingTranslation">Paveldo vertė · išsamumas netvirtintas</string>
+    <string name="trip_detail_steps_materializing" tools:ignore="MissingTranslation">Įstatymas...</string>
+    <string name="trip_detail_steps_not_captured" tools:ignore="MissingTranslation">Nėra užfiksuotas šiam posėdžiui.</string>
+    <string name="trip_detail_steps_disabled" tools:ignore="MissingTranslation">Ši sesija neįgali.</string>
+    <string name="trip_detail_steps_unsupported" tools:ignore="MissingTranslation">Nepagrėstas</string>
+    <string name="trip_detail_steps_permission_required" tools:ignore="MissingTranslation">Reikalaujama leidimo</string>
+    <string name="trip_detail_steps_os_limited" tools:ignore="MissingTranslation">Įskaičiuojama Android</string>
+    <string name="trip_detail_steps_unavailable" tools:ignore="MissingTranslation">Nepasiekiama</string>
+    <string name="trip_detail_steps_no_observation" tools:ignore="MissingTranslation">Nėra tinkamo stebėjimo</string>
+    <string name="trip_detail_steps_deleted" tools:ignore="MissingTranslation">Ištrintas</string>
+    <string name="trip_detail_steps_failed" tools:ignore="MissingTranslation">Istorija nepasiekiama</string>
     <string name="trip_detail_samples">Pavyzdžiai</string>
     <string name="trip_detail_source">Šaltinis</string>
     <string name="trip_detail_avg_speed">Vidutinis greitis</string>
@@ -112,6 +137,157 @@
     <string name="trip_detail_delete_confirm">Ištrinti</string>
     <string name="trip_detail_cancel">Atšaukti</string>
     <string name="trip_detail_more_options">Daugiau parinkčių</string>
+    <string name="trip_detail_source_actions_unavailable" tools:ignore="MissingTranslation">Įdarbinimai, kurių negauta perimti šaltinis</string>
+    <string name="trip_detail_source_authority" tools:ignore="MissingTranslation">Šaldo institucija</string>
+    <string name="trip_detail_source_origin" tools:ignore="MissingTranslation">Išvystymas</string>
+    <string name="trip_detail_source_purpose" tools:ignore="MissingTranslation">Laikytinis paskirtis</string>
+    <string name="trip_detail_source_purpose_exact" tools:ignore="MissingTranslation">Iš tikrųjų tik šaltinio sesijos įrašymas</string>
+    <string name="trip_detail_source_purpose_imported" tools:ignore="MissingTranslation">Nešiojamojo šaltinio narysystė</string>
+    <string name="trip_detail_source_purpose_exact_explanation" tools:ignore="MissingTranslation">Authentifikuotas nesikeičiamas įrašų istorija - tai vienintelis įrašytas šaltinis.</string>
+    <string name="trip_detail_source_purpose_imported_explanation" tools:ignore="MissingTranslation">Importuotas formatas įrodo, kad iš pradžių buvo įregistruotas asmuo, o ne tai, kad šis prietaisas įrašė įrodymus.</string>
+    <string name="trip_detail_wifi_session" tools:ignore="MissingTranslation">Wi‑Fi posėdis</string>
+    <string name="trip_detail_cell_session" tools:ignore="MissingTranslation">Celių sesija</string>
+    <string name="trip_detail_radio_summary" tools:ignore="MissingTranslation">Laikoma radijo santrauka</string>
+    <string name="trip_detail_radio_status" tools:ignore="MissingTranslation">Statusas</string>
+    <string name="trip_detail_radio_coverage" tools:ignore="MissingTranslation">Apibendrinimas</string>
+    <string name="trip_detail_radio_materializing" tools:ignore="MissingTranslation">Išsaugotų radijo istorijos rengimas</string>
+    <string name="trip_detail_radio_partial" tools:ignore="MissingTranslation">Iš dalies išsaugotas radijo istorija</string>
+    <string name="trip_detail_radio_ready" tools:ignore="MissingTranslation">Laikoma radijo istorija</string>
+    <string name="trip_detail_radio_unavailable" tools:ignore="MissingTranslation">Radijo istorija nepasiekiama</string>
+    <string name="trip_detail_radio_missing" tools:ignore="MissingTranslation">Nėra kvalifikuotų radijo įrodymų</string>
+    <string name="trip_detail_radio_deleted" tools:ignore="MissingTranslation">Ištrintas saugomas radijo istorija</string>
+    <string name="trip_detail_radio_unverifiable" tools:ignore="MissingTranslation">Radijo istorijos negalima patikrinti.</string>
+    <string name="trip_detail_radio_failed" tools:ignore="MissingTranslation">Radijo istorijos vientisumo patikrinimas nepavyko</string>
+    <string name="trip_detail_radio_coverage_none" tools:ignore="MissingTranslation">Nėra patikrintos aprėpties</string>
+    <string name="trip_detail_radio_coverage_partial" tools:ignore="MissingTranslation">Iš dalies patikrintas draudimas</string>
+    <string name="trip_detail_radio_coverage_complete" tools:ignore="MissingTranslation">Visapusiškas patikrintas draudimas</string>
+    <string name="trip_detail_radio_coverage_unknown" tools:ignore="MissingTranslation">Aprėptis nepasiekiama</string>
+    <string name="trip_detail_radio_waiting" tools:ignore="MissingTranslation">Laukiame išsaugotų radijo stebėjimo.</string>
+    <string name="trip_detail_radio_no_evidence" tools:ignore="MissingTranslation">Nėra išsaugotų radijo stebėjimo duomenų.</string>
+    <string name="trip_detail_radio_deleted_explanation" tools:ignore="MissingTranslation">Paliktas šaltinio įrodymas buvo ištrintas.</string>
+    <string name="trip_detail_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Laikomi įrodymai negali būti saugiai pateikti.</string>
+    <string name="trip_detail_radio_deliveries" tools:ignore="MissingTranslation">Nepertraukiamos pristatymai</string>
+    <string name="trip_detail_radio_partial_deliveries" tools:ignore="MissingTranslation">Išvestos su daliniais rezultatais</string>
+    <string name="trip_detail_wifi_evidence" tools:ignore="MissingTranslation">Išsaugoti Wi‑Fi įrodymai</string>
+    <string name="trip_detail_wifi_retained_results" tools:ignore="MissingTranslation">Laikomi skanų rezultatai</string>
+    <string name="trip_detail_wifi_band_mix" tools:ignore="MissingTranslation">Dažnio juostos rezultato mišinys</string>
+    <string name="trip_detail_wifi_signal_range" tools:ignore="MissingTranslation">Laikomas signalio diapazonas</string>
+    <string name="trip_detail_wifi_signal_range_value" tools:ignore="MissingTranslation">%1$d - %2$d dBm</string>
+    <string name="trip_detail_wifi_band_2_4" tools:ignore="MissingTranslation">2,4 GHz</string>
+    <string name="trip_detail_wifi_band_5" tools:ignore="MissingTranslation">5 GHz</string>
+    <string name="trip_detail_wifi_band_6" tools:ignore="MissingTranslation">6 GHz</string>
+    <string name="trip_detail_wifi_band_other" tools:ignore="MissingTranslation">Kitų bandų</string>
+    <string name="trip_detail_cell_evidence" tools:ignore="MissingTranslation">Išsaugotas ląstelių įrodymai</string>
+    <string name="trip_detail_cell_retained_records" tools:ignore="MissingTranslation">Laikomi radijo įrašai</string>
+    <string name="trip_detail_cell_registered_records" tools:ignore="MissingTranslation">Įregistruoti statuso įrašai</string>
+    <string name="trip_detail_cell_technology_mix" tools:ignore="MissingTranslation">Radiotechnologijos įrašų mišinys</string>
+    <string name="trip_detail_cell_technology_gsm" tools:ignore="MissingTranslation">GSM</string>
+    <string name="trip_detail_cell_technology_cdma" tools:ignore="MissingTranslation">CDMA</string>
+    <string name="trip_detail_cell_technology_wcdma" tools:ignore="MissingTranslation">WCDMA</string>
+    <string name="trip_detail_cell_technology_tdscdma" tools:ignore="MissingTranslation">TD-SCDMA</string>
+    <string name="trip_detail_cell_technology_lte" tools:ignore="MissingTranslation">LTE</string>
+    <string name="trip_detail_cell_technology_nr" tools:ignore="MissingTranslation">5G NR</string>
+    <string name="trip_detail_radio_location_excluded" tools:ignore="MissingTranslation">Nė vienas tinklas, bokštas, abonentas, maršrutas, atstumas, greitis, aukštis ar vietos tapatybė nėra atskleista šia detalė.</string>
+    <string name="trip_detail_steps_session" tools:ignore="MissingTranslation">Žingsnių seansas</string>
+    <string name="trip_detail_steps_evidence" tools:ignore="MissingTranslation">Įstatymai apie nepertrauktus žingsnius</string>
+    <string name="trip_detail_steps_coverage" tools:ignore="MissingTranslation">Apibendrinimas</string>
+    <string name="trip_detail_steps_coverage_none" tools:ignore="MissingTranslation">Nėra padengtų intervalių</string>
+    <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">Visiškas aptariamas intervalas</string>
+    <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">Iš dalies padengtas intervalas</string>
+    <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">Aprėptis nepasiekiama</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">Parodyta tik išsaugota \"Step\" įrodyma. Lokalizacija nebuvo užfiksuota, todėl maršruto ir Lokalizacijos duomenys nėra.</string>
+    <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">Veiklos sesija</string>
+    <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">Veiklos juostos, trukmė ir patikimumas yra maždaug įrodymo įrodymai, saugomi įrenginyje, santrauka.</string>
+    <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">Veiklos santrauka</string>
+    <string name="trip_detail_activity_status" tools:ignore="MissingTranslation">Statusas</string>
+    <string name="trip_detail_activity_coverage" tools:ignore="MissingTranslation">Apibendrinimas</string>
+    <string name="trip_detail_activity_origin" tools:ignore="MissingTranslation">Išvystymas</string>
+    <string name="trip_detail_activity_active_time" tools:ignore="MissingTranslation">Žinomas aktyvus laikas</string>
+    <string name="trip_detail_activity_inactive_time" tools:ignore="MissingTranslation">Žinomas neaktyvus laikas</string>
+    <string name="trip_detail_activity_unknown_time" tools:ignore="MissingTranslation">Ne klasifikuojamas laikas</string>
+    <string name="trip_detail_activity_unobserved_time" tools:ignore="MissingTranslation">Žinomas pertraukos laikas</string>
+    <string name="trip_detail_activity_timeline" tools:ignore="MissingTranslation">Pažeistos veiklos juostos ir laukai</string>
+    <string name="trip_detail_activity_band_duration" tools:ignore="MissingTranslation">Prasidėtinis laikotarpis</string>
+    <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Patikimumas</string>
+    <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Veiklos perėjimo signalas</string>
+    <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
+        <item quantity="one">Apie %1$d ⁇ %2$d%% iš %3$d išlaikytų stebėjimo</item>
+        <item quantity="other">Apie %1$d ⁇ %2$d%% iš %3$d išsaugotų stebėjimo</item>
+    </plurals>
+    <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">įrodymų tipas</string>
+    <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Patvirtintas perėjimas</string>
+    <string name="trip_detail_activity_known_gap" tools:ignore="MissingTranslation">Žinomas atotrūkis</string>
+    <string name="trip_detail_activity_gap_reason" tools:ignore="MissingTranslation">Priežastis</string>
+    <string name="trip_detail_activity_gap_duration" tools:ignore="MissingTranslation">Prasidėtinis laikotarpis</string>
+    <string name="trip_detail_activity_materializing" tools:ignore="MissingTranslation">Parengti veiklos istoriją</string>
+    <string name="trip_detail_activity_partial" tools:ignore="MissingTranslation">Dalinė veiklos istorija</string>
+    <string name="trip_detail_activity_ready" tools:ignore="MissingTranslation">Veiklos istorija pasiekiama</string>
+    <string name="trip_detail_activity_unavailable" tools:ignore="MissingTranslation">Veiklos istorija nepasiekiama</string>
+    <string name="trip_detail_activity_failed" tools:ignore="MissingTranslation">Nepavyko patikrinti veiklos istorijos</string>
+    <string name="trip_detail_activity_materializing_explanation" tools:ignore="MissingTranslation">Laikoma, kad veikla dar rengiama, kol kas nėra nustatyta trukmė.</string>
+    <string name="trip_detail_activity_partial_explanation" tools:ignore="MissingTranslation">Tik dalis sesijos išlaikė \"Aktyvumo\" įrodymus.</string>
+    <string name="trip_detail_activity_ready_explanation" tools:ignore="MissingTranslation">Neįtraukiamos veiklos trukmės.</string>
+    <string name="trip_detail_activity_unavailable_explanation" tools:ignore="MissingTranslation">Nėra patikimų išsaugotų veiklos rezultatų.</string>
+    <string name="trip_detail_activity_failed_explanation" tools:ignore="MissingTranslation">Laikoma, kad veikimo įrodymai nepavyko patikrinti.</string>
+    <string name="trip_detail_activity_coverage_none" tools:ignore="MissingTranslation">Nėra patikrintos aprėpties</string>
+    <string name="trip_detail_activity_coverage_partial" tools:ignore="MissingTranslation">Dalinė aprėptis</string>
+    <string name="trip_detail_activity_coverage_complete" tools:ignore="MissingTranslation">Visa aprėptis</string>
+    <string name="trip_detail_activity_origin_local" tools:ignore="MissingTranslation">Užfiksuota šiuo prietaisu.</string>
+    <string name="trip_detail_activity_origin_imported" tools:ignore="MissingTranslation">Importuoti saugomi įrodymai</string>
+    <string name="trip_detail_activity_still" tools:ignore="MissingTranslation">Nejudama</string>
+    <string name="trip_detail_activity_walking" tools:ignore="MissingTranslation">Ėjimas pėsčiomis</string>
+    <string name="trip_detail_activity_running" tools:ignore="MissingTranslation">Bėgimas</string>
+    <string name="trip_detail_activity_cycling" tools:ignore="MissingTranslation">Važiavimas dviračiu</string>
+    <string name="trip_detail_activity_vehicle" tools:ignore="MissingTranslation">Transporto priemonėje</string>
+    <string name="trip_detail_activity_on_foot" tools:ignore="MissingTranslation">Pėsčiomis</string>
+    <string name="trip_detail_activity_tilting" tools:ignore="MissingTranslation">Pakreipta</string>
+    <string name="trip_detail_activity_unknown" tools:ignore="MissingTranslation">Nežinoma veikla</string>
+    <string name="trip_detail_activity_mechanism_transition" tools:ignore="MissingTranslation">Perėjimas</string>
+    <string name="trip_detail_activity_mechanism_refinement" tools:ignore="MissingTranslation">Atrankos išgaivinimas</string>
+    <string name="trip_detail_activity_mechanism_classification" tools:ignore="MissingTranslation">Atrankos klasifikacija</string>
+    <string name="trip_detail_activity_gap_no_evidence" tools:ignore="MissingTranslation">Nėra tinkamų įrodymų</string>
+    <string name="trip_detail_activity_gap_provider" tools:ignore="MissingTranslation">Veiklos teikėjo nutraukimas</string>
+    <string name="trip_detail_activity_gap_authorization" tools:ignore="MissingTranslation">Pakeistas leidimas</string>
+    <string name="trip_detail_activity_gap_process" tools:ignore="MissingTranslation">Procesas arba prietaisas atnaujinamas</string>
+    <string name="trip_detail_activity_gap_rejected" tools:ignore="MissingTranslation">Nėra įrodymų</string>
+    <string name="trip_detail_captured_session" tools:ignore="MissingTranslation">Užfiksuota sesija</string>
+    <string name="trip_detail_location_not_captured" tools:ignore="MissingTranslation">Nėra vietos.</string>
+    <string name="trip_detail_captured_sources" tools:ignore="MissingTranslation">Įtrauktos šaltiniai</string>
+    <string name="trip_detail_source_combination_unavailable" tools:ignore="MissingTranslation">Nustatytos detalės šiuo tikslu šaltinio deriniu dar nėra. Kelias, GPX, atstumas, greitis, aukštis ir kiti veiksmai, susiję su vieta, lieka nedalyvaujami.</string>
+    <string name="trip_detail_source_location" tools:ignore="MissingTranslation">Vieta</string>
+    <string name="trip_detail_source_wifi" tools:ignore="MissingTranslation">Wi‑Fi</string>
+    <string name="trip_detail_source_cell" tools:ignore="MissingTranslation">Ląstelė</string>
+    <string name="trip_detail_source_activity" tools:ignore="MissingTranslation">Veikla</string>
+    <string name="trip_detail_source_steps" tools:ignore="MissingTranslation">Žingsniai</string>
+    <string name="trip_detail_source_pressure" tools:ignore="MissingTranslation">Slėgis</string>
+    <string name="trip_detail_legacy_capture_title" tools:ignore="MissingTranslation">Nepatikrotas surinkimo šaltiniai</string>
+    <string name="trip_detail_legacy_capture_subtitle" tools:ignore="MissingTranslation">Ši senesnė sesija yra ankstesnė nei patikrinta įrašų istorija. Atlikti kelionės duomenys pateikiami ir gali būti ne išsamūs.</string>
+    <string name="trip_detail_pressure_session" tools:ignore="MissingTranslation">Slėgio sesija</string>
+    <string name="trip_detail_pressure_title" tools:ignore="MissingTranslation">Oro slėgis</string>
+    <string name="trip_detail_pressure_state" tools:ignore="MissingTranslation">Statusas</string>
+    <string name="trip_detail_pressure_latest" tools:ignore="MissingTranslation">Paskutinis</string>
+    <string name="trip_detail_pressure_range" tools:ignore="MissingTranslation">Apsaugotas intervalas</string>
+    <string name="trip_detail_pressure_change" tools:ignore="MissingTranslation">Pirmoji iki paskutinės pakeitimai</string>
+    <string name="trip_detail_pressure_coverage" tools:ignore="MissingTranslation">Apibendrinimas</string>
+    <string name="trip_detail_pressure_zones" tools:ignore="MissingTranslation">Paslėpta zona</string>
+    <string name="trip_detail_pressure_materializing" tools:ignore="MissingTranslation">Įstatymas palaikyti spaudimą...</string>
+    <string name="trip_detail_pressure_partial" tools:ignore="MissingTranslation">Dalisnis ištvirtintas slėgis</string>
+    <string name="trip_detail_pressure_ready" tools:ignore="MissingTranslation">Atliekamas slėgis</string>
+    <string name="trip_detail_pressure_deleted" tools:ignore="MissingTranslation">Ištrūkančio slėgio pašalinimas</string>
+    <string name="trip_detail_pressure_unverifiable" tools:ignore="MissingTranslation">Negalima patikrinti, ar slėgis išliktas</string>
+    <string name="trip_detail_pressure_unavailable" tools:ignore="MissingTranslation">Spindimas nepasiekiamas</string>
+    <string name="trip_detail_pressure_failed" tools:ignore="MissingTranslation">Nėštumo istorija</string>
+    <string name="trip_detail_source_failed" tools:ignore="MissingTranslation">Istorija nepasiekiama</string>
+    <string name="trip_detail_source_failed_subtitle" tools:ignore="MissingTranslation">Pabandykite atnaujinti šią kelionę.</string>
+    <string name="trip_detail_source_failed_for_source" tools:ignore="MissingTranslation">%1$s: %2$s</string>
+    <string name="trip_detail_source_failure_evidence" tools:ignore="MissingTranslation">Pasirinktas šaltinio įrodymo nuotraukas nėra prieinamas. Dar kartą bandyk jį atnaujinti.</string>
+    <string name="trip_detail_source_failure_budget" tools:ignore="MissingTranslation">Iš ribotos šaltinių istorijos skaitymas negalėjo baigtis saugiai. Dar kartą bandyk jį atnaujinti.</string>
+    <string name="trip_detail_source_failure_integrity" tools:ignore="MissingTranslation">Paslėptos šaltinio istorijos nepavyko patikrinti vientisumo. Išbandykite iš naujo, kai bus prieinamas šaltinis.</string>
+    <string name="trip_detail_source_failure_membership" tools:ignore="MissingTranslation">Fizinės istorijos narystės negalima patikrinai patikrinti.</string>
+    <string name="trip_detail_pressure_coverage_none" tools:ignore="MissingTranslation">Nėra išsaugotos aprėpties</string>
+    <string name="trip_detail_pressure_coverage_complete" tools:ignore="MissingTranslation">Visiškas išlaikytas draudimas</string>
+    <string name="trip_detail_pressure_coverage_partial" tools:ignore="MissingTranslation">Iš dalies išlaikytas draudimas</string>
+    <string name="trip_detail_pressure_coverage_unknown" tools:ignore="MissingTranslation">Aprėptis nepasiekiama</string>
     <string name="ski_detail_header">Slidinėjimo sesija</string>
     <string name="ski_detail_runs">Nusileidimai</string>
     <string name="ski_detail_vertical">Vertikalus kritimas</string>
@@ -136,7 +312,6 @@
     <string name="wifilist_title_last_seen">Paskutinį kartą matyta</string>
     <string name="wifilist_title_ssid">SSID</string>
     <string name="history_tab_timeline">Laiko juosta</string>
-    <string name="history_tab_trips">Kelionės</string>
     <string name="history_tab_calendar">Kalendorius</string>
     <string name="history_screen_title">Istorija</string>
     <plurals name="history_trip_count">
@@ -154,6 +329,10 @@
     <string name="history_calendar_next_month">Kitas mėnuo</string>
     <string name="history_calendar_distance">Atstumas</string>
     <string name="history_calendar_steps">Žingsniai</string>
+    <string name="history_value_materializing" tools:ignore="MissingTranslation">Įstatymas...</string>
+    <string name="history_value_not_captured" tools:ignore="MissingTranslation">Neatėmę</string>
+    <string name="history_value_partial" tools:ignore="MissingTranslation">Neįbaigtas</string>
+    <string name="history_value_unavailable" tools:ignore="MissingTranslation">Nepasiekiama</string>
     <string name="history_calendar_trips">Kelionės</string>
     <string name="history_exploration_title">Tyrinėjimas</string>
     <string name="history_exploration_cells">Langeliai</string>
@@ -163,6 +342,59 @@
     <string name="history_button_label">Istorija</string>
     <string name="history_view_trip_on_map">Rodyti kelionę žemėlapyje</string>
     <string name="stats_heatmap_title">Veikla</string>
+    <string name="trip_detail_imported_steps" tools:ignore="MissingTranslation">Importiniai žingsniai</string>
+    <string name="trip_detail_imported_steps_scope" tools:ignore="MissingTranslation">Kelio ir kiti jutiklių duomenys neįtraukti.</string>
+    <string name="history_tab_sessions" tools:ignore="MissingTranslation">Sesijos</string>
+    <string name="organization_add" tools:ignore="MissingTranslation">Pridėti sesiją</string>
+    <string name="organization_edit" tools:ignore="MissingTranslation">Sėdynės redakcija</string>
+    <string name="organization_name" tools:ignore="MissingTranslation">Pavadinimas (neprivalomas)</string>
+    <string name="organization_label" tools:ignore="MissingTranslation">Veiklos ženklas</string>
+    <string name="organization_no_label" tools:ignore="MissingTranslation">Nėra ženklo</string>
+    <string name="organization_start" tools:ignore="MissingTranslation">Pradžia</string>
+    <string name="organization_end" tools:ignore="MissingTranslation">Pabaiga</string>
+    <string name="organization_zone" tools:ignore="MissingTranslation">Laiko zona</string>
+    <string name="organization_apply_zone" tools:ignore="MissingTranslation">Naudokite laiko zoną</string>
+    <string name="organization_apply_zone_first" tools:ignore="MissingTranslation">Prieš taupydami, taikykite laiko zoną.</string>
+    <string name="organization_reload" tools:ignore="MissingTranslation">Perkraunimo sesija</string>
+    <string name="organization_recording" tools:ignore="MissingTranslation">Užregistruotieji duomenys</string>
+    <string name="organization_remove" tools:ignore="MissingTranslation">Atšaukti sesiją</string>
+    <string name="organization_save" tools:ignore="MissingTranslation">Išsaugoti</string>
+    <string name="organization_cancel" tools:ignore="MissingTranslation">Atšaukti</string>
+    <string name="organization_remove_title" tools:ignore="MissingTranslation">Atšaukti šį posėdį?</string>
+    <string name="organization_remove_body" tools:ignore="MissingTranslation">Įrašyti duomenys liks istorijoje.</string>
+    <string name="organization_date" tools:ignore="MissingTranslation">Data</string>
+    <string name="organization_time" tools:ignore="MissingTranslation">Laikas</string>
+    <string name="organization_dst_gap" tools:ignore="MissingTranslation">Ši vietinė laikas nėra, nes laikrodžiai eina į priekį. Pasirink kitą laiką.</string>
+    <string name="organization_dst_overlap" tools:ignore="MissingTranslation">Tai atsitinka du kartus. Pasirinkite jos UTC atšaukimą.</string>
+    <string name="organization_invalid_interval" tools:ignore="MissingTranslation">Galutinis turi būti po pradžios. Abi kartus turi būti įvykdyti 1970 m. sausio 1 d. arba vėliau.</string>
+    <string name="organization_future_end" tools:ignore="MissingTranslation">Galutinis laikas negali būti ateityje.</string>
+    <string name="organization_invalid_zone" tools:ignore="MissingTranslation">Įveskite IANA laiko zoną, pvz., Europą/Pragą arba UTC.</string>
+    <string name="organization_name_long" tools:ignore="MissingTranslation">Naudokite ne daugiau kaip 200 simbolių.</string>
+    <string name="organization_label_missing" tools:ignore="MissingTranslation">Šis ženklas buvo pašalintas. Pasirinkite kitą etiketę arba ne.</string>
+    <string name="organization_stale" tools:ignore="MissingTranslation">Ši sesija pakeitė arba surinkti duomenys buvo pašalinti. Perkrauname prieš taupydami.</string>
+    <string name="organization_missing" tools:ignore="MissingTranslation">Ši sesija nebegalima.</string>
+    <string name="organization_unavailable" tools:ignore="MissingTranslation">Sesijos laikinai nėra prieinamos. Pabandyk atverti istoriją.</string>
+    <string name="organization_empty" tools:ignore="MissingTranslation">Nėra sesijų per šį laikotarpį.</string>
+    <string name="organization_unnamed" tools:ignore="MissingTranslation">Nepavardytas posėdis</string>
+    <string name="organization_active" tools:ignore="MissingTranslation">Įrašoma</string>
+    <string name="organization_time_uncertain" tools:ignore="MissingTranslation">Užregistruoti laikas nežinomas. Prieš pakeičiant intervalą patvirtinkite laiką.</string>
+    <string name="organization_continued" tools:ignore="MissingTranslation">Nuo ankstesnės dienos</string>
+    <string name="organization_show_all" tools:ignore="MissingTranslation">Parodyk viską.</string>
+    <string name="organization_end_first" tools:ignore="MissingTranslation">Sėdinį nutraukite, kad ištaisytumėte laiką arba pašalintumėte.</string>
+    <string name="organization_day_sessions" tools:ignore="MissingTranslation">Šių dienų sesijas žiūrėkite</string>
+    <string name="organization_calendar_more" tools:ignore="MissingTranslation">Kai kurie sesijų žymekliai nėra rodomi. Pasirinkime dieną, kurią žiūrėsime sesijas.</string>
+    <string name="organization_calendar_day" tools:ignore="MissingTranslation">%1$d diena, turi sesijas</string>
+    <string name="history_calendar_day" tools:ignore="MissingTranslation">Diena %1$d</string>
+    <string name="organization_retry" tools:ignore="MissingTranslation">Bandyti dar kartą</string>
+    <string name="organization_browse_recordings" tools:ignore="MissingTranslation">Pažiūrėkite įrašus</string>
+    <string name="organization_back_sessions" tools:ignore="MissingTranslation">Grįžkime prie posėdžių.</string>
+    <string name="organization_export" tools:ignore="MissingTranslation">Eksporto sesija</string>
+    <string name="organization_export_failed" tools:ignore="MissingTranslation">Negaliu išsaugoti failų. Pabandyk dar kartą.</string>
+    <string name="organization_export_saved" tools:ignore="MissingTranslation">Eksportuotas posėdis</string>
+    <string name="organization_export_saved_extra_time" tools:ignore="MissingTranslation">Sesija eksportuojama su visa tai, kas įrašyta, ir kuri trunka ilgiau nei jos datos.</string>
+    <string name="source_history_action_failed" tools:ignore="MissingTranslation">Negaliu baigti. Pabandyk dar kartą.</string>
+    <string name="source_history_delete_title" tools:ignore="MissingTranslation">Ištrinti šį įrašą?</string>
+    <string name="source_history_delete_message" tools:ignore="MissingTranslation">Jo išsaugotas skaitymas bus ištrintas visam laikui.</string>
     <string name="stats_recorded_partial_value">%1$s · daliniai duomenys</string>
     <string name="history_activity_started">Pradžia: %1$s</string>
     <string name="history_activity_ended">Pabaiga: %1$s</string>
