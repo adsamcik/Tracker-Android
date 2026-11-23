@@ -428,15 +428,11 @@
     <string name="setup_background_location_open_settings">Otevřít nastavení polohy</string>
     <string name="setup_background_location_decline">Teď ne</string>
     <string name="setup_background_location_manual_only">Ruční sledování v popředí zůstává dostupné. Automatické sledování polohy zůstane vypnuté, dokud nebude povolena poloha na pozadí.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Nastavení sledování pozadí</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android a nastavení zařízení mohou zastavit nebo zastavit pozadí. Tracker může hlásit omezení, které Android odhaluje, ale nemůže překonat omezený nebo silně zastavený stav.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Zjištěno pozadí omezení</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Zjištěna optimalizace baterie</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Žádné omezení neobjeveno</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Zástup omezení není k dispozici</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android hlásí, že pozadí aktivita je omezená. Sledování se může zastavit, když není Tracker viditelné; aplikace nemůže tuto politiku přehodnotit.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android hlásí, že Tracker není na seznamu povolených baterií. Řízení výkonu může zpoždit pozadní práci; přidělování omezení snižuje omezení, ale nezaručuje nepřetržitý sledování.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android hlásí žádné pozadí omezení a Tracker je na seznamu povolených baterií. Systém stále může aplikaci zastavit a silné zastavení nelze zrušit.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nemohl číst všechny příslušné omezení Android. Žádná příčina nebo nápravná opatření specifická pro přístroj nemůže být potvrzena.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Otevřete nastavení baterie aplikace</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Otevřete nastavení optimalizace baterie</string>

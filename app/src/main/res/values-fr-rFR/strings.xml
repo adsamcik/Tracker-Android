@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Ouvrir les paramètres de localisation</string>
     <string name="setup_background_location_decline">Pas maintenant</string>
     <string name="setup_background_location_manual_only">Le suivi manuel au premier plan reste disponible. Le suivi automatique de la localisation restera désactivé tant que la localisation en arrière-plan ne sera pas autorisée.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Paramètres de suivi de fond</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android et la politique de l\'appareil peuvent interrompre ou arrêter le travail de fond. Tracker peut signaler les restrictions exposées par Android, mais il ne peut pas annuler l\'état Restricted ou forcément suspendu.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Restriction de fond détectée</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Optimisation de la batterie détectée</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Aucune restriction détectée</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">L\'état de restriction est indisponible</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android indique que l\'activité de fond est Restrictée. Le suivi peut cesser lorsque Tracker n\'est pas visible; l\'application ne peut pas annuler cette politique.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android rapporte que Tracker n\'est pas sur la liste des permis de batterie. La gestion de l\'alimentation peut retarder les travaux de fond; la liste d\'allocations réduit les restrictions mais ne garantit pas un suivi continu.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ne rapporte aucune restriction de fond et Tracker est sur la liste des permis de batterie. Le système peut toujours arrêter l\'application, et la force-stop ne peut pas être annulée.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker n\'a pas pu lire tous les signaux de restriction Android pertinents. Aucune cause ou remède spécifique au dispositif ne peut être confirmé.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Configuration de la batterie de l\'application ouverte</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Paramètres d\' optimisation de la batterie ouverte</string>

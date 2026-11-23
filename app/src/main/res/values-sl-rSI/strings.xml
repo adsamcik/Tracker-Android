@@ -428,15 +428,11 @@
     <string name="setup_background_location_open_settings">Odpri nastavitve lokacije</string>
     <string name="setup_background_location_decline">Ne zdaj</string>
     <string name="setup_background_location_manual_only">Ročno sledenje v ospredju ostaja na voljo. Samodejno sledenje lokaciji bo ostalo izklopljeno, dokler ne dovolite lokacije v ozadju.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Nastavitve za sledenje ozadja</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android in nastavitev naprave lahko ustavijo ali ustavijo ozadje. Tracker lahko poroča o omejitvah, ki jih Android razkrije, vendar ne more preklicati stanja omejenih ali prisilnih ustavitev.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Odkrito omejitev v ozadju</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Optimizacija baterij zaznala</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nobena omejitev ni bila ugotovljena</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Država omejitev ni na voljo</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android poroča, da je aktivnost v ozadju omejena. Sledovanje se lahko ustavi, če Tracker ni vidno; aplikacija tega pravilnika ne more preklicati.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android poroča, da Tracker ni na seznamu dovoljenj za baterije. Upravljanje električne energije lahko zamudi pozadinsko delo; dovoljenje zmanjšuje omejitve, vendar ne zagotavlja neprekinjenega sledenja.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ne poroča o omejitvah v ozadju in Tracker je na seznamu dovoljenj za baterije. Sistem lahko še vedno ustavi aplikacijo in silno ustavitev ni mogoče preklicati.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker ni mogel prebrati vseh ustreznih Android omejevalnih signalov. Ni mogoče potrditi vzroka ali zdravila, specifičnega za pripomoček.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Nastavitve baterije odprte aplikacije</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Nastavitve optimizacije baterije odprite</string>

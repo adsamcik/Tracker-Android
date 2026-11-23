@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">स्थान सेटिंग खोलें</string>
     <string name="setup_background_location_decline">अभी नहीं</string>
     <string name="setup_background_location_manual_only">फ़ोरग्राउंड में मैन्युअल ट्रैकिंग उपलब्ध रहेगी। बैकग्राउंड स्थान की अनुमति मिलने तक स्वचालित स्थान ट्रैकिंग बंद रहेगी।</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">पृष्ठभूमि ट्रैकिंग सेटिंग्स</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android और डिवाइस नीति पृष्ठभूमि कार्य को रोक सकती है या रोक सकती है। Tracker Android द्वारा उजागर किए गए प्रतिबंधों की रिपोर्ट कर सकता है, लेकिन यह प्रतिबंधित या बल-बंद स्थिति को रद्द नहीं कर सकता है।</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">पृष्ठभूमि प्रतिबंध का पता चला</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">बैटरी अनुकूलन का पता लगाया गया</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">कोई प्रतिबंध नहीं पाया गया</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">प्रतिबंध राज्य अनुपलब्ध</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android रिपोर्ट करता है कि पृष्ठभूमि गतिविधि प्रतिबंधित है। जब Tracker दिखाई नहीं देता है तो ट्रैकिंग बंद हो सकती है; ऐप इस नीति को रद्द नहीं कर सकता है।</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android रिपोर्ट करता है कि Tracker बैटरी अनुमति सूची में नहीं है। बिजली प्रबंधन पृष्ठभूमि कार्य में देरी कर सकता है; अनुमति सूची प्रतिबंधों को कम करता है लेकिन निरंतर ट्रैकिंग की गारंटी नहीं देता है।</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android में कोई पृष्ठभूमि प्रतिबंध नहीं है और Tracker बैटरी अनुमतियों की सूची में है। सिस्टम अभी भी ऐप को रोक सकता है, और फोर्स स्टॉप को ओवरराइड नहीं किया जा सकता है।</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker सभी प्रासंगिक Android प्रतिबंध संकेतों को नहीं पढ़ सका। किसी भी उपकरण विशिष्ट कारण या उपाय की पुष्टि नहीं की जा सकती है।</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">ऐप बैटरी सेटिंग्स खोलें</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">बैटरी अनुकूलन सेटिंग्स खोलें</string>

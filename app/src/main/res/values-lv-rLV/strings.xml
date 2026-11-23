@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Atvērt atrašanās vietas iestatījumus</string>
     <string name="setup_background_location_decline">Ne tagad</string>
     <string name="setup_background_location_manual_only">Manuālā izsekošana priekšplānā joprojām ir pieejama. Automātiskā atrašanās vietas izsekošana paliks izslēgta, līdz tiks atļauta atrašanās vieta fonā.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Sīkdatnes, kas ļauj sekot fonus</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android un ierīču politika var apturēt vai apturēt fonisko darbu. Tracker var ziņot par ierobežojumiem, ko Android izpaužas, bet tas nevar pārsniegt ierobežošanas vai piespiedu stāvokļa.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Reklāmas ierobežojums konstatēts</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Baterijas optimizācija atklāta</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nav konstatēts ierobežojums</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">ierobežošanas režīms nav pieejams</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android norāda, ka darbības pamatā ir ierobežotas. Pēc Tracker nav redzams, izsekošana var pārtraukt; aplikācija nevar pārsūtīt šo politiku.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android ziņojums par to, ka Tracker nav iekļauts akumulatora reģistrā. Elektroenerģijas pārvaldība var aizkavēt priekšlaicīgu darbu; atļaujas saraksts samazina ierobežojumus, bet nenozīmē nepārtrauktu izsekošanu.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ziņojums par nekādiem ierobežojumiem, un Tracker ir iekļauts akumulatoru reģistrā. Sistemā joprojām ir iespēja apturēt aplikāciju, un spēka pārtraukšanu nevar pārsūtīt.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nevarēja izlasīt visus attiecīgos ierobežošanas signālus Android. Nav iespējams apstiprināt ierīci specifisku iemeslu vai ārstēšanas metodi.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Atvērtas aplikācijas akumulatoru iestatījumi</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Atvērtas baterijas optimizācijas iestatījumi</string>

@@ -2298,10 +2298,10 @@ class ArchitecturalFitnessTest {
 			}
 
 			val guardedKeys = setOf(
-				"setup_background_access_subtitle",
+				"setup_background_access_platform_subtitle",
 				"background_reliability_title",
-				"background_reliability_exempt_desc",
-				"background_reliability_optimized_desc",
+				"background_reliability_optimization_detected_desc",
+				"background_reliability_no_limit_detected_desc",
 			)
 			check(guardedKeys.all { key -> defaultResources.definesStringResource(key) }) {
 				"The truthful default background-reliability copy must define every guarded key"
@@ -2309,13 +2309,13 @@ class ArchitecturalFitnessTest {
 			val staleLocaleOverrides = resourceDirectory.listFiles().orEmpty()
 				.asSequence()
 				.filter { directory -> directory.isDirectory && directory.name.startsWith("values-") }
-				.map { directory -> directory.resolve("strings.xml") }
-				.filter(File::isFile)
+				.flatMap { directory -> directory.listFiles().orEmpty().asSequence() }
+				.filter { file -> file.isFile && file.extension == "xml" }
 				.flatMap { stringsFile ->
 					val localizedResources = stringsFile.readText()
 					guardedKeys.asSequence()
 						.filter { key -> localizedResources.definesStringResource(key) }
-						.map { key -> "${stringsFile.parentFile.name}/strings.xml -> $key" }
+						.map { key -> "${stringsFile.parentFile.name}/${stringsFile.name} -> $key" }
 				}
 				.toList()
 

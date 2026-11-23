@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Standort-Einstellungen öffnen</string>
     <string name="setup_background_location_decline">Jetzt nicht</string>
     <string name="setup_background_location_manual_only">Die manuelle Aufzeichnung im Vordergrund bleibt verfügbar. Die automatische Standortaufzeichnung bleibt ausgeschaltet, bis der Hintergrundstandort erlaubt wird.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Hintergrundverfolgungseinstellungen</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android und die Geräterichtlinie können die Hintergrundarbeit pausieren oder stoppen. Tracker kann Beschränkungen melden, die Android enthüllt, kann aber den Restricted oder Force-Stop-Zustand nicht übertreffen.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Hintergrundbeschränkung festgestellt</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Optimierung der Batterie erkannt</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Keine Beschränkung festgestellt</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Einschränkungszustand nicht verfügbar</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android berichtet, dass die Hintergrundaktivität eingeschränkt ist. Die Verfolgung kann eingestellt werden, wenn Tracker nicht sichtbar ist; die App kann diese Richtlinie nicht außer Kraft setzen.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android berichtet, dass Tracker nicht auf der Batterie-Liste ist. Das Strommanagement kann die Hintergrundarbeit verzögern; die Berechtigung reduziert die Einschränkungen, garantiert aber keine kontinuierliche Verfolgung.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android gibt keine Hintergrundbeschränkung an und Tracker ist auf der Batterienliste. Das System kann die App immer noch stoppen, und Force-Stop kann nicht übertroffen werden.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker konnte nicht alle einschlägigen Einschränkungssignale von Android lesen. Es kann keine spezifische Ursache oder kein bestimmtes Heilmittel bestätigt werden.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Öffnen Sie die Akku-Einstellungen der App</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Öffnen Sie die Optimierungseinstellungen für Batterien</string>

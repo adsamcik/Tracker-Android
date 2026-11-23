@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Öppna platsinställningar</string>
     <string name="setup_background_location_decline">Inte nu</string>
     <string name="setup_background_location_manual_only">Manuell spårning i förgrunden är fortfarande tillgänglig. Automatisk platsspårning förblir avstängd tills plats i bakgrunden tillåts.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Inställningar för bakgrundsspårning</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android och enhetens policy kan pausa eller stoppa bakgrundsarbete. Tracker kan rapportera begränsningar Android exponerar, men kan inte överträda begränsade eller tvärstoppade tillstånd.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Begränsning i bakgrunden upptäckt</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Batterioptimering upptäckt</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Inga begränsningar upptäcktes</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Begränsningsstatus inte tillgänglig</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android rapporterar att bakgrundsaktiviteten är begränsad. Spårningen kan avbrytas när Tracker inte är synlig. Appen kan inte överträda denna policy.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android rapporterar att Tracker inte finns på batterilistan. Strömhanteringen kan fördröja bakgrundsarbetet. Tillståndslistan minskar begränsningar men garanterar inte kontinuerlig spårning.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android rapporterar ingen bakgrundsbegränsning och Tracker finns på batterilistan. Systemet kan fortfarande stoppa appen, och force-stop kan inte övervägas.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker kunde inte läsa alla relevanta Android begränsningssignaler. Det kan inte bekräftas någon enhetsspecifik orsak eller botemedel.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Öppna inställningar för appbatteri</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Öppna inställningar för batterioptimering</string>

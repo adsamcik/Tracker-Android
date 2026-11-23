@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Iftaħ is-settings tal-post</string>
     <string name="setup_background_location_decline">Mhux issa</string>
     <string name="setup_background_location_manual_only">It-traċċar manwali fit-tagħrif ta’ quddiem jibqa’ disponibbli. It-traċċar awtomatiku tal-post jibqa’ mitfi sakemm il-post fl-isfond jiġi permess.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Settings ta\' traċċar ta\' sfond</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android u l-politika tad-disposizzjoni tista \' twaqqaf jew twaqqaf ix-xogħol ta\' sfond. Tracker jista\' jirrapporta r-restrizzjonijiet li Android espone, iżda ma jistax jirrevoka l-istat Restricted jew Force-Stop.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Ristrikzzjoni ta\' sfond detettata</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Ottimizzazzjoni tal-batterija detettata</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">L-ebda restrizzjoni ma ġiet iddetekwata</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Stat ta\' restrizzjoni mhux disponibbli</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android jirrapporta li l-attività ta\' sfond hija Restritta. It-traċċar jista\' jitwaqqaf meta Tracker ma jkunx viżibbli; l-app ma tistax tirrevedi din il-politika.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android jirrapporta li Tracker mhuwiex fuq il- lista tal- batteriji. Il-ġestjoni tal-enerġija tista\' tdewwem ix-xogħol ta\' sfond; il-lista ta\' permess tnaqqas ir-restrizzjonijiet iżda ma tiggarantixxix traċċar kontinwu.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ma jirrapporta l- ebda restrizzjoni ta \' l- isfond u Tracker huwa fuq il- lista ta \' permess tal- batterja. Is- sistema xorta tista\' twaqqaf l- app, u l- forza stop ma tistax tiġi overridden.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker ma setax jaqra kull sinjal rilevanti ta\' restrizzjoni ta\' Android. L- ebda kawża jew rimedju speċifiku għall- apparat ma jista \' jiġi kkonfermat.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Setting tal-batterija tal-app miftuħa</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Settings ta \' ottimizzazzjoni tal-batterija miftuħa</string>

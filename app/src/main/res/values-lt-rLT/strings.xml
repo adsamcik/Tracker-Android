@@ -424,15 +424,11 @@
     <string name="setup_background_location_open_settings">Atidaryti vietovės nustatymus</string>
     <string name="setup_background_location_decline">Ne dabar</string>
     <string name="setup_background_location_manual_only">Rankinis sekimas priekiniame plane lieka pasiekiamas. Automatinis vietovės sekimas liks išjungtas, kol nebus leista vietovė fone.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Sėdos sekimo nustatymai</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android ir įrenginio politika gali sustabdyti arba sustabdyti foninį darbą. Tracker gali pranešti apie apribojimus, kuriuos Android atskleidžia, tačiau negali viršyti apribojimų arba priverstinio sustabdymo būdo.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Nustatytas pagrindinis apribojimas</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Akumuliatoriaus optimizavimas aptiktas</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nėra jokių apribojimų</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Skirties apribojimo būklė nedalyvaujama</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android pranešama, kad pagrindinė veikla yra ribojama. Kai Tracker nėra matomas, sekimas gali būti sustabdytas; programa negali atšaukti šios politikos.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android praneša, kad Tracker nėra į baterijų sąrašą. Elektros energijos valdymas gali atidėti pagrindinį darbą; leidimų sąrašas mažina apribojimus, tačiau neleidžia užtikrinti nuolatinio sekimo.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android praneša apie jokių pagrindinių apribojimų, o Tracker yra į baterijos leidimo sąrašą. Sistema vis dar gali sustabdyti programą, ir jėga sustabdyti negali būti panaikintas.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker negalėjo perskaityti visų atitinkamų Android apribojimų signalų. Nėra patvirtintos specialios prietaiso priežastys ar priemonė.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Atvira app baterijos nustatymų</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Atvira baterio optimizacijos nustatymas</string>

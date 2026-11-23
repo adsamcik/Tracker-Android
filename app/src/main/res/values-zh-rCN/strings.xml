@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">打开位置信息设置</string>
     <string name="setup_background_location_decline">暂不</string>
     <string name="setup_background_location_manual_only">仍可在前台手动跟踪。在允许后台位置信息之前，自动位置跟踪将保持关闭。</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">背景追踪设置</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android 和设备政策可以暂停或停止背景工作.Tracker可以报告Android暴露的限制,但不能取消限制或强制停止状态.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">检测到背景限制</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">检测到电池优化</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">没有检测到限制</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">限制状态不可使用</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android 报告了背景活动被限制.当Tracker不可见时,跟踪可能停止;应用程序无法取消此政策.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android报告说Tracker不在电池容许清单中.电源管理可能会延迟后台工作;允许列表减少限制,但不能保证持续跟踪.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android报告没有背景限制,Tracker是电池允许的列表.系统仍然可以停止应用程序,强制停止不能被取消.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker无法读取所有相关的Android限制信号.无法确认任何设备特定的原因或治疗方法.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">打开应用程序电池设置</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">打开电池优化设置</string>

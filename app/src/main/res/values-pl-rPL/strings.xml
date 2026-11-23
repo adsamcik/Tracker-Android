@@ -428,15 +428,11 @@
     <string name="setup_background_location_open_settings">Otwórz ustawienia lokalizacji</string>
     <string name="setup_background_location_decline">Nie teraz</string>
     <string name="setup_background_location_manual_only">Ręczne śledzenie na pierwszym planie pozostaje dostępne. Automatyczne śledzenie lokalizacji pozostanie wyłączone do czasu zezwolenia na lokalizację w tle.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Ustawienia śledzenia tła</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android i ustawienia urządzenia mogą zatrzymać lub zatrzymać pracę w tle. Tracker może zgłaszać ograniczenia, które Android ujawnia, ale nie może przewyższać stanu ograniczenia lub zatrzymania siłowego.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Wykryto ograniczenie tła</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Optymalizacja baterii wykryta</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nie wykryto ograniczeń</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Stanowisko ograniczenia nie jest dostępne</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android informuje, że aktywność tła jest ograniczona. Śledzenie może zostać zatrzymane, gdy Tracker nie jest widoczny; aplikacja nie może odwołać się od tej polityki.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android informuje, że Tracker nie jest na liście baterii. Zarządzanie energią elektryczną może opóźniać prace w tle; listy uprawnień zmniejszają ograniczenia, ale nie gwarantują ciągłego śledzenia.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android nie zgłasza żadnych ograniczeń w tle, a Tracker jest na liście dopuszczalnych baterii. System nadal może zatrzymać aplikację, a zatrzymanie siłowe nie może być odwołane.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nie odczytał wszystkich odpowiednich sygnałów ograniczeń Android. Nie można potwierdzić przyczyny lub środków leczniczych specyficznych dla wyrobu.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Otwórz ustawienia baterii aplikacji</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Otwórz ustawienia optymalizacji baterii</string>

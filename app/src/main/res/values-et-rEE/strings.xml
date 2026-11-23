@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Ava asukohaseaded</string>
     <string name="setup_background_location_decline">Mitte praegu</string>
     <string name="setup_background_location_manual_only">Käsitsi jälgimine esiplaanil jääb kättesaadavaks. Automaatne asukoha jälgimine jääb välja, kuni taustal asukoha kasutamine on lubatud.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Tausta jälgimisseadmed</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android ja seadme juhised võivad peatada või peatada tausta tööd. Tracker võib teatada piiranguid, mida Android esitab, kuid see ei saa ületada piiratud või jõuliselt peatatud seisundit.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Taustapiirangu tuvastamine</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Akku optimeerimine tuvastatud</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Piirangut ei tuvastatud</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Piirangud ei ole kättesaadavad</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android teavitab, et taustategevus on piiratud. Jälgimine võib lõpetada, kui Tracker ei ole nähtav; rakendus ei saa selle poliitika kõrvale jätta.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android teatab, et Tracker ei ole aktsia lubamise nimekirjas. Võimsuse juhtimine võib viivitada tausta tööd; lubade loetelu vähendas piiranguid, kuid ei taga pidevat jälgimist.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ei teata tagaküljelist piirangutest ja Tracker on patareid käsitleva nimekirjas. Süsteem suudab ikka veel rakendust peatada ja jõupingutusi ei saa kõrvale lülitada.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker ei suutnud lugeda kõiki asjakohaseid Android piirangute signaale. Ükski seadme- spetsiifilist põhjust ega ravimi ei saa kinnitada.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Avatage rakenduse aktsia seadistused</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Avatud akumuleeri optimeerimisseadmed</string>

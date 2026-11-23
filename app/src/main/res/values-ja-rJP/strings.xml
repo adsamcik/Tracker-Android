@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">位置情報設定を開く</string>
     <string name="setup_background_location_decline">今はしない</string>
     <string name="setup_background_location_manual_only">フォアグラウンドでの手動トラッキングは引き続き利用できます。バックグラウンド位置情報が許可されるまで、自動位置トラッキングはオフのままです。</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">背景追跡設定</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Androidとデバイスのポリシーでは,バックグラウンド作業を停止または停止することができます.TrackerはAndroidが暴露する制限を報告することができるが,制限または強制停止状態を覆すことはできません.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">背景制限が検出された</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">バッテリー最適化検出</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">制限は検出されていません</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">制限状態は利用できません</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Androidは,背景活動が制限されていると報告しています.Tracker が表示されない場合,追跡が停止される可能性があります. アプリはこのポリシーを覆すことはできません.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">AndroidはTrackerがバッテリーリストに載っていないと報告しています電源管理は背景作業を遅らせることがある. 許可リストは制限を軽減するが,継続的な追跡を保証しない.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Androidは背景制限がないと報告し Trackerはバッテリー許可リストに載っています.システムはまだアプリを停止することができます フォースストップは覆すことはできません</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Trackerは,関連するAndroidの制限信号をすべて読み取れなかった.デバイス特異的な原因または治療法は確認できません.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">アプリのバッテリー設定を開く</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">バッテリー最適化設定を開く</string>

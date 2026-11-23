@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Avaa sijaintiasetukset</string>
     <string name="setup_background_location_decline">Ei nyt</string>
     <string name="setup_background_location_manual_only">Manuaalinen seuranta etualalla on yhä käytettävissä. Automaattinen sijainnin seuranta pysyy poissa käytöstä, kunnes taustasijainti sallitaan.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Taustajäljen seurantaasetukset</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android ja laitteen käytäntö voi pysäyttää tai pysäyttää taustatoiminnan. Tracker voi ilmoittaa rajoituksista, joita Android paljastaa, mutta se ei voi poistaa rajoitetun tai pakollisen pysähtymisen tilaa.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Taustalla oleva rajoitus havaittiin</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Akkuoptimointi havaittiin</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Rajoitus ei havaittu</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Rajoitustila ei ole käytettävissä</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android ilmoittaa, että taustatoiminta on rajoitettu. Jäljitys voi lopettaa, kun Tracker ei ole näkyvissä; sovellus ei voi poistaa tätä käytäntöä.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android ilmoittaa, että Tracker ei ole akkujen luetteloon. Voimanhallinta voi viivästyttää taustatoiminta; käyttöoikeuksien luettelo vähentää rajoituksia, mutta ei takaa jatkuvaa seurantaa.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ei ilmoita taustalla olevista rajoituksista ja Tracker on akkujen luetteloissa. Järjestelmä voi silti pysäyttää sovelluksen, eikä force-stopia voida poistaa.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker ei voinut lukea kaikkia asiaankuuluvia rajoitussignaaleja Android. Laitteen erityistä syytä tai parannuskeinoa ei voida vahvistaa.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Avaa sovelluksen akkuasetukset</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Avatkaa akkuoptimointiasetukset</string>

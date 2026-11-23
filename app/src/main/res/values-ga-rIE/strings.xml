@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Oscail socruithe suímh</string>
     <string name="setup_background_location_decline">Ní anois</string>
     <string name="setup_background_location_manual_only">Beidh rianú láimhe sa tulra ar fáil fós. Fanfaidh rianú suímh uathoibríoch múchta go dtí go gceadófar suíomh sa chúlra.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Cinntíonna rianú cúlra</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android agus polasaí an fheiste is féidir leis an obair ar chruth a chur ar stad nó a stopadh. Is féidir le Tracker tuairisc a thuairisciú faoi srianta Android a nochtann, ach ní féidir leis an stádas srianta nó stopadh foréigneach a chur thar.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Réitigh cúlra a bhrath</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Baintear in iúl go bhfuil an t-oideas bataraí</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Ní fhaightear aon srianta</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Staidéal srianta nach bhfuil ar fáil</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Deir Android go bhfuil gníomhaíocht bunaidh teoranta. D\'fhéadfadh stop a chur le rianú nuair nach bhfuil Tracker le feiceáil; ní féidir leis an aip an polasaí seo a chur ar aghaidh.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Deir Android nach bhfuil Tracker ar an liosta ceadúnaithe ceallraí. Is féidir le bainistiú cumhachta obair chúlra a mhoill; laghdaíonn liosta ceadanna srianta ach ní ráthaíonn sé rianú leanúnach.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Ní thugann Android aon srianta ar chúlra agus tá Tracker ar an liosta ceadúnais ceallraí. Is féidir leis an gcóras an aip a stopadh fós, agus ní féidir an stop fórsa a chur ar aghaidh.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Ní raibh Tracker in ann gach comhartha srianta ábhartha Android a léamh. Ní féidir aon chúis nó leigheas ar leith a dhearbhú.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Ag bun le socruithe ceallraí an aip</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Cinntíocht uasghrádú bataraí oscailte</string>

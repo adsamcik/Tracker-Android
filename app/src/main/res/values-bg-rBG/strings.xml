@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Отваряне на настройките за местоположение</string>
     <string name="setup_background_location_decline">Не сега</string>
     <string name="setup_background_location_manual_only">Ръчното проследяване на преден план остава достъпно. Автоматичното проследяване на местоположението ще остане изключено, докато местоположението във фонов режим не бъде разрешено.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Настройки за проследяване на фона</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android и политиката на устройството могат да спрет или да спрат работата на фона. Tracker може да съобщи за ограниченията, които Android разкрива, но не може да отмени ограничено или принудително спряно състояние.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Открито ограничение на фона</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Оптимизация на батерията</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Не е установено ограничение</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Състояние на ограничение не е налично</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android съобщава, че задната дейност е ограничена. Следването може да спре, когато Tracker не е видимо; приложението не може да отмени тази политика.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android съобщава, че Tracker не е включен в списъка с батериите. Управлението на електроенергията може да забави работата на фона; разрешителното включване намалява ограниченията, но не гарантира непрекъснато проследяване.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android не съобщава за ограничение на фона и Tracker е в списъка с разрешения за батерии. Системата все още може да спре приложението, а принудителното спиране не може да бъде отменено.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker не може да прочете всички съответни ограничителни сигнали от Android. Не могат да бъдат потвърдени специфични за устройството причини или средства за лечение.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Отворете настройките на батерията на приложението</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Отворете настройките за оптимизация на батерията</string>

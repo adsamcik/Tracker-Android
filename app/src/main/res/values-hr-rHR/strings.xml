@@ -424,15 +424,11 @@
     <string name="setup_background_location_open_settings">Otvori postavke lokacije</string>
     <string name="setup_background_location_decline">Ne sada</string>
     <string name="setup_background_location_manual_only">Ručno praćenje u prvom planu ostaje dostupno. Automatsko praćenje lokacije ostat će isključeno dok se ne dopusti lokacija u pozadini.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Nastavke za praćenje pozadine</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android i uređajna politika mogu zaustaviti ili zaustaviti rad u pozadini. Tracker može izvještavati o ograničenjima koje Android otkriva, ali ne može prekidati ograničeno ili silno zaustavljeno stanje.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Otkriveno ograničenje u pozadini</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Otkrivena optimizacija baterija</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Ne otkriveno ograničenje</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Nepostojanje stanja ograničenja</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android izvještava da je aktivnost u pozadini ograničena. Pratenje može prestati kada Tracker nije vidljiv; aplikacija ne može prekidati ovu politiku.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android izvještava da Tracker nije na listi baterije. Upravljanje energijom može odgoditi rad u pozadini; dopuštenje smanjuje ograničenja, ali ne garantuje kontinuirano praćenje.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android ne izvještava o ograničenju u pozadini i Tracker je na listi dozvola baterije. Sistem još uvijek može zaustaviti aplikaciju, a silno zaustavljanje se ne može prekidati.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nije mogao čitati svaki relevantan signal ograničenja Android. Ne može se potvrditi uzrok ili lijek specifičan za uređaj.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Otvorite postavke baterije aplikacije</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Otvorite postavke optimizacije baterije</string>

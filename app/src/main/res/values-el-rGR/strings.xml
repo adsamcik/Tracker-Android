@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Άνοιγμα ρυθμίσεων τοποθεσίας</string>
     <string name="setup_background_location_decline">Όχι τώρα</string>
     <string name="setup_background_location_manual_only">Η μη αυτόματη καταγραφή στο προσκήνιο παραμένει διαθέσιμη. Η αυτόματη καταγραφή τοποθεσίας θα παραμείνει απενεργοποιημένη μέχρι να επιτραπεί η τοποθεσία στο παρασκήνιο.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Ρυθμίσεις παρακολούθησης υπόβαθρου</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android και η πολιτική συσκευής μπορεί να σταματήσει ή να σταματήσει την εργασία του υπόβαθρου. Το Tracker μπορεί να αναφέρει τους περιορισμούς που εκθέτει το Android, αλλά δεν μπορεί να παρακάμψει την κατάσταση Περιορισμένων ή αναγκαστικής στάσης.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Ανακάλυψη περιορισμού υπόβαθρου</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Ανιχνεύεται βελτιστοποίηση μπαταρίας</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Δεν διαπιστώθηκε περιορισμός</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Η κατάσταση περιορισμού δεν είναι διαθέσιμη</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android αναφέρει ότι η δραστηριότητα υπόβαθρου περιορίζεται. Η παρακολούθηση μπορεί να σταματήσει όταν το Tracker δεν είναι ορατό· η εφαρμογή δεν μπορεί να αναιρέσει αυτή την πολιτική.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Το Android αναφέρει ότι το Tracker δεν είναι στη λίστα επιτρεπόμενων μπαταριών. Η διαχείριση της ισχύος μπορεί να καθυστερήσει τις εργασίες υπόβαθρου· η καταχώριση επιτρεπτικών στοιχείων μειώνει τους περιορισμούς, αλλά δεν εγγυάται συνεχή παρακολούθηση.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Το Android δεν αναφέρει κανένα φόντο περιορισμού και το Tracker είναι στην λίστα επιτρεπόμενων μπαταριών. Το σύστημα μπορεί ακόμα να σταματήσει την εφαρμογή, και η βία-stop δεν μπορεί να αναστραφεί.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Το Tracker δεν μπορούσε να διαβάσει κάθε σχετικό σήμα περιορισμού Android. Δεν μπορεί να επιβεβαιωθεί αιτία ή θεραπεία που να είναι ειδική στο προϊόν.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Άνοιξε τις ρυθμίσεις μπαταρίας της εφαρμογής</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Άνοιξε ρυθμίσεις βελτιστοποίησης μπαταρίας</string>

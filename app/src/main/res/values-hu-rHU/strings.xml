@@ -420,15 +420,11 @@
     <string name="setup_background_location_open_settings">Helybeállítások megnyitása</string>
     <string name="setup_background_location_decline">Most nem</string>
     <string name="setup_background_location_manual_only">A kézi, előtérben végzett követés továbbra is elérhető. Az automatikus helykövetés kikapcsolva marad, amíg nem engedélyezed a háttérbeli helyhozzáférést.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">A háttérkövetési beállítások</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">A Android és a készülék szabályzat a háttérmunka megállíthatja vagy megállíthatja. A Tracker bejelentheti a Android által feltüntetett korlátozásokról, de nem lehet felülírni a korlátozott vagy erőszakos megállított állapotot.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">A háttérbeli korlátozás észlelése</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Az akkumulátorok optimalizálása</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Nem észlelt korlátozás</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">A korlátozási állapot nem áll rendelkezésre</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">A Android jelentése szerint a háttéraktivitás korlátozott. Ha Tracker nem látható, a nyomon követés megszűnhet; az alkalmazás nem hagyhatja el ezt a szabályzatot.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">A Android jelentése szerint a Tracker nem szerepel az akkumulátorok listájában. Az áramkezelés késleltetheti a háttérmunkait; az engedélyezési listák korlátozásokat csökkentik, de nem garantálják a folyamatos nyomon követést.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">A Android nem jelent háttérbeli korlátozást, és a Tracker a akkumulátor engedélyezési listán van. A rendszer még mindig megállíthatja az alkalmazást, és a erőállást nem lehet felülmúlni.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">A Tracker nem tudta felolvasni minden vonatkozó Android korlátozási jelet. Nem lehet megerősíteni a készülék- specifikus okot vagy gyógymódot.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Nyissa ki az alkalmazás akkumulátor beállításait</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Nyissa ki az akkumulátor optimalizációs beállításait</string>

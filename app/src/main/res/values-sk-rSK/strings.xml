@@ -428,15 +428,11 @@
     <string name="setup_background_location_open_settings">Otvoriť nastavenia polohy</string>
     <string name="setup_background_location_decline">Teraz nie</string>
     <string name="setup_background_location_manual_only">Ručné sledovanie v popredí zostáva dostupné. Automatické sledovanie polohy zostane vypnuté, kým nebude povolená poloha na pozadí.</string>
-    <string name="background_reliability_title" tools:ignore="MissingTranslation">Nastavenia sledovania pozadí</string>
-    <string name="setup_background_access_platform_subtitle" tools:ignore="MissingTranslation">Android a nastavenie zariadenia môžu zastaviť alebo zastaviť prácu v pozadí. Tracker môže oznámiť obmedzenia, ktoré Android vystavuje, ale nemôže prekročiť obmedzený alebo silne zastavený stav.</string>
     <string name="background_reliability_status_restricted_detected" tools:ignore="MissingTranslation">Detekované zázemie obmedzenia</string>
     <string name="background_reliability_status_optimization_detected" tools:ignore="MissingTranslation">Detekovaná optimalizácia batérie</string>
     <string name="background_reliability_status_no_limit_detected" tools:ignore="MissingTranslation">Žiadne obmedzenie neodhalilo</string>
     <string name="background_reliability_status_unknown" tools:ignore="MissingTranslation">Zákaz obmedzenia nie je k dispozícii</string>
     <string name="background_reliability_restricted_detected_desc" tools:ignore="MissingTranslation">Android uvádza, že záložná aktivita je obmedzená. Sledovanie sa môže zastaviť, keď Tracker nie je viditeľné; aplikácia nemôže túto politiku zrušiť.</string>
-    <string name="background_reliability_optimization_detected_desc" tools:ignore="MissingTranslation">Android uvádza, že Tracker nie je na zozname povolených batérií. Riadenie elektrickej energie môže oneskorovať prácu v pozadí; obmedzenia sa znižujú, ale nezaručuje nepretržitý sledovanie.</string>
-    <string name="background_reliability_no_limit_detected_desc" tools:ignore="MissingTranslation">Android uvádza žiadne obmedzenie v pozadí a Tracker je na zozname povolených batérií. Systém stále môže zastaviť aplikáciu a silné zastavenie nemožno prekonať.</string>
     <string name="background_reliability_unknown_desc" tools:ignore="MissingTranslation">Tracker nemohol čítať každý relevantný obmedzujúci signál Android. Nie je možné potvrdiť príčinu alebo lieky špecifické pre pomôcku.</string>
     <string name="background_reliability_open_app_settings_action" tools:ignore="MissingTranslation">Nastavenia batérie aplikácie otvorte</string>
     <string name="background_reliability_open_battery_settings_action" tools:ignore="MissingTranslation">Otvorte nastavenia optimalizácie batérie</string>
