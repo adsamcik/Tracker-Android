@@ -3,37 +3,26 @@ venv/
 env/
 .venv/
 
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
+# Native Python modules
+*.pyd
 *.so
 
 # Distribution / packaging
 dist/
-build/
 *.egg-info/
 
 # Testing
-.pytest_cache/
 .coverage
 htmlcov/
 .tox/
 
 # IDE
-.vscode/
-.idea/
 *.swp
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
-
 # Temporary files
 *.tmp
-*.log
 .cache/
 
 # Test outputs
