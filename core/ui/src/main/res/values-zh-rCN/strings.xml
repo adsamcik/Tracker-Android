@@ -6,7 +6,7 @@
     <string name="permission_activity_rationale_title" tools:ignore="MissingTranslation">活动识别</string>
     <string name="permission_activity_rationale_message" tools:ignore="MissingTranslation">Tracker 使用活动识别来检测您的活动（步行、骑行、驾车、静止），从而在您不移动时暂停自动跟踪并节省电量。活动数据保留在此设备上 — 不会发送到服务器。</string>
     <string name="permission_phone_state_rationale_title" tools:ignore="MissingTranslation">电池网络访问</string>
-    <string name="permission_phone_state_rationale_message" tools:ignore="MissingTranslation">Tracker需要电话状态访问记录附近的蜂 ⁇ 网络环境在跟踪过程中.它不会打电话或阅读它们的内容,收集的数据留在该设备上.</string>
+    <string name="permission_phone_state_rationale_message" tools:ignore="MissingTranslation">为了在跟踪时记录附近的蜂窝网络信息，Tracker 需要读取手机状态的权限。应用不会拨打电话或读取通话内容，收集的数据仅保留在此设备上。</string>
     <string name="permission_background_location_rationale_title" tools:ignore="MissingTranslation">后台位置权限</string>
     <string name="permission_background_location_rationale_message" tools:ignore="MissingTranslation">当您切换应用或屏幕关闭时，要继续记录路线，Tracker 需要在后台访问您的位置。记录的位置保留在此设备上 — 不会发送到服务器。在下一个系统提示中，请选择“始终允许”；选择“仅在使用应用期间允许”时，Tracker 仅会在其界面打开时工作。</string>
     <string name="permission_allow" tools:ignore="MissingTranslation">允许</string>

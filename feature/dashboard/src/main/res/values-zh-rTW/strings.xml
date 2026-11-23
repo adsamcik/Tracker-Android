@@ -262,7 +262,7 @@
         <item quantity="other">隱藏 %1$d 的錄音</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">錄音 %1$d</string>
-    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s 步 ⁇</string>
-    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">至少 %1$s 步 ⁇</string>
+    <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s 步</string>
+    <string name="dashboard_imported_steps_lower_bound" tools:ignore="MissingTranslation">至少 %1$s 步</string>
     <string name="dashboard_imported_steps_unavailable" tools:ignore="MissingTranslation">步骤不可使用</string>
 </resources>

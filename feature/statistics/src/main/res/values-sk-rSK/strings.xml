@@ -213,8 +213,10 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Spoľahlivosť</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Signál prechodnej aktivity</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Približne %1$d ⁇ %2$d%% z %3$d zachovaných pozorovaní</item>
-        <item quantity="other">Približne %1$d ⁇ %2$d%% z %3$d zachovaných pozorovaní</item>
+        <item quantity="one">Približne %1$d–%2$d%% z %3$d uloženého pozorovania</item>
+        <item quantity="few">Približne %1$d–%2$d%% z %3$d uložených pozorovaní</item>
+        <item quantity="many">Približne %1$d–%2$d%% z %3$d uloženého pozorovania</item>
+        <item quantity="other">Približne %1$d–%2$d%% z %3$d uložených pozorovaní</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Typ dôkazov</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Úplný prechod</string>

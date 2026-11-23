@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Confianza</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Signo de transición de actividad</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Alrededor de %1$d ⁇ %2$d%% de la observación retenida de %3$d</item>
-        <item quantity="other">Aproximadamente %1$d ⁇ %2$d%% de las observaciones retenidas de %3$d</item>
+        <item quantity="one">Alrededor de %1$d–%2$d%% de la observación retenida de %3$d</item>
+        <item quantity="other">Aproximadamente %1$d–%2$d%% de las observaciones retenidas de %3$d</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Tipo de prueba</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Transición refinada</string>
@@ -314,6 +314,7 @@
     <string name="history_screen_title">Historial</string>
     <plurals name="history_trip_count">
         <item quantity="one">%d trayecto</item>
+        <item quantity="many">%d trayectos</item>
         <item quantity="other">%d trayectos</item>
     </plurals>
     <string name="history_timeline_empty_title">Aún no hay actividad</string>

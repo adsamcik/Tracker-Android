@@ -140,20 +140,28 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Negalima saugiai pateikti saugomų įrodymų</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Vietos, maršrutas, atstumas, greitis ir aukštis nėra šio šaltinio istorijos dalis.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d išsaugotas skenerio rezultatas</item>
-        <item quantity="other">%1$d išsaugoti skanų rezultatai</item>
+        <item quantity="one">%1$d išsaugotas nuskaitymo rezultatas</item>
+        <item quantity="few">%1$d išsaugoti nuskaitymo rezultatai</item>
+        <item quantity="many">%1$d išsaugoto nuskaitymo rezultato</item>
+        <item quantity="other">%1$d išsaugotų nuskaitymo rezultatų</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d saugomas radijo įrašas</item>
-        <item quantity="other">%1$d saugomi radijo įrašai</item>
+        <item quantity="one">%1$d išsaugotas mobiliojo tinklo įrašas</item>
+        <item quantity="few">%1$d išsaugoti mobiliojo tinklo įrašai</item>
+        <item quantity="many">%1$d išsaugoto mobiliojo tinklo įrašo</item>
+        <item quantity="other">%1$d išsaugotų mobiliojo tinklo įrašų</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d sulaikytas pristatymas</item>
-        <item quantity="other">%1$d sulaikyti pristatymai</item>
+        <item quantity="one">%1$d išsaugotas duomenų paketas</item>
+        <item quantity="few">%1$d išsaugoti duomenų paketai</item>
+        <item quantity="many">%1$d išsaugoto duomenų paketo</item>
+        <item quantity="other">%1$d išsaugotų duomenų paketų</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d pristatymo rezultatai yra daliniai</item>
-        <item quantity="other">%1$d pristatymo rezultatai yra daliniai</item>
+        <item quantity="one">Daliniai rezultatai iš %1$d duomenų paketo</item>
+        <item quantity="few">Daliniai rezultatai iš %1$d duomenų paketų</item>
+        <item quantity="many">Daliniai rezultatai iš %1$d duomenų paketo</item>
+        <item quantity="other">Daliniai rezultatai iš %1$d duomenų paketų</item>
     </plurals>
     <string name="dashboard_live_activity_title">Įrašyta veikla</string>
     <string name="dashboard_live_activity_movement">Paskutinis įrašytas judėjimas</string>
@@ -255,12 +263,16 @@
     <string name="dashboard_latest_achievement_empty">Tęskite sekimą, kad atrakintumėte pirmą pasiekimą</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Importiniai žingsniai</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Parodykite įrašą %1$d</item>
-        <item quantity="other">Parodykite %1$d įrašus</item>
+        <item quantity="one">Rodyti %1$d įrašą</item>
+        <item quantity="few">Rodyti %1$d įrašus</item>
+        <item quantity="many">Rodyti %1$d įrašo</item>
+        <item quantity="other">Rodyti %1$d įrašų</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Paslėpti įrašą %1$d</item>
-        <item quantity="other">Paslėpkite įrašus %1$d</item>
+        <item quantity="one">Slėpti %1$d įrašą</item>
+        <item quantity="few">Slėpti %1$d įrašus</item>
+        <item quantity="many">Slėpti %1$d įrašo</item>
+        <item quantity="other">Slėpti %1$d įrašų</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Įrašymas %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s žingsniai</string>

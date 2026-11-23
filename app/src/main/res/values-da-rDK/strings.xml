@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect er klar. Nogle perioder kan stadig have huller.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">- Skritterne er klar. Nogle perioder kan stadig have huller.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Adgang til placering i baggrunden er nødvendig for at registrere placeringen mellem sessioner. Din indstilling for registrering under sessioner ændres ikke.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi krav om scantilladelse er ikke opfyldt. Det giver ikke mulighed for at fange lokation.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Celleopkaldstilladelseskrav er ikke opfyldt. Det giver ikke mulighed for at fange lokation.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android mangler tilladelse til at scanne efter Wi-Fi-netværk. Hvis du giver tilladelsen, slås registrering af placering ikke til.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android mangler tilladelse til at læse data om mobilnetværk. Hvis du giver tilladelsen, slås registrering af placering ikke til.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passive Location er klar til at forene kilden med ejeren. Det giver opportunistiske punkter, ikke rutekontinuitet.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Callbacks fra scanningsresultatet er klar til at blive forenet med kildeejeren. Ingen scanning eller vågning er lovet.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Tidsstemplet-kvalificerede Cell-ændrings-opkald er klar til genvinning mellem kilde-ejere. Der er ikke lovet nogen tvangsforfriskning.</string>

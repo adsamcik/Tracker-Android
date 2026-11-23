@@ -211,8 +211,9 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Încredere</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Semnalul de tranziție al activității</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Aproximativ %1$d ⁇ %2$d%% din %3$d observații păstrate</item>
-        <item quantity="other">Aproximativ %1$d ⁇ %2$d%% din %3$d observații păstrate</item>
+        <item quantity="one">Aproximativ %1$d–%2$d%% din %3$d observație păstrată</item>
+        <item quantity="few">Aproximativ %1$d–%2$d%% din %3$d observații păstrate</item>
+        <item quantity="other">Aproximativ %1$d–%2$d%% din %3$d de observații păstrate</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Tip de dovadă</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Tranziție rafinată</string>

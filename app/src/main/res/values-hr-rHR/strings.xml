@@ -263,8 +263,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect je spreman. Neki razdoblja još uvijek mogu imati praznine.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Snimka je spremna. Neki razdoblja još uvijek mogu imati praznine.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Za bilježenje lokacije između sesija potreban je pristup lokaciji u pozadini. Postavka bilježenja tijekom sesije ostaje nepromijenjena.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi scan dozvole zahtjeva nisu ispunjeni. Davanje ih ne omogućava hvatanje lokacije.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Ne ispunjavaju se zahtjevi za dozvolu za povratne pozive na stanice. Davanje ih ne omogućava hvatanje lokacije.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Nedostaje dopuštenje Androida za skeniranje Wi-Fi mreža. Davanjem tog dopuštenja bilježenje lokacije se ne uključuje.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Nedostaje dopuštenje Androida za čitanje podataka o mobilnoj mreži. Davanjem tog dopuštenja bilježenje lokacije se ne uključuje.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasivna lokacija je spremna za pomirenje izvornog vlasnika. Obezbeđuje oportunističke točke, a ne kontinuitet ruta.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi povratne pozive rezultata skeniranja spremne su za usklađivanje izvornog vlasnika. Ne obećava se skeniranje ili probudivanje.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Vratne pozive za promjene stanice su spremne za pomirenje vlasnika izvora. Ne obećava se prisilna kadencija osvežavanja.</string>

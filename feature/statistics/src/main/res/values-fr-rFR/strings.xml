@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Confiance</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Signal de transition d\'activité</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Environ %1$d ⁇ %2$d%% de l\'observation conservée de %3$d</item>
-        <item quantity="other">Environ %1$d ⁇ %2$d%% de %3$d observations conservées</item>
+        <item quantity="one">Environ %1$d–%2$d%% de l\'observation conservée de %3$d</item>
+        <item quantity="other">Environ %1$d–%2$d%% de %3$d observations conservées</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Type de preuve</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Transition réfinie</string>
@@ -314,6 +314,7 @@
     <string name="history_screen_title">Historique</string>
     <plurals name="history_trip_count">
         <item quantity="one">%d trajet</item>
+        <item quantity="many">%d de trajets</item>
         <item quantity="other">%d trajets</item>
     </plurals>
     <string name="history_timeline_empty_title">Aucune activité pour le moment</string>

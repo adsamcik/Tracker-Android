@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect准备好了.有些周期可能仍然存在缺口.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">步骤录音准备好了.有些周期可能仍然存在缺口.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">要在会话之间记录位置，需要允许后台访问位置信息。会话内的记录设置保持不变。</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi 扫描许可要求没有得到满足.允许它们无法捕获位置.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s 没有满足电话回调权限要求.允许它们无法捕获位置.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android 尚未获得扫描 Wi-Fi 网络所需的权限。允许该权限不会开启位置记录。</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android 尚未获得读取蜂窝网络信息所需的权限。允许该权限不会开启位置记录。</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">动态位置准备好进行源所有者和解.它提供机会性点,而不是路线连续性.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi扫描结果回调准备好进行源所有者调整.没有扫描或唤醒时间.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">具有时刻标签的移动电话回调已经准备好进行源所有者和解.没有强迫更新时间的承诺.</string>

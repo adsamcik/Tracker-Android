@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Kunfidenza</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Sinjal ta\' tranżizzjoni ta\' attività</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Madwar %1$d ⁇ %2$d%% minn %3$d osservazzjoni miżmuma</item>
-        <item quantity="other">Madwar %1$d ⁇ %2$d%% minn %3$d osservazzjonijiet miżmuma</item>
+        <item quantity="one">Madwar %1$d–%2$d%% minn %3$d osservazzjoni miżmuma</item>
+        <item quantity="other">Madwar %1$d–%2$d%% minn %3$d osservazzjonijiet miżmuma</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Tip ta\' evidenza</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Tranżizzjoni raffinata</string>
@@ -314,7 +314,10 @@
     <string name="history_screen_title">Storja</string>
     <plurals name="history_trip_count">
         <item quantity="one">%d vjaġġ</item>
-        <item quantity="other">%d vjaġġi</item>
+        <item quantity="two">%d vjaġġi</item>
+        <item quantity="few">%d vjaġġi</item>
+        <item quantity="many">%d-il vjaġġ</item>
+        <item quantity="other">%d vjaġġ</item>
     </plurals>
     <string name="history_timeline_empty_title">Għad m’hemm ebda attività</string>
     <string name="history_timeline_empty_desc">Ibda t-traċċar biex tara l-istorja tal-moviment tiegħek hawn</string>

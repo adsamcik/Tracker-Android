@@ -213,8 +213,10 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Zanesljivost</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktivnostni prehodni signal</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Približno %1$d ⁇ %2$d%% od %3$d ohranjenih opazovanj</item>
-        <item quantity="other">Približno %1$d ⁇ %2$d%% od %3$d ohranjenih opazovanj</item>
+        <item quantity="one">Približno %1$d–%2$d%% na podlagi %3$d ohranjenega opazovanja</item>
+        <item quantity="two">Približno %1$d–%2$d%% na podlagi %3$d ohranjenih opazovanj</item>
+        <item quantity="few">Približno %1$d–%2$d%% na podlagi %3$d ohranjenih opazovanj</item>
+        <item quantity="other">Približno %1$d–%2$d%% na podlagi %3$d ohranjenih opazovanj</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Vrsta dokazov</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Rafiniran prehod</string>

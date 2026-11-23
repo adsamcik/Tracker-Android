@@ -265,8 +265,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect je pripravený. Niektoré obdobia môžu mať stále medzery.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Zápis krokov je pripravený. Niektoré obdobia môžu mať stále medzery.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Na záznam polohy medzi reláciami je potrebný prístup k polohe na pozadí. Nastavenie záznamu počas relácií sa nezmení.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi požiadavky na povolenie na skenovanie nie sú splnené. Ak im to udeľujeme, tak nám to nedovolí zachytiť miesto.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Nevyhovoria sa požiadavky na povolenie spätného hovoru. Ak im to udeľujeme, tak nám to nedovolí zachytiť miesto.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Chýba povolenie Androidu na vyhľadávanie sietí Wi-Fi. Jeho udelením sa zaznamenávanie polohy nezapne.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Chýba povolenie Androidu na čítanie údajov mobilnej siete. Jeho udelením sa zaznamenávanie polohy nezapne.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasívna lokalita je pripravená na zmierenie zdrojového vlastníka. Poskytuje oportunistické body, nie kontinuitu trasy.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Odvolania z výsledkov skenovania sú pripravené na zmierenie zdrojového vlastníka. Žiadne skenovanie alebo budenie nie je sľubované.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Závodové kontakty na zmenu bunky sú pripravené na zmierenie zdrojového vlastníka. Žiadne nútené osviežovanie nie je sľubované.</string>

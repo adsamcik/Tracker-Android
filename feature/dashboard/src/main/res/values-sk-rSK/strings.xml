@@ -141,20 +141,28 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Uložené dôkazy nemožno bezpečne predložiť</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Poloha, cesta, vzdialenosť, rýchlosť a výška nie sú súčasťou tejto pôvodnej histórie.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zachovaný výsledok skenovania</item>
-        <item quantity="other">%1$d zachované výsledky skenovania</item>
+        <item quantity="one">%1$d uložený výsledok skenovania</item>
+        <item quantity="few">%1$d uložené výsledky skenovania</item>
+        <item quantity="many">%1$d uloženého výsledku skenovania</item>
+        <item quantity="other">%1$d uložených výsledkov skenovania</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zachované rádiové záznamy</item>
-        <item quantity="other">%1$d zachované rádiové záznamy</item>
+        <item quantity="one">%1$d uložený záznam mobilnej siete</item>
+        <item quantity="few">%1$d uložené záznamy mobilnej siete</item>
+        <item quantity="many">%1$d uloženého záznamu mobilnej siete</item>
+        <item quantity="other">%1$d uložených záznamov mobilnej siete</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zadržiavaná dodávka</item>
-        <item quantity="other">%1$d zadržiavané dodávky</item>
+        <item quantity="one">%1$d uložená dávka údajov</item>
+        <item quantity="few">%1$d uložené dávky údajov</item>
+        <item quantity="many">%1$d uloženej dávky údajov</item>
+        <item quantity="other">%1$d uložených dávok údajov</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d doručenie má čiastočné výsledky</item>
-        <item quantity="other">%1$d dodávky majú čiastočné výsledky</item>
+        <item quantity="one">%1$d dávka údajov má neúplné výsledky</item>
+        <item quantity="few">%1$d dávky údajov majú neúplné výsledky</item>
+        <item quantity="many">%1$d dávky údajov má neúplné výsledky</item>
+        <item quantity="other">%1$d dávok údajov má neúplné výsledky</item>
     </plurals>
     <string name="dashboard_live_activity_title">Zaznamenaná aktivita</string>
     <string name="dashboard_live_activity_movement">Posledný zaznamenaný pohyb</string>
@@ -256,12 +264,16 @@
     <string name="dashboard_latest_achievement_empty">Pokračujte v sledovaní a odomknite prvý úspech</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Vnášané kroky</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Ukážte záznam %1$d</item>
-        <item quantity="other">Ukážte nahrávky %1$d</item>
+        <item quantity="one">Zobraziť %1$d záznam</item>
+        <item quantity="few">Zobraziť %1$d záznamy</item>
+        <item quantity="many">Zobraziť %1$d záznamu</item>
+        <item quantity="other">Zobraziť %1$d záznamov</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Ukryť záznam %1$d</item>
-        <item quantity="other">Ukryjte záznamy %1$d</item>
+        <item quantity="one">Skryť %1$d záznam</item>
+        <item quantity="few">Skryť %1$d záznamy</item>
+        <item quantity="many">Skryť %1$d záznamu</item>
+        <item quantity="other">Skryť %1$d záznamov</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Záznam %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s kroky</string>

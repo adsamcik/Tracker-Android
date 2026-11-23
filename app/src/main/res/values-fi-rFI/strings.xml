@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect on valmis. Joissakin vaiheissa voi olla vielä aukkoja.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Astujen kuvaus on valmiina. Joissakin vaiheissa voi olla vielä aukkoja.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Sijaintitietojen kerääminen istuntojen välillä edellyttää sijainnin käyttöoikeutta taustalla. Istuntojen tallennusasetus ei muutu.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi Skannausluvan vaatimukset eivät täyty. Ne eivät ole mahdollistavat paikallistuksen.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Solujen palautusluvan vaatimukset eivät täyty. Ne eivät ole mahdollistavat paikallistuksen.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Androidilta puuttuu käyttöoikeus, joka tarvitaan Wi-Fi-verkkojen etsimiseen. Käyttöoikeuden myöntäminen ei ota sijainnin tallennusta käyttöön.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Androidilta puuttuu käyttöoikeus, joka tarvitaan mobiiliverkkotietojen lukemiseen. Käyttöoikeuden myöntäminen ei ota sijainnin tallennusta käyttöön.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passiivinen sijainti on valmis lähde-omistajan sovitteluun. Se tarjoaa opportunistisia pisteitä, ei reitin jatkuvuutta.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Skannaus tulosten palautukset ovat valmiita lähde-omistajan sovitteluun. - Skannaus- tai herätysjärjestelmää ei lupaa.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Aika-merkillä varustetut solunmuutokset ovat valmiina lähde-omistajan sovitukseen. Ei pakotettu virkistysmenettelyä luvattu.</string>

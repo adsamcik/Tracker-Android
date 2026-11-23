@@ -35,7 +35,7 @@
     <string name="legacy_database_delete" tools:ignore="MissingTranslation">删除舊資料庫,然後重新啟動</string>
     <string name="legacy_database_export_success" tools:ignore="MissingTranslation">已出口的傳承資料庫</string>
     <string name="legacy_database_export_failure" tools:ignore="MissingTranslation">無法輸出舊資料庫</string>
-    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">這項出口失敗,無法移除未完整的目的地.請手動 ⁇ 除.</string>
+    <string name="legacy_database_export_cleanup_required" tools:ignore="MissingTranslation">匯出失敗，且無法移除未完成的檔案。請手動刪除該檔案。</string>
     <string name="legacy_database_vault_title" tools:ignore="MissingTranslation">傳承資料庫</string>
     <string name="legacy_database_vault_summary" tools:ignore="MissingTranslation">版本%1$d · %2$s · %3$s</string>
     <string name="legacy_database_vault_details" tools:ignore="MissingTranslation">源版本: %1$d\n 儲存: %2$s\n 進口: %3$s\n 進口的行列: %4$d\n 只有儲存的行列:%5$d</string>
@@ -255,14 +255,14 @@
     <string name="settings_ambient_steps_health_connect_background_optional" tools:ignore="MissingTranslation">Tracker 執行時可以匯入步數。允許背景存取有助於減少步數記錄中的缺漏。</string>
     <string name="settings_ambient_steps_health_connect_unavailable" tools:ignore="MissingTranslation">沒有提供支持的全日步行提供商.</string>
     <string name="settings_ambient_steps_health_connect_update" tools:ignore="MissingTranslation">更新Health Connect, 讓Tracker能閱讀步數.</string>
-    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">沒有檢查步 ⁇ 提供者.稍後再試一次.</string>
+    <string name="settings_ambient_steps_health_connect_probe_failed" tools:ignore="MissingTranslation">無法確認步數來源。請稍後再試。</string>
     <string name="settings_ambient_steps_recording_permission" tools:ignore="MissingTranslation">請授權使用這個裝置.</string>
     <string name="settings_ambient_steps_recording_unavailable" tools:ignore="MissingTranslation">這部裝置無法錄取步骤.</string>
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">我們準備了Health Connect有些經期可能仍有缺口.</string>
-    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">準備好拍攝步 ⁇ .有些經期可能仍有缺口.</string>
+    <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">可記錄步數。部分時段仍可能沒有記錄。</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">若要在工作階段之間記錄位置，需要允許在背景存取位置資訊。工作階段內的記錄設定維持不變。</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi 掃描許可要求沒有滿足.這樣就不會讓我們捕捉位置.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android  ⁇ s 沒有滿足電話回覆許可要求.這樣就不會讓我們捕捉位置.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android 尚未取得掃描 Wi-Fi 網路所需的權限。允許這項權限不會開啟位置記錄。</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android 尚未取得讀取行動網路資訊所需的權限。允許這項權限不會開啟位置記錄。</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">負面位置準備好進行源所有者和解.提供機會性點數,而不是路線延續性.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi掃描結果回覆已準備好,沒有掃描或醒醒的序列.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">已有時間印證的細胞變更回報準備好,沒有強制更新時間.</string>
@@ -273,7 +273,7 @@
     <string name="settings_location_source_summary">記錄您的路線,距離和速度.經常是電池成本最高的.</string>
     <string name="settings_activity_source_summary">全天記錄步行、騎自行車、開車和靜止狀態。</string>
     <string name="settings_steps_source_summary" tools:ignore="MissingTranslation">追蹤一整天的步伐.這樣的旅行也會有相同的步伐.</string>
-    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">檢查步 ⁇ 收集.</string>
+    <string name="settings_steps_status_checking" tools:ignore="MissingTranslation">正在檢查步數記錄功能。</string>
     <string name="settings_turn_off_tracking" tools:ignore="MissingTranslation">關閉追蹤</string>
     <string name="settings_turning_off_tracking" tools:ignore="MissingTranslation">關閉了...</string>
     <string name="settings_turn_off_tracking_explanation" tools:ignore="MissingTranslation">停止會議,整天錄音和自動啟動.您的選擇和保存的數據仍然存在.</string>
@@ -368,7 +368,7 @@
     <string name="setup_source_activity_desc">偵測您是否正在步行、跑步、騎自行車或開車。</string>
     <string name="setup_source_steps">步數</string>
     <string name="setup_steps_all_day_summary" tools:ignore="MissingTranslation">追蹤一整天的步伐.旅行是相同的歷史.</string>
-    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">沒有直接步 ⁇ 傳感器.Tracker 將檢查是否有裝置上的步 ⁇ 源.</string>
+    <string name="setup_steps_no_direct_sensor" tools:ignore="MissingTranslation">這部裝置沒有可直接讀取的計步感測器。Tracker 將檢查裝置上是否有其他步數來源。</string>
     <string name="setup_perm_steps_why">允許存取運動資料，以便在此裝置上全天計步。</string>
     <string name="setup_perm_grant_steps_content_description">允許計步存取運動資料</string>
     <string name="setup_steps_health_connect_why">在 Health Connect 中允許步數存取，以便在 Tracker 關閉時補齊缺漏資料。</string>

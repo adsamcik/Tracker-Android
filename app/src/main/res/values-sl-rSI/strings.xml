@@ -265,8 +265,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect je pripravljen. Nekatere menstruacije imajo lahko še vedno vrzeli.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Posnetek korakov je pripravljen. Nekatere menstruacije imajo lahko še vedno vrzeli.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Za beleženje lokacije med sejami je potreben dostop do lokacije v ozadju. Nastavitev beleženja med posamezno sejo ostane nespremenjena.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Ne izpolnjujejo zahtev za dovoljenje za skeniranje Android ⁇ s Wi-Fi. Če jim dovolimo, ne omogočamo zasnove lokacije.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Zahteve za dovoljenje za vračanje klic na celice niso izpolnjene. Če jim dovolimo, ne omogočamo zasnove lokacije.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Manjka dovoljenje sistema Android za iskanje omrežij Wi-Fi. Odobritev dovoljenja ne vklopi beleženja lokacije.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Manjka dovoljenje sistema Android za branje podatkov mobilnih omrežij. Odobritev dovoljenja ne vklopi beleženja lokacije.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasivna lokacija je pripravljena na pomiritev izvornega lastnika. Zagotavlja oportunistične točke, ne kontinuiteto poti.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Odgovori s rezultatom skeniranja so pripravljeni na pomiritev izvornega lastnika. Ne obljubljam skeniranja ali vzbujanja.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Časovni žig je pripravljen za pomirje med izvornim lastnikom. Ne obljublja se prisilnega osvežanja.</string>

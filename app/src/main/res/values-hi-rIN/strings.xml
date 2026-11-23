@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect तैयार है। कुछ पीरियड्स में अभी भी अंतराल हो सकते हैं।</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">चरण रिकॉर्डिंग तैयार है। कुछ पीरियड्स में अभी भी अंतराल हो सकते हैं।</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">सेशन के बीच लोकेशन रिकॉर्ड करने के लिए बैकग्राउंड में लोकेशन का ऐक्सेस चाहिए। सेशन के दौरान रिकॉर्डिंग की आपकी सेटिंग नहीं बदलेगी।</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi स्कैन अनुमति आवश्यकताओं को पूरा नहीं किया गया है। उन्हें देने से स्थान कैप्चर सक्षम नहीं होता है।</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s सेल बैक कॉल अनुमति आवश्यकताओं को पूरा नहीं किया गया है। उन्हें देने से स्थान कैप्चर सक्षम नहीं होता है।</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Wi-Fi नेटवर्क स्कैन करने के लिए Android की अनुमति नहीं है। यह अनुमति देने से लोकेशन रिकॉर्डिंग चालू नहीं होगी।</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">मोबाइल नेटवर्क की जानकारी पढ़ने के लिए Android की अनुमति नहीं है। यह अनुमति देने से लोकेशन रिकॉर्डिंग चालू नहीं होगी।</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">निष्क्रिय स्थान स्रोत-स्वामी मेलमिलाप के लिए तैयार है। यह अवसरवादी बिंदु प्रदान करता है, मार्ग निरंतरता नहीं।</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi स्कैन परिणाम कॉलबैक स्रोत-स्वामी संगम के लिए तैयार हैं। कोई स्कैन या जागने का वादा नहीं किया गया है।</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">समयशीर्षक योग्य सेल परिवर्तन कॉलबैक स्रोत-स्वामी मेल के लिए तैयार हैं। जबरन ताज़ा करने का कोई क्रम नहीं वादा किया जाता है।</string>

@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Tá Health Connect réidh. D\'fhéadfadh go mbeadh cailleanna ann fós i roinnt tréimhse.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Tá taifeadadh céim réidh. D\'fhéadfadh go mbeadh cailleanna ann fós i roinnt tréimhse.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Tá rochtain ar shuíomh sa chúlra ag teastáil chun suíomh a thaifeadadh idir seisiúin. Ní athraíonn do shocrú taifeadta le linn seisiún.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Ní chomhlíontar ceanglais cead scannála Android ⁇ s Wi-Fi. Ní chuireann a chur ar fáil iad a chumasú Location glacadh.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Ní chomhlíonann ceanglais cead glaoch ar chluichí soghluaiste. Ní chuireann a chur ar fáil iad a chumasú Location glacadh.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Tá cead Android le haghaidh scanadh líonraí Wi-Fi ar iarraidh. Ní chuirfidh an cead seo taifeadadh suímh ar siúl.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Tá cead Android le haghaidh léamh sonraí líonra móibíligh ar iarraidh. Ní chuirfidh an cead seo taifeadadh suímh ar siúl.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Tá Passive Location réidh le haghaidh réitigh foinse-úinéir. Soláthraíonn sé pointí ócáideacha, ní leanúnacht ar an mbealach.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Tá glaonna ar ais ar thorthaí scánaithe réidh le haghaidh comhtháthú foinse-úinéir. Ní gealltar aon scánáil nó cadence wake.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Tá séalaithe callbacks a bhfuil cáilíocht acu le seampall ama réidh le haghaidh comhtháthú foinse-úinéir. Ní gealltar cadence athnuachan foréigneach.</string>

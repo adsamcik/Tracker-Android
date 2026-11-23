@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Pārliecība</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktivitātes pārejas signāls</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Aptuveni %1$d ⁇ %2$d%% no %3$d saglabāto novērošanu</item>
-        <item quantity="other">Aptuveni %1$d ⁇ %2$d%% no %3$d saglabātiem novērojumiem</item>
+        <item quantity="one">Aptuveni %1$d–%2$d%% no %3$d saglabāto novērošanu</item>
+        <item quantity="other">Aptuveni %1$d–%2$d%% no %3$d saglabātiem novērojumiem</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">pierādījumu veids</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Rafinēta pāreja</string>
@@ -313,6 +313,7 @@
     <string name="history_tab_calendar">Kalendārs</string>
     <string name="history_screen_title">Vēsture</string>
     <plurals name="history_trip_count">
+        <item quantity="zero">%d braucienu</item>
         <item quantity="one">%d brauciens</item>
         <item quantity="other">%d braucieni</item>
     </plurals>

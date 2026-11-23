@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Säkerhet</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktivitetsövergångssignal</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Omkring %1$d ⁇ %2$d%% från %3$d bevarade observationer</item>
-        <item quantity="other">Omkring %1$d ⁇ %2$d%% från %3$d bevarade observationer</item>
+        <item quantity="one">Omkring %1$d–%2$d%% från %3$d bevarade observationer</item>
+        <item quantity="other">Omkring %1$d–%2$d%% från %3$d bevarade observationer</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Typ av bevis</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Förbättrad övergång</string>

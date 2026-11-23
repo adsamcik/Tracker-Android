@@ -164,7 +164,11 @@ class ProtectedLocationCanonicalHandoffTest {
 				)
 			},
 			canonicalWriter = ProtectedLocationCanonicalWriter { command, metadata ->
-				val writer = if (command == accepted) acceptedWriter else rejectedWriter
+				val writer = if (command == accepted) {
+					acceptedWriter
+				} else {
+					rejectedWriter
+				}
 				writer.write(command, metadata)
 			},
 			onSavedPointCommitted = hints::add,

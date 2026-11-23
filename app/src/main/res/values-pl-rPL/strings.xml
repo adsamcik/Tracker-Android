@@ -265,8 +265,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect jest gotowy. Niektóre okresy mogą nadal mieć przerwy.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Nagranie kroków gotowe. Niektóre okresy mogą nadal mieć przerwy.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Zapisywanie lokalizacji między sesjami wymaga dostępu do lokalizacji w tle. Ustawienie zapisu lokalizacji podczas sesji pozostaje bez zmian.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi wymogi dotyczące zezwolenia na skanowanie nie są spełnione. Przyznanie ich nie umożliwia wykrycia lokalizacji.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Nie spełnione są wymogi dotyczące zezwolenia na oddzwonienie do komórek. Przyznanie ich nie umożliwia wykrycia lokalizacji.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Brakuje uprawnienia Androida do skanowania sieci Wi-Fi. Jego przyznanie nie włączy zapisywania lokalizacji.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Brakuje uprawnienia Androida do odczytu danych sieci komórkowej. Jego przyznanie nie włączy zapisywania lokalizacji.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasywna lokalizacja jest gotowa do pojednania źródło-właściciela. Zapewnia to punkty oportunistyczne, a nie ciągłość trasy.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Odwołania wyników skanowania są gotowe do pojednania z właścicielem źródła. Nie obieca się wykonywania skanów ani budzenia.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Zastosowane do czasowego znaku oddziaływania do zmian komórek są gotowe do pojednania z właścicielem źródła. Nie obiecuje się żadnej przymusowej kadencji odświeżenia.</string>

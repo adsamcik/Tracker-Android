@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">信頼度</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">活動移行信号</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">約%1$d ⁇ %2$d%% %3$d の観測から保持された</item>
-        <item quantity="other">約%1$d ⁇ %2$d%% の %3$d の観測から保持された</item>
+        <item quantity="one">約%1$d–%2$d%% %3$d の観測から保持された</item>
+        <item quantity="other">約%1$d–%2$d%% の %3$d の観測から保持された</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">証拠の種類</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">調整された移行</string>

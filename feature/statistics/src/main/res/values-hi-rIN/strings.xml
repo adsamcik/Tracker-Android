@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">विश्वास</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">गतिविधि संक्रमण संकेत</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">लगभग %1$d ⁇ %2$d%% से %3$d अवलोकन बनाए रखा गया</item>
-        <item quantity="other">लगभग %1$d ⁇ %2$d%% %3$d अवलोकनों से संरक्षित</item>
+        <item quantity="one">लगभग %1$d–%2$d%% से %3$d अवलोकन बनाए रखा गया</item>
+        <item quantity="other">लगभग %1$d–%2$d%% %3$d अवलोकनों से संरक्षित</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">साक्ष्य का प्रकार</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">परिष्कृत संक्रमण</string>

@@ -139,20 +139,24 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Pārstrādājot pierādījumus nevar droši iesniegt</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Uz vietas, maršrutu, attālumu, ātrumu un augstumu neattiecas šī vēsture.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d saglabāts skanēšanas rezultāts</item>
-        <item quantity="other">%1$d saglabāti skanēšanas rezultāti</item>
+        <item quantity="zero">%1$d saglabātu skenēšanas rezultātu</item>
+        <item quantity="one">%1$d saglabāts skenēšanas rezultāts</item>
+        <item quantity="other">%1$d saglabāti skenēšanas rezultāti</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d saglabāts radiorecords</item>
-        <item quantity="other">%1$d saglabāti radio ieraksti</item>
+        <item quantity="zero">%1$d saglabātu mobilā tīkla ierakstu</item>
+        <item quantity="one">%1$d saglabāts mobilā tīkla ieraksts</item>
+        <item quantity="other">%1$d saglabāti mobilā tīkla ieraksti</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d aizturēta piegāde</item>
-        <item quantity="other">%1$d aizturētas piegādes</item>
+        <item quantity="zero">%1$d saglabātu datu pakešu</item>
+        <item quantity="one">%1$d saglabāta datu pakete</item>
+        <item quantity="other">%1$d saglabātas datu paketes</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d piegādes rezultāti ir daļēji</item>
-        <item quantity="other">%1$d piegādes ir daļēji</item>
+        <item quantity="zero">Daļēji rezultāti %1$d datu paketēs</item>
+        <item quantity="one">Daļēji rezultāti %1$d datu paketē</item>
+        <item quantity="other">Daļēji rezultāti %1$d datu paketēs</item>
     </plurals>
     <string name="dashboard_live_activity_title">Reģistrēta aktivitāte</string>
     <string name="dashboard_live_activity_movement">Pēdējā reģistrētā kustība</string>
@@ -254,12 +258,14 @@
     <string name="dashboard_latest_achievement_empty">Turpiniet izsekošanu, lai atbloķētu pirmo sasniegumu</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Importētie pasākumi</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Izskatīt %1$d ierakstu</item>
-        <item quantity="other">Izskatīt %1$d ierakstu</item>
+        <item quantity="zero">Rādīt %1$d ierakstu</item>
+        <item quantity="one">Rādīt %1$d ierakstu</item>
+        <item quantity="other">Rādīt %1$d ierakstus</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
+        <item quantity="zero">Slēpt %1$d ierakstu</item>
         <item quantity="one">Slēpt %1$d ierakstu</item>
-        <item quantity="other">Slēgt %1$d ierakstu</item>
+        <item quantity="other">Slēpt %1$d ierakstus</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Pieteikums %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s kāpas</string>

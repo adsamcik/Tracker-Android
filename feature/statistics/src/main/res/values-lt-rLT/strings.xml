@@ -211,8 +211,10 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Patikimumas</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Veiklos perėjimo signalas</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Apie %1$d ⁇ %2$d%% iš %3$d išlaikytų stebėjimo</item>
-        <item quantity="other">Apie %1$d ⁇ %2$d%% iš %3$d išsaugotų stebėjimo</item>
+        <item quantity="one">Apie %1$d–%2$d%% pagal %3$d išsaugotą stebėjimą</item>
+        <item quantity="few">Apie %1$d–%2$d%% pagal %3$d išsaugotus stebėjimus</item>
+        <item quantity="many">Apie %1$d–%2$d%% pagal %3$d išsaugoto stebėjimo</item>
+        <item quantity="other">Apie %1$d–%2$d%% pagal %3$d išsaugotų stebėjimų</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">įrodymų tipas</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Patvirtintas perėjimas</string>

@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Betrouwbaarheid</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Activiteitsovergangssignaal</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Ongeveer %1$d ⁇ %2$d%% van de bewaarde waarnemingen van %3$d</item>
-        <item quantity="other">Ongeveer %1$d ⁇ %2$d%% van %3$d bewaarde waarnemingen</item>
+        <item quantity="one">Ongeveer %1$d–%2$d%% van de bewaarde waarnemingen van %3$d</item>
+        <item quantity="other">Ongeveer %1$d–%2$d%% van %3$d bewaarde waarnemingen</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Bewijssoort</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Verfijnde overgang</string>

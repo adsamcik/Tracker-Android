@@ -140,20 +140,24 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Dovezile păstrate nu pot fi prezentate în siguranță</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Localizarea, ruta, distanţa, viteza şi altitudinea nu fac parte din această istorie sursă.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d rezultatul scanării păstrat</item>
-        <item quantity="other">%1$d rezultatele scanării păstrate</item>
+        <item quantity="one">%1$d rezultat salvat al scanării</item>
+        <item quantity="few">%1$d rezultate salvate ale scanării</item>
+        <item quantity="other">%1$d de rezultate salvate ale scanării</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d înregistrări radio păstrate</item>
-        <item quantity="other">%1$d înregistrări radio păstrate</item>
+        <item quantity="one">%1$d înregistrare salvată a rețelei mobile</item>
+        <item quantity="few">%1$d înregistrări salvate ale rețelei mobile</item>
+        <item quantity="other">%1$d de înregistrări salvate ale rețelei mobile</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d livrare rezervată</item>
-        <item quantity="other">%1$d livrări retinute</item>
+        <item quantity="one">%1$d pachet de date salvat</item>
+        <item quantity="few">%1$d pachete de date salvate</item>
+        <item quantity="other">%1$d de pachete de date salvate</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d livrarea are rezultate parţiale</item>
-        <item quantity="other">%1$d livrările au rezultate parţiale</item>
+        <item quantity="one">%1$d pachet de date are rezultate parțiale</item>
+        <item quantity="few">%1$d pachete de date au rezultate parțiale</item>
+        <item quantity="other">%1$d de pachete de date au rezultate parțiale</item>
     </plurals>
     <string name="dashboard_live_activity_title">Activitate înregistrată</string>
     <string name="dashboard_live_activity_movement">Ultima mișcare înregistrată</string>
@@ -255,12 +259,14 @@
     <string name="dashboard_latest_achievement_empty">Continuă urmărirea pentru a debloca prima realizare</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Paşi importati</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Află înregistrarea %1$d</item>
-        <item quantity="other">Află înregistrările %1$d</item>
+        <item quantity="one">Afișează %1$d înregistrare</item>
+        <item quantity="few">Afișează %1$d înregistrări</item>
+        <item quantity="other">Afișează %1$d de înregistrări</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Ascunde înregistrarea %1$d</item>
-        <item quantity="other">Ascunde înregistrările %1$d</item>
+        <item quantity="one">Ascunde %1$d înregistrare</item>
+        <item quantity="few">Ascunde %1$d înregistrări</item>
+        <item quantity="other">Ascunde %1$d de înregistrări</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Înregistrare %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s pași</string>

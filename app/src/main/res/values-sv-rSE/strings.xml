@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect är redo. Vissa perioder kan fortfarande ha brister.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Steginspelning är klar. Vissa perioder kan fortfarande ha brister.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Platsåtkomst i bakgrunden behövs för att registrera platser mellan sessioner. Din inställning för registrering under sessioner ändras inte.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android  ⁇ s Wi-Fi Skanderingstillståndskrav är inte uppfyllda. Att ge dem tillåtelse gör det inte möjligt att fånga plats.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Cells callback behörighetskrav är inte uppfyllda. Att ge dem tillåtelse gör det inte möjligt att fånga plats.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android saknar behörighet att söka efter Wi-Fi-nätverk. Om du tillåter det aktiveras inte platsregistrering.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android saknar behörighet att läsa data om mobilnätet. Om du tillåter det aktiveras inte platsregistrering.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passiv Lokation är redo för försoning mellan källägaren. Det ger opportunistiska poäng, inte rutten kontinuitet.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Callbacks från skanningsresultatet är redo för försoning mellan källägare och källan. Ingen skanning eller vakningskandens lovas.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Tidsstemplar-kvalificerade celländringssamtal är redo för försoning mellan källan och ägaren. Ingen tvångsuppfriskningskadens lovas.</string>

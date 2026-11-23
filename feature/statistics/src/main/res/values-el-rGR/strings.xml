@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Βεβαιότητα</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Σημείωση μετάβασης δραστηριότητας</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Περίπου %1$d ⁇ %2$d%% από την παρατήρηση %3$d</item>
-        <item quantity="other">Περίπου %1$d ⁇ %2$d%% από τις %3$d παρατηρήσεις που διατηρήθηκαν</item>
+        <item quantity="one">Περίπου %1$d–%2$d%% από την παρατήρηση %3$d</item>
+        <item quantity="other">Περίπου %1$d–%2$d%% από τις %3$d παρατηρήσεις που διατηρήθηκαν</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Τύπος αποδείξεων</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Τελειωμένη μετάβαση</string>

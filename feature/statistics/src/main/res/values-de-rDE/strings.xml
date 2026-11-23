@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Sicherheit</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Aktivitätsübergangssignal</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Etwa %1$d ⁇ %2$d%% von %3$d aufbewahrten Beobachtungen</item>
-        <item quantity="other">Etwa %1$d ⁇ %2$d%% von %3$d behaltenen Beobachtungen</item>
+        <item quantity="one">Etwa %1$d–%2$d%% von %3$d aufbewahrten Beobachtungen</item>
+        <item quantity="other">Etwa %1$d–%2$d%% von %3$d behaltenen Beobachtungen</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Typ der Beweise</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Verfeinerter Übergang</string>

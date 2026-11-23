@@ -139,20 +139,32 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">L-evidenza miżmuma ma tistax tiġi ppreżentata b\'mod sikur</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Il- post, ir- rotta, id- distanza, il- veloċità, u l- altitudni mhumiex parti minn din l- istorja tas- sors.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d riżultat tal-iskanaġġ miżmum</item>
-        <item quantity="other">%1$d riżultati ta\' skanning miżmuma</item>
+        <item quantity="one">%1$d riżultat tal-iskannjar miżmum</item>
+        <item quantity="two">%1$d riżultati tal-iskannjar miżmuma</item>
+        <item quantity="few">%1$d riżultati tal-iskannjar miżmuma</item>
+        <item quantity="many">%1$d-il riżultat tal-iskannjar miżmum</item>
+        <item quantity="other">%1$d riżultat tal-iskannjar miżmum</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d Rekord tal-radju miżmum</item>
-        <item quantity="other">%1$d Rekords tal-radju miżmuma</item>
+        <item quantity="one">%1$d rekord tan-netwerk mobbli miżmum</item>
+        <item quantity="two">%1$d rekords tan-netwerk mobbli miżmuma</item>
+        <item quantity="few">%1$d rekords tan-netwerk mobbli miżmuma</item>
+        <item quantity="many">%1$d-il rekord tan-netwerk mobbli miżmum</item>
+        <item quantity="other">%1$d rekord tan-netwerk mobbli miżmum</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d kunsinna miżmuma</item>
-        <item quantity="other">%1$d kunsinna miżmuma</item>
+        <item quantity="one">%1$d pakkett tad-dejta miżmum</item>
+        <item quantity="two">%1$d pakketti tad-dejta miżmuma</item>
+        <item quantity="few">%1$d pakketti tad-dejta miżmuma</item>
+        <item quantity="many">%1$d-il pakkett tad-dejta miżmum</item>
+        <item quantity="other">%1$d pakkett tad-dejta miżmum</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d it-twassil għandu riżultati parzjali</item>
-        <item quantity="other">%1$d it-twassil għandhom riżultati parzjali</item>
+        <item quantity="one">Riżultati parzjali f’%1$d pakkett tad-dejta</item>
+        <item quantity="two">Riżultati parzjali f’%1$d pakketti tad-dejta</item>
+        <item quantity="few">Riżultati parzjali f’%1$d pakketti tad-dejta</item>
+        <item quantity="many">Riżultati parzjali f’%1$d-il pakkett tad-dejta</item>
+        <item quantity="other">Riżultati parzjali f’%1$d pakkett tad-dejta</item>
     </plurals>
     <string name="dashboard_live_activity_title">Attività rreġistrata</string>
     <string name="dashboard_live_activity_movement">L-aħħar moviment irreġistrat</string>
@@ -254,12 +266,18 @@
     <string name="dashboard_latest_achievement_empty">Kompli t-traċċar biex tiftaħ l-ewwel kisba tiegħek</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Il-passi importati</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Jaraw ir-reġistrazzjoni %1$d</item>
-        <item quantity="other">Ara reġistrazzjonijiet %1$d</item>
+        <item quantity="one">Uri %1$d reġistrazzjoni</item>
+        <item quantity="two">Uri %1$d reġistrazzjonijiet</item>
+        <item quantity="few">Uri %1$d reġistrazzjonijiet</item>
+        <item quantity="many">Uri %1$d-il reġistrazzjoni</item>
+        <item quantity="other">Uri %1$d reġistrazzjoni</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Iffranka r-reġistrazzjoni %1$d</item>
-        <item quantity="other">Iskrivi %1$d reġistrazzjonijiet</item>
+        <item quantity="one">Aħbi %1$d reġistrazzjoni</item>
+        <item quantity="two">Aħbi %1$d reġistrazzjonijiet</item>
+        <item quantity="few">Aħbi %1$d reġistrazzjonijiet</item>
+        <item quantity="many">Aħbi %1$d-il reġistrazzjoni</item>
+        <item quantity="other">Aħbi %1$d reġistrazzjoni</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Ir-reġistrazzjoni %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s passi</string>

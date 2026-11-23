@@ -139,20 +139,24 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Le prove conservate non possono essere presentate in modo sicuro</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">La posizione, il percorso, la distanza, la velocità e l\'altitudine non fanno parte di questa storia fonte.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d risultato di scansione conservato</item>
-        <item quantity="other">%1$d Risultati di scansione conservati</item>
+        <item quantity="one">%1$d risultato della scansione conservato</item>
+        <item quantity="many">%1$d risultati della scansione conservati</item>
+        <item quantity="other">%1$d risultati della scansione conservati</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d registrazione radio conservata</item>
-        <item quantity="other">%1$d registrazioni radio conservate</item>
+        <item quantity="one">%1$d rilevazione della rete mobile conservata</item>
+        <item quantity="many">%1$d rilevazioni della rete mobile conservate</item>
+        <item quantity="other">%1$d rilevazioni della rete mobile conservate</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d consegna trattenuta</item>
-        <item quantity="other">%1$d consegne conservate</item>
+        <item quantity="one">%1$d lotto di dati conservato</item>
+        <item quantity="many">%1$d lotti di dati conservati</item>
+        <item quantity="other">%1$d lotti di dati conservati</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d consegna ha risultati parziali</item>
-        <item quantity="other">%1$d le consegne hanno risultati parziali</item>
+        <item quantity="one">%1$d lotto di dati presenta risultati parziali</item>
+        <item quantity="many">%1$d lotti di dati presentano risultati parziali</item>
+        <item quantity="other">%1$d lotti di dati presentano risultati parziali</item>
     </plurals>
     <string name="dashboard_live_activity_title">Attività registrata</string>
     <string name="dashboard_live_activity_movement">Ultimo movimento registrato</string>
@@ -254,12 +258,14 @@
     <string name="dashboard_latest_achievement_empty">Continua a tracciare per sbloccare il tuo primo obiettivo</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Passi importati</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Mostra la registrazione %1$d</item>
-        <item quantity="other">Mostra le registrazioni %1$d</item>
+        <item quantity="one">Mostra %1$d registrazione</item>
+        <item quantity="many">Mostra %1$d registrazioni</item>
+        <item quantity="other">Mostra %1$d registrazioni</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Nascondere la registrazione %1$d</item>
-        <item quantity="other">Nascondere le registrazioni %1$d</item>
+        <item quantity="one">Nascondi %1$d registrazione</item>
+        <item quantity="many">Nascondi %1$d registrazioni</item>
+        <item quantity="other">Nascondi %1$d registrazioni</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Registrazione %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s passi</string>

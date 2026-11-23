@@ -101,7 +101,7 @@ internal class DatabaseImport(
 				}
 			} while (removed)
 			if (enforceTrackerImportContract && importableTables.isEmpty()) {
-				throw DatabaseImportPlanningException(DatabaseImportFailure.UnsupportedRawDatabase)
+				return DatabaseImportResult.Failure(DatabaseImportFailure.UnsupportedRawDatabase)
 			}
 			val tables = importableTables.sortedByTopology()
 

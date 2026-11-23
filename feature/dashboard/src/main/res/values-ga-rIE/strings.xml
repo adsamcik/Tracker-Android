@@ -139,20 +139,32 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Ní féidir fianaise coimeádta a chur ar fáil go sábháilte</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Ní cuid den stair foinse seo an áit, an bealach, an t-aise, an luas, agus an airde.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d toradh scánaithe a chaomhnú</item>
-        <item quantity="other">%1$d torthaí scánaithe a choimeádtar</item>
+        <item quantity="one">%1$d toradh scanta coinnithe</item>
+        <item quantity="two">%1$d thoradh scanta coinnithe</item>
+        <item quantity="few">%1$d thoradh scanta coinnithe</item>
+        <item quantity="many">%1$d dtoradh scanta coinnithe</item>
+        <item quantity="other">%1$d toradh scanta coinnithe</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d taifid ráideacha coimeádta</item>
-        <item quantity="other">%1$d taifeadanna raidió a choimeádtar</item>
+        <item quantity="one">%1$d taifead líonra móibíligh coinnithe</item>
+        <item quantity="two">%1$d thaifead líonra móibíligh coinnithe</item>
+        <item quantity="few">%1$d thaifead líonra móibíligh coinnithe</item>
+        <item quantity="many">%1$d dtaifead líonra móibíligh coinnithe</item>
+        <item quantity="other">%1$d taifead líonra móibíligh coinnithe</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d seachadadh coimeádta</item>
-        <item quantity="other">%1$d seachadtaí coimeádta</item>
+        <item quantity="one">%1$d beart sonraí coinnithe</item>
+        <item quantity="two">%1$d bheart sonraí coinnithe</item>
+        <item quantity="few">%1$d bheart sonraí coinnithe</item>
+        <item quantity="many">%1$d mbeart sonraí coinnithe</item>
+        <item quantity="other">%1$d beart sonraí coinnithe</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d tá torthaí páirteach ag an seachadadh</item>
-        <item quantity="other">Tá torthaí páirteach ag seachadta %1$d</item>
+        <item quantity="one">Tá torthaí páirteacha ag %1$d beart sonraí</item>
+        <item quantity="two">Tá torthaí páirteacha ag %1$d bheart sonraí</item>
+        <item quantity="few">Tá torthaí páirteacha ag %1$d bheart sonraí</item>
+        <item quantity="many">Tá torthaí páirteacha ag %1$d mbeart sonraí</item>
+        <item quantity="other">Tá torthaí páirteacha ag %1$d beart sonraí</item>
     </plurals>
     <string name="dashboard_live_activity_title">Gníomhaíocht taifeadta</string>
     <string name="dashboard_live_activity_movement">An ghluaiseacht taifeadta is déanaí</string>
@@ -254,12 +266,18 @@
     <string name="dashboard_latest_achievement_empty">Lean den rianú chun do chéad éacht a dhíghlasáil</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Céimeanna Áirítear</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Taispeánadh taifeadadh %1$d</item>
-        <item quantity="other">Taispeánadh taifeadadh %1$d</item>
+        <item quantity="one">Taispeáin %1$d taifeadadh</item>
+        <item quantity="two">Taispeáin %1$d thaifeadadh</item>
+        <item quantity="few">Taispeáin %1$d thaifeadadh</item>
+        <item quantity="many">Taispeáin %1$d dtaifeadadh</item>
+        <item quantity="other">Taispeáin %1$d taifeadadh</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Scríobhann %1$d taifid</item>
-        <item quantity="other">Scríobhann %1$d taifeadadh</item>
+        <item quantity="one">Folaigh %1$d taifeadadh</item>
+        <item quantity="two">Folaigh %1$d thaifeadadh</item>
+        <item quantity="few">Folaigh %1$d thaifeadadh</item>
+        <item quantity="many">Folaigh %1$d dtaifeadadh</item>
+        <item quantity="other">Folaigh %1$d taifeadadh</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Ríomh %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s céimeanna</string>

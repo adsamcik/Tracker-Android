@@ -213,8 +213,10 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Jistota</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Snímek přechodu aktivity</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Přibližně %1$d ⁇ %2$d%% z %3$d zachovaných pozorování</item>
-        <item quantity="other">Přibližně %1$d ⁇ %2$d%% z %3$d zachovaných pozorování</item>
+        <item quantity="one">Přibližně %1$d–%2$d%% z %3$d uloženého pozorování</item>
+        <item quantity="few">Přibližně %1$d–%2$d%% z %3$d uložených pozorování</item>
+        <item quantity="many">Přibližně %1$d–%2$d%% z %3$d uloženého pozorování</item>
+        <item quantity="other">Přibližně %1$d–%2$d%% z %3$d uložených pozorování</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Typ důkazů</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Úplný přechod</string>

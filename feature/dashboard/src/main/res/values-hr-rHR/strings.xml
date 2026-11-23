@@ -140,20 +140,24 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Uloženi dokazi ne mogu se bezbedno predstaviti</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Lokacija, put, udaljenost, brzina i visina nisu dio ovog izvornog povijesti.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zadržao rezultat skeniranja</item>
-        <item quantity="other">%1$d zadržani rezultati skeniranja</item>
+        <item quantity="one">%1$d spremljen rezultat skeniranja</item>
+        <item quantity="few">%1$d spremljena rezultata skeniranja</item>
+        <item quantity="other">%1$d spremljenih rezultata skeniranja</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zadržavanje radijskih zapisa</item>
-        <item quantity="other">%1$d zadržavaju se radijske zapise</item>
+        <item quantity="one">%1$d spremljen zapis mobilne mreže</item>
+        <item quantity="few">%1$d spremljena zapisa mobilne mreže</item>
+        <item quantity="other">%1$d spremljenih zapisa mobilne mreže</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zadržao isporuku</item>
-        <item quantity="other">%1$d zadržavanje isporuka</item>
+        <item quantity="one">%1$d spremljen paket podataka</item>
+        <item quantity="few">%1$d spremljena paketa podataka</item>
+        <item quantity="other">%1$d spremljenih paketa podataka</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d isporuka ima djelomične rezultate</item>
-        <item quantity="other">%1$d isporuke imaju djelomične rezultate</item>
+        <item quantity="one">%1$d paket podataka ima djelomične rezultate</item>
+        <item quantity="few">%1$d paketa podataka imaju djelomične rezultate</item>
+        <item quantity="other">%1$d paketa podataka ima djelomične rezultate</item>
     </plurals>
     <string name="dashboard_live_activity_title">Zabilježena aktivnost</string>
     <string name="dashboard_live_activity_movement">Posljednje zabilježeno kretanje</string>
@@ -255,12 +259,14 @@
     <string name="dashboard_latest_achievement_empty">Nastavite pratiti da biste otključali prvo postignuće</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Uvezeni koraci</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Pokaži snimak %1$d</item>
-        <item quantity="other">Pokaži snimke %1$d</item>
+        <item quantity="one">Prikaži %1$d zapis</item>
+        <item quantity="few">Prikaži %1$d zapisa</item>
+        <item quantity="other">Prikaži %1$d zapisa</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Skrij snimak %1$d</item>
-        <item quantity="other">Sakrij snimke %1$d</item>
+        <item quantity="one">Sakrij %1$d zapis</item>
+        <item quantity="few">Sakrij %1$d zapisa</item>
+        <item quantity="other">Sakrij %1$d zapisa</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Snimka %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s koraka</string>

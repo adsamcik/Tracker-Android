@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect ir gatavs. Dažos periodos var vēl būt traucējumi.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Steps ieraksts ir gatavs. Dažos periodos var vēl būt traucējumi.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Lai vāktu atrašanās vietas datus starp sesijām, nepieciešama piekļuve atrašanās vietai fonā. Iestatījums datu ierakstīšanai sesijas laikā nemainās.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi skanēšanas atļaujas prasības nav izpildītas. Ja to piešķir, nav iespējams iegūt vietas.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android  ⁇ s Nē, nav izpildīti cellu atcelšanas atļaujas prasības. Ja to piešķir, nav iespējams iegūt vietas.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Trūkst Android atļaujas, lai skenētu Wi-Fi tīklus. Šīs atļaujas piešķiršana neieslēdz atrašanās vietas ierakstīšanu.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Trūkst Android atļaujas, lai nolasītu mobilo tīklu datus. Šīs atļaujas piešķiršana neieslēdz atrašanās vietas ierakstīšanu.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasīva vieta ir gatava attaisnot avotu īpašniekam. Tas nodrošina oportunistiskus punktus, nevis maršruta nepārtrauktību.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi skanēšanas rezultāta atkārtotas uzskatus ir gatavi saskaņošanai starp avota īpašniekam. Neizspēlēta skanēšana vai uzbudēšanas kadence.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Laikmarka kvalifikācijas cellu pārmaiņu atkārtotas uzskatus ir gatavas atveseļošanai starp avotu īpašniekam un avota īpašniekam. Neatkarīgi no pilnvarota atjaunināšanas kadencei.</string>

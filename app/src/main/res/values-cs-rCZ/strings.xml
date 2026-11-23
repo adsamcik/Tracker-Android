@@ -265,8 +265,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect je připraven. Některá období mohou mít mezery.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Zaznamenávání kroků je připravené. Některá období mohou mít mezery.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Pro záznam polohy mezi relacemi povolte přístup k poloze na pozadí. Nastavení záznamu během relací se nezmění.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi požadavky na povolení pro skenování nejsou splněny. To jim nedovolí zachytit lokalitu.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Požadavky na povolení zpětného volání do mobilu nejsou splněny. To jim nedovolí zachytit lokalitu.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Chybí oprávnění Androidu ke skenování sítí Wi-Fi. Udělením oprávnění se záznam polohy nezapne.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Chybí oprávnění Androidu ke čtení údajů o mobilní síti. Udělením oprávnění se záznam polohy nezapne.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Pasivní lokalizace je připravena na usmíření zdrojového vlastníka. Poskytuje oportunistické body, ne kontinuitu trasy.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Závěry z výsledků skenování jsou připraveny k usmíření zdrojového vlastníka. Žádné skenování nebo probuzení není slibuje.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Závěry na změnu buněk jsou připraveny k usmíření zdrojového vlastníka. Žádná nucená obnovení není slíbena.</string>

@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Bizonyosság</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">A tevékenység átmeneti jelzése</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Körülbelül %1$d ⁇ %2$d%% a %3$d megtartott megfigyelésből</item>
-        <item quantity="other">Körülbelül %1$d ⁇ %2$d%% a %3$d megtartott megfigyelésből</item>
+        <item quantity="one">Körülbelül %1$d–%2$d%% a %3$d megtartott megfigyelésből</item>
+        <item quantity="other">Körülbelül %1$d–%2$d%% a %3$d megtartott megfigyelésből</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Bizonyíték típusa</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Az átmeneti folyamat finomítása</string>

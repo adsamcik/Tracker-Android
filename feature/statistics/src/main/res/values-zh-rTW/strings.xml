@@ -193,7 +193,7 @@
     <string name="trip_detail_steps_coverage_complete" tools:ignore="MissingTranslation">完全覆蓋的時間段</string>
     <string name="trip_detail_steps_coverage_partial" tools:ignore="MissingTranslation">部分覆蓋的間隔</string>
     <string name="trip_detail_steps_coverage_unknown" tools:ignore="MissingTranslation">記錄範圍無法使用</string>
-    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">只有保留的步 ⁇ 證據顯示.沒有捕捉位置, 因此路線和地點導致的數據無法取得.</string>
+    <string name="trip_detail_steps_only_scope" tools:ignore="MissingTranslation">僅顯示已保留的步數資料。這筆記錄未收集位置資訊，因此無法顯示路線及其他由位置推算的資訊。</string>
     <string name="trip_detail_activity_session" tools:ignore="MissingTranslation">活動工作階段</string>
     <string name="trip_detail_activity_approximate_notice" tools:ignore="MissingTranslation">活動範圍,時間及可信度是存儲在裝置上的證據的概要總結.</string>
     <string name="trip_detail_activity_summary" tools:ignore="MissingTranslation">活動總結</string>
@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">信心度</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">活動轉變訊號</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">關於 %1$d ⁇ %2$d%%從 %3$d保留觀察</item>
-        <item quantity="other">關於%3$d保留的%1$d ⁇ %2$d%%觀察</item>
+        <item quantity="one">關於 %1$d–%2$d%%從 %3$d保留觀察</item>
+        <item quantity="other">關於%3$d保留的%1$d–%2$d%%觀察</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">證據類型</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">完善的過渡</string>

@@ -141,20 +141,28 @@
     <string name="dashboard_radio_unverifiable_explanation" tools:ignore="MissingTranslation">Przechowywane dowody nie mogą być bezpiecznie przedstawione</string>
     <string name="dashboard_radio_location_excluded" tools:ignore="MissingTranslation">Lokalizacja, trasa, odległość, prędkość i wysokość nie są częścią tej historii źródła.</string>
     <plurals name="dashboard_radio_wifi_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zachowany wynik skanowania</item>
-        <item quantity="other">%1$d zachowane wyniki skanowania</item>
+        <item quantity="one">%1$d zapisany wynik skanowania</item>
+        <item quantity="few">%1$d zapisane wyniki skanowania</item>
+        <item quantity="many">%1$d zapisanych wyników skanowania</item>
+        <item quantity="other">%1$d zapisanego wyniku skanowania</item>
     </plurals>
     <plurals name="dashboard_radio_cell_retained_records" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d zapisy radiowe zachowane</item>
-        <item quantity="other">%1$d zapisy radiowe zachowane</item>
+        <item quantity="one">%1$d zapisany pomiar sieci komórkowej</item>
+        <item quantity="few">%1$d zapisane pomiary sieci komórkowej</item>
+        <item quantity="many">%1$d zapisanych pomiarów sieci komórkowej</item>
+        <item quantity="other">%1$d zapisanego pomiaru sieci komórkowej</item>
     </plurals>
     <plurals name="dashboard_radio_retained_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d dostawy zatrzymane</item>
-        <item quantity="other">%1$d dostawy zatrzymane</item>
+        <item quantity="one">%1$d zapisana partia danych</item>
+        <item quantity="few">%1$d zapisane partie danych</item>
+        <item quantity="many">%1$d zapisanych partii danych</item>
+        <item quantity="other">%1$d zapisanej partii danych</item>
     </plurals>
     <plurals name="dashboard_radio_partial_deliveries" tools:ignore="MissingTranslation">
-        <item quantity="one">%1$d dostarczenie ma częściowe wyniki</item>
-        <item quantity="other">%1$d dostawy mają częściowe wyniki</item>
+        <item quantity="one">%1$d partia danych ma niepełne wyniki</item>
+        <item quantity="few">%1$d partie danych mają niepełne wyniki</item>
+        <item quantity="many">%1$d partii danych ma niepełne wyniki</item>
+        <item quantity="other">%1$d partii danych ma niepełne wyniki</item>
     </plurals>
     <string name="dashboard_live_activity_title">Zarejestrowana aktywność</string>
     <string name="dashboard_live_activity_movement">Ostatni zarejestrowany ruch</string>
@@ -256,12 +264,16 @@
     <string name="dashboard_latest_achievement_empty">Kontynuuj śledzenie, aby odblokować pierwsze osiągnięcie</string>
     <string name="dashboard_imported_steps_title" tools:ignore="MissingTranslation">Wprowadzone kroki</string>
     <plurals name="dashboard_imported_steps_show_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Pokaż nagranie %1$d</item>
-        <item quantity="other">Pokaż nagrania %1$d</item>
+        <item quantity="one">Pokaż %1$d zapis</item>
+        <item quantity="few">Pokaż %1$d zapisy</item>
+        <item quantity="many">Pokaż %1$d zapisów</item>
+        <item quantity="other">Pokaż %1$d zapisu</item>
     </plurals>
     <plurals name="dashboard_imported_steps_hide_recordings" tools:ignore="MissingTranslation">
-        <item quantity="one">Ukryj nagranie %1$d</item>
-        <item quantity="other">Ukryj nagrania %1$d</item>
+        <item quantity="one">Ukryj %1$d zapis</item>
+        <item quantity="few">Ukryj %1$d zapisy</item>
+        <item quantity="many">Ukryj %1$d zapisów</item>
+        <item quantity="other">Ukryj %1$d zapisu</item>
     </plurals>
     <string name="dashboard_imported_steps_recording" tools:ignore="MissingTranslation">Nagrywanie %1$d</string>
     <string name="dashboard_imported_steps_count" tools:ignore="MissingTranslation">%1$s kroki</string>

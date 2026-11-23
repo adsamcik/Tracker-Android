@@ -211,8 +211,9 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">Pouzdanost</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">Snimak prijelaza aktivnosti</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">Približno %1$d ⁇ %2$d%% od %3$d zadržao posmatranje</item>
-        <item quantity="other">Oko %1$d ⁇ %2$d%% od %3$d zadržanih promatra</item>
+        <item quantity="one">Oko %1$d–%2$d%% na temelju %3$d zadržanog opažanja</item>
+        <item quantity="few">Oko %1$d–%2$d%% na temelju %3$d zadržana opažanja</item>
+        <item quantity="other">Oko %1$d–%2$d%% na temelju %3$d zadržanih opažanja</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">Vrsta dokaza</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">Rafinacija tranzicije</string>

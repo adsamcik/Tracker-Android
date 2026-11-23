@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connectは準備中です期間がまだ欠けている場合もあります</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">ステップ記録は準備済み期間がまだ欠けている場合もあります</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">セッション間に位置情報を収集するには、バックグラウンドでの位置情報へのアクセスが必要です。セッション中の記録設定は変わりません。</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi スキャン許可の要件が満たされていない.場所捕獲はできません</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s セルリコール許可要求は満たされていない.場所捕獲はできません</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Wi-Fi ネットワークを検索するために必要な Android の権限がありません。権限を許可しても位置情報の記録はオンになりません。</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">モバイルネットワーク情報を読み取るために必要な Android の権限がありません。権限を許可しても位置情報の記録はオンになりません。</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">パシブ・ロケーションは ソース・オーナーの和解に準備ができています機遇的なポイントを提供し 経路の連続性ではなく</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi スキャン結果のリコールバックはソース所有者との和解のために準備されています.スキャンや覚醒カデンスは約束されていません.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">タイムスタンプを配備した セル変更 コールバックは ソース・オーナーの和解に備えています強制的なリフレッシュカデンスは約束されていません</string>

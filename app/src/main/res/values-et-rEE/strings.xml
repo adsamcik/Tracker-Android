@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect on valmis. Mõnel perioodil võivad olla ka tühjad.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">Stepi salvestamine on valmis. Mõnel perioodil võivad olla ka tühjad.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">Asukoha salvestamiseks seansside vahel on vaja taustal asukohale juurdepääsu. Seansi ajal salvestamise seadistus ei muutu.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Android ⁇ s Wi-Fi skannimisalatuse nõuded ei ole täidetud. Nende andmine ei võimalda asukoha salvestamist.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Selle tagasi helistamise loa nõuded ei ole täidetud. Nende andmine ei võimalda asukoha salvestamist.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Androidil puudub luba Wi-Fi-võrke skannida. Selle loa andmine ei lülita asukoha salvestamist sisse.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Androidil puudub luba mobiilsidevõrkude andmeid lugeda. Selle loa andmine ei lülita asukoha salvestamist sisse.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">Passiivne asukoht on valmis allikas-omaniku leevendamiseks. See annab oportunistlikke punkte, mitte marsruudi jätkusuutlikkust.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi Skanningutõendused on valmis allikas-omaniku lepitamiseks. Skaneringu või ärkamiskuupäeva ei lubata.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Ajasmärgiga kvalifitseeritud rakkude vahetamise tagasisõnumid on valmis allikas-omaniku lepitamiseks. Ei lubata sunnitud värskendamist.</string>

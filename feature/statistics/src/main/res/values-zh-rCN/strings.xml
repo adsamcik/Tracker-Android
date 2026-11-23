@@ -209,8 +209,8 @@
     <string name="trip_detail_activity_confidence" tools:ignore="MissingTranslation">置信度</string>
     <string name="trip_detail_activity_confidence_transition" tools:ignore="MissingTranslation">活动过渡信号</string>
     <plurals name="trip_detail_activity_confidence_sampled" tools:ignore="MissingTranslation">
-        <item quantity="one">约%1$d ⁇ %2$d%%从%3$d保留的观察中</item>
-        <item quantity="other">在%3$d个保留的观察中,约有%1$d ⁇ %2$d%%</item>
+        <item quantity="one">约%1$d–%2$d%%从%3$d保留的观察中</item>
+        <item quantity="other">在%3$d个保留的观察中,约有%1$d–%2$d%%</item>
     </plurals>
     <string name="trip_detail_activity_mechanism" tools:ignore="MissingTranslation">证据类型</string>
     <string name="trip_detail_activity_refined_from" tools:ignore="MissingTranslation">完善的过渡</string>

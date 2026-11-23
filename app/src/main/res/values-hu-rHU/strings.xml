@@ -261,8 +261,8 @@
     <string name="settings_ambient_steps_health_connect_ready" tools:ignore="MissingTranslation">Health Connect kész. Egyes időszakokban még mindig lehet hiányzó időszak.</string>
     <string name="settings_ambient_steps_recording_ready" tools:ignore="MissingTranslation">A lépés felvétel kész. Egyes időszakokban még mindig lehet hiányzó időszak.</string>
     <string name="settings_ambient_location_permission" tools:ignore="MissingTranslation">A munkamenetek közötti helyadatgyűjtéshez háttérbeli helyhozzáférés szükséges. A munkamenet közbeni rögzítés beállítása változatlan marad.</string>
-    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">A Android ⁇ s Wi-Fi szkennelési engedélyekre vonatkozó követelmények nem teljesülnek. Ha odaadjuk, nem tudjuk elkapni a helyszínt.</string>
-    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Android ⁇ s Nem teljesülnek a cell- visszahívási engedélyek követelményei. Ha odaadjuk, nem tudjuk elkapni a helyszínt.</string>
+    <string name="settings_ambient_wifi_permission" tools:ignore="MissingTranslation">Hiányzik az Android-engedély ehhez: Wi-Fi-hálózatok keresése. Az engedély megadása nem kapcsolja be a helyadatok rögzítését.</string>
+    <string name="settings_ambient_cell_permission" tools:ignore="MissingTranslation">Hiányzik az Android-engedély ehhez: mobilhálózati adatok olvasása. Az engedély megadása nem kapcsolja be a helyadatok rögzítését.</string>
     <string name="settings_ambient_location_ready" tools:ignore="MissingTranslation">A passzív hely készen áll a forrástulajdonos megbékélésére. Ez opportunista pontokat biztosít, nem útvonal folytonosságát.</string>
     <string name="settings_ambient_wifi_ready" tools:ignore="MissingTranslation">Wi-Fi A szkennelési eredmények visszahívása készen áll a forrástulajdonos összeegyeztetésére. Nem ígérik meg, hogy nem lesz felderítés vagy felébresztés.</string>
     <string name="settings_ambient_cell_ready" tools:ignore="MissingTranslation">Az időjelzéssel képzett cellák visszahívása készen áll a forrástulajdonos-megegyezésre. A kényszer frissítés nem ígérkezik.</string>
