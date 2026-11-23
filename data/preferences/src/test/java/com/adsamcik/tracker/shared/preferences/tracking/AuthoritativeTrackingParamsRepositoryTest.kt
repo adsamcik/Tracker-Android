@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.flow.flow
 import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.After
 import org.junit.Before
@@ -1277,7 +1278,8 @@ private class RecordingRetentionAuthorityProducer(
 
 private class RecordingAmbientStepsPolicyRevisionReconciler :
 	AmbientStepsPolicyRevisionReconciler {
-	val events = mutableListOf<String>()
+	// Room can record events while the test inspects them.
+	val events = CopyOnWriteArrayList<String>()
 	var result: AmbientStepsPolicyRevisionReconciliation = AmbientStepsPolicyRevisionReconciliation.Complete
 	val reconciliations: Int get() = events.count { it == "reconcile" }
 	val retirements: Int get() = events.count { it == "retire" }
